@@ -22,6 +22,7 @@ import argparse
 import json
 import math
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -96,7 +97,7 @@ def response_to_daily(data: dict, lat: float) -> pd.DataFrame:
         "T2M": "tmean", "T2M_MAX": "tmax", "T2M_MIN": "tmin", "PRECTOTCORR": "precip",
         "RH2M": "rh", "WS2M": "wind", "ALLSKY_SFC_SW_DWN": "srad",
     })
-    df["et0"] = hargreaves_et0(df["tmax"], df["tmin"], df["tmean"], df.index.dayofyear.to_numpy(), lat)
+    df["et0"] = hargreaves_et0(df["tmax"], df["tmin"], df["tmean"], df.index.day_of_year.to_numpy(), lat)
     return df
 
 
@@ -152,8 +153,8 @@ def season_features(daily: pd.DataFrame) -> pd.DataFrame:
         # frost: last tmin < 0 before jul 1, first tmin < 0 after jul 1
         first_half = d[(d.index.month < 7) & (d["tmin"] < 0)]
         second_half = d[(d.index.month >= 7) & (d["tmin"] < 0)]
-        last_spring_frost = int(first_half.index.dayofyear.max()) if len(first_half) else np.nan
-        first_fall_frost = int(second_half.index.dayofyear.min()) if len(second_half) else np.nan
+        last_spring_frost = int(first_half.index.day_of_year.max()) if len(first_half) else np.nan
+        first_fall_frost = int(second_half.index.day_of_year.min()) if len(second_half) else np.nan
 
         precip_grow = grow["precip"].sum()
         et0_grow = grow["et0"].sum()
@@ -210,6 +211,7 @@ def main() -> None:
     p.add_argument("--start-year", type=int, default=2017, help="one year before csb start - gives lag features")
     p.add_argument("--end-year", type=int, default=2025)
     p.add_argument("--sleep", type=float, default=1.0, help="pause between api calls, seconds")
+    p.add_argument("--workers", type=int, default=4, help="parallel downloads (1 = sequential)")
     args = p.parse_args()
 
     out_dir = Path(args.out)
@@ -227,6 +229,24 @@ def main() -> None:
 
     start, end = f"{args.start_year}0101", f"{args.end_year}1231"
     season_parts, monthly_parts, failed = [], [], []
+
+    # download missing cells in parallel (api latency is ~20 s per call, not rate limiting);
+    # the loop below then reads everything from the cache. failures are retried there.
+    todo = [c for _, c in unique_cells.iterrows() if not (cache_dir / f"{c['cell']}.json").exists()]
+    if todo and args.workers > 1:
+        print(f"downloading {len(todo)} cells with {args.workers} workers")
+
+        def prefetch(c) -> None:
+            try:
+                fetch_cell(c["cell_lat"], c["cell_lon"], start, end, cache_dir)
+            except RuntimeError as e:
+                print(f"    prefetch failed for {c['cell']}: {e}")
+            time.sleep(args.sleep)
+
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            for n, _ in enumerate(pool.map(prefetch, todo), start=1):
+                if n % 20 == 0:
+                    print(f"  downloaded {n}/{len(todo)}", flush=True)
 
     for i, c in unique_cells.iterrows():
         cached = (cache_dir / f"{c['cell']}.json").exists()

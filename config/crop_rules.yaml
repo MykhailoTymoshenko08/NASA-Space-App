@@ -1,0 +1,273 @@
+# agronomic rules from Lina - layer 1 of the ranking (filters), see CLAUDE.md.
+# status: DRAFT. nothing loads this file yet. all numbers (thresholds, points, gdd, ph, ec) are
+# placeholders from general agronomy knowledge and must be confirmed by Lina / an agronomist.
+# every rule has `source: TODO` until a citation (extension bulletin, paper, USDA doc) is added.
+#
+# ---------------------------------------------------------------------------------------------
+# how a rule reads
+#   applies_to : which candidate crops the rule is about - `crops` (slugs, or "all") and/or `tags`
+#                (a crop matches when it has any listed tag). "all" skips crops where a rule
+#                needs a value the crop does not have (e.g. gdd_to_maturity is null).
+#   when       : list of conditions, ALL must be true. each is {var, op, value | value_ref}.
+#                ops: < <= > >= == != in contains. `value_ref` points to another variable.
+#   action     : hard_block                 -> candidate is removed from the ranking
+#                penalty {points, affects}  -> subtract points from each listed score
+#                bonus   {points, affects}  -> add points to each listed score
+#                points are on the same 0-100 scale as the scores; scores stay clipped to 0-100.
+#                affects: water | soil_health | nitrogen | erosion | income | overall
+#                ("overall" is applied after the priority weighting, so a farmer priority of 0
+#                 cannot switch the rule off).
+#   explanation: text shown in `why` / `risks` of the strategy card (en + uk)
+#
+# variables available to `when` (who provides them):
+#   sequence.same_crop_streak_years  years in a row the candidate main crop repeats (rotation logic)
+#   sequence.prev_crop_tags          tags of the preceding main crop (rotation logic)
+#   soil.clay_pct, soil.ph, soil.ec_ds_m   SSURGO (clay %, pH 1:1 water, EC dS/m); OpenLandMap fallback
+#   soil.soc_pct                     soil organic carbon %, = SSURGO organic matter % / 1.724;
+#                                    OpenLandMap SOC as fallback
+#   terrain.slope_deg, terrain.twi   NASADEM slope (degrees) and topographic wetness index (Lina)
+#   climate.gdd_grow                 regional growing degree days Apr-Sep, base 10 C, cap 30 C, deg C-days,
+#                                    multi-year mean (scripts/02_power_climate.py: gdd_grow)
+#   smap.jul_aug_deficit_years_share share of years with Jul-Aug SMAP root-zone moisture below the
+#                                    regional dry threshold (exact definition: TODO with Lina)
+#   imerg.precip_grow_mm             mean Apr-Sep precipitation, GPM IMERG. NOTE: IMERG is not in the
+#                                    agreed data list yet; POWER PRECTOTCORR (`precip_grow`) is the fallback.
+# ---------------------------------------------------------------------------------------------
+
+version: 1
+status: draft
+gdd_base_c: 10   # gdd_to_maturity below uses this base, same as gdd_grow
+
+# tags used by rules: row_crop, cereal, legume, winter_annual, drought_tolerant, salt_tolerant, root_crop
+# sensitivities: low | medium | high
+crops:
+  corn:
+    cdl_code: 1
+    type: cash
+    gdd_to_maturity: 1500      # deg C-days, ~110-day hybrid; TODO confirm
+    min_ph: 5.5
+    salinity_sensitivity: high
+    clay_sensitivity: low
+    row_crop: true
+    tags: [row_crop, cereal]
+  soybean:
+    cdl_code: 5
+    type: legume
+    gdd_to_maturity: 1300
+    min_ph: 5.5
+    salinity_sensitivity: medium   # TODO: Maas-Hoffman style tables rate soybean more tolerant than corn; confirm
+    clay_sensitivity: low
+    row_crop: true
+    tags: [row_crop, legume]
+  winter_wheat:
+    cdl_code: 24
+    type: cash
+    gdd_to_maturity: 1000      # base-10 days over Apr-Jul only; wheat is usually modelled with base 0 - TODO
+    min_ph: 5.5
+    salinity_sensitivity: medium
+    clay_sensitivity: low
+    row_crop: false
+    tags: [cereal, winter_annual, drought_tolerant]
+  oats:
+    cdl_code: 28
+    type: cash
+    gdd_to_maturity: 900
+    min_ph: 5.0
+    salinity_sensitivity: medium
+    clay_sensitivity: low
+    row_crop: false
+    tags: [cereal]
+  sorghum:
+    cdl_code: 4
+    type: cash
+    gdd_to_maturity: 1400
+    min_ph: 5.5
+    salinity_sensitivity: low
+    clay_sensitivity: low
+    row_crop: true
+    tags: [row_crop, cereal, drought_tolerant, salt_tolerant]
+  alfalfa:
+    cdl_code: 36
+    type: perennial
+    gdd_to_maturity: null      # perennial, no single maturity date
+    min_ph: 5.5                # same as the hard-block rule below (agronomic optimum is higher, ~6.5)
+    salinity_sensitivity: high
+    clay_sensitivity: medium
+    row_crop: false
+    tags: [legume, drought_tolerant]
+  cereal_rye:
+    cdl_code: 27
+    type: cover
+    gdd_to_maturity: null      # cover crop, terminated before maturity
+    min_ph: 4.5
+    salinity_sensitivity: low
+    clay_sensitivity: low
+    row_crop: false
+    tags: [winter_annual, salt_tolerant]
+  field_pea:
+    cdl_code: 53
+    type: legume
+    gdd_to_maturity: 800
+    min_ph: 5.5
+    salinity_sensitivity: high
+    clay_sensitivity: medium
+    row_crop: false
+    tags: [legume]
+
+rules:
+  - id: monoculture
+    description: same main crop 2+ years in a row
+    applies_to: {crops: all}
+    when:
+      - {var: sequence.same_crop_streak_years, op: ">=", value: 2}
+    action: {type: penalty, points: 10, affects: [soil_health]}
+    explanation:
+      en: "Same crop in consecutive years builds up pests and disease and drains the soil."
+      uk: "Та сама культура кілька років поспіль накопичує шкідників і хвороби та виснажує ґрунт."
+    source: TODO
+    status: draft
+
+  - id: legume_before_cereal
+    description: legume as the previous crop helps a following cereal
+    applies_to: {tags: [cereal]}
+    when:
+      - {var: sequence.prev_crop_tags, op: contains, value: legume}
+    action: {type: bonus, points: 5, affects: [nitrogen]}
+    explanation:
+      en: "A legume before a cereal leaves nitrogen in the soil and cuts fertilizer need."
+      uk: "Бобова перед злаковою залишає азот у ґрунті й зменшує потребу в добривах."
+    source: TODO
+    status: draft
+
+  - id: heavy_clay_root_crops
+    description: heavy clay blocks root crops (no root crops in the candidate list yet - kept for later)
+    applies_to: {tags: [root_crop]}
+    when:
+      - {var: soil.clay_pct, op: ">", value: 40}
+    action: {type: hard_block}
+    explanation:
+      en: "Heavy clay soil (over 40% clay) is too dense for root crops."
+      uk: "Важкий глинистий ґрунт (понад 40% глини) надто щільний для коренеплодів."
+    source: TODO
+    status: draft
+
+  - id: acid_soil_alfalfa
+    description: acidic soil blocks alfalfa
+    applies_to: {crops: [alfalfa]}
+    when:
+      - {var: soil.ph, op: "<", value: 5.5}
+    action: {type: hard_block}
+    explanation:
+      en: "Alfalfa does not establish well in acidic soil (pH below 5.5) without liming."
+      uk: "Люцерна погано приживається на кислому ґрунті (pH нижче 5.5) без вапнування."
+    source: TODO
+    status: draft
+
+  - id: low_soc_legume_bonus
+    description: low organic carbon, legumes help rebuild it
+    applies_to: {tags: [legume]}
+    when:
+      - {var: soil.soc_pct, op: "<", value: 1.5}
+    action: {type: bonus, points: 5, affects: [soil_health, nitrogen]}
+    explanation:
+      en: "Soil organic carbon is low (below 1.5%); legumes add nitrogen and organic matter."
+      uk: "Вміст органічного вуглецю низький (менше 1.5%); бобові додають азот і органіку."
+    source: TODO
+    status: draft
+
+  - id: high_salinity_sensitive_crops
+    description: high soil salinity hurts salt-sensitive crops
+    applies_to: {crops: [corn, soybean]}
+    when:
+      - {var: soil.ec_ds_m, op: ">", value: 4}   # "high" EC; TODO threshold
+    action: {type: penalty, points: 12, affects: [income]}
+    explanation:
+      en: "Soil salinity is high (EC above 4 dS/m); this crop loses yield under salt stress."
+      uk: "Ґрунт засолений (EC понад 4 дСм/м); ця культура втрачає врожай через сольовий стрес."
+    source: TODO
+    status: draft
+
+  - id: high_salinity_tolerant_crops
+    description: high soil salinity favours salt-tolerant crops
+    # barley is not in the candidate list yet; kept here so the rule works once it is added
+    applies_to: {crops: [cereal_rye, barley]}
+    when:
+      - {var: soil.ec_ds_m, op: ">", value: 4}
+    action: {type: bonus, points: 8, affects: [income]}
+    explanation:
+      en: "Soil salinity is high; rye and barley tolerate salt better than most crops."
+      uk: "Ґрунт засолений; жито й ячмінь переносять сіль краще за більшість культур."
+    source: TODO
+    status: draft
+
+  - id: steep_slope_row_crops
+    description: steep slope, large penalty for row crops
+    applies_to: {tags: [row_crop]}   # corn, sorghum, soybean
+    when:
+      - {var: terrain.slope_deg, op: ">", value: 5}
+    action: {type: penalty, points: 25, affects: [erosion, overall]}
+    explanation:
+      en: "Slope is over 5 degrees; row crops leave soil exposed and erosion risk is high."
+      uk: "Ухил понад 5 градусів; просапні культури залишають ґрунт відкритим, ризик ерозії високий."
+    source: TODO
+    status: draft
+
+  - id: high_twi_winter_crops
+    description: wet low-lying spots hurt winter crops (waterlogging, winterkill)
+    applies_to: {tags: [winter_annual]}
+    when:
+      - {var: terrain.twi, op: ">", value: 12}   # TODO threshold, depends on how Lina computes TWI
+    action: {type: penalty, points: 10, affects: [income]}
+    explanation:
+      en: "High wetness index: water collects here and winter crops risk waterlogging and winterkill."
+      uk: "Високий індекс вологості: тут збирається вода, озимі ризикують вимокнути чи вимерзнути."
+    source: TODO
+    status: draft
+
+  - id: gdd_shortfall
+    description: region too cool for the crop to mature
+    applies_to: {crops: all}   # crops with gdd_to_maturity null are skipped
+    when:
+      - {var: climate.gdd_grow, op: "<", value_ref: crop.gdd_to_maturity}
+    action: {type: hard_block}
+    explanation:
+      en: "The growing season here does not accumulate enough heat for this crop to mature."
+      uk: "Вегетаційний сезон тут не набирає достатньо тепла, щоб ця культура встигла дозріти."
+    source: TODO
+    status: draft
+
+  - id: chronic_summer_moisture_deficit_corn
+    description: chronic Jul-Aug root-zone moisture deficit hurts corn
+    applies_to: {crops: [corn]}
+    when:
+      - {var: smap.jul_aug_deficit_years_share, op: ">=", value: 0.5}   # TODO "chronic" threshold
+    action: {type: penalty, points: 12, affects: [water]}
+    explanation:
+      en: "Root-zone moisture is often short in July-August, when corn needs water most."
+      uk: "Вологи в кореневій зоні часто бракує в липні-серпні, коли кукурудзі вона потрібна найбільше."
+    source: TODO
+    status: draft
+
+  - id: chronic_summer_moisture_deficit_sorghum
+    description: chronic Jul-Aug root-zone moisture deficit favours sorghum
+    applies_to: {crops: [sorghum]}
+    when:
+      - {var: smap.jul_aug_deficit_years_share, op: ">=", value: 0.5}
+    action: {type: bonus, points: 8, affects: [water]}
+    explanation:
+      en: "Sorghum handles dry Julys and Augusts better than corn."
+      uk: "Сорго переносить сухі липень і серпень краще за кукурудзу."
+    source: TODO
+    status: draft
+
+  - id: low_growing_season_rain
+    description: low growing-season rainfall favours drought-tolerant crops
+    applies_to: {tags: [drought_tolerant]}
+    when:
+      - {var: imerg.precip_grow_mm, op: "<", value: 450}   # TODO threshold; fallback var: POWER precip_grow
+    action: {type: bonus, points: 6, affects: [water]}
+    explanation:
+      en: "Growing-season rainfall is low; drought-tolerant crops are a safer choice."
+      uk: "Опадів за вегетацію мало; посухостійкі культури - безпечніший вибір."
+    source: TODO
+    status: draft

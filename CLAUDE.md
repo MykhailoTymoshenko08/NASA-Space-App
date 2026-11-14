@@ -22,14 +22,19 @@ Full API contract: `docs/api_contract.md`. Endpoints: `GET /ml/health`, `GET /ml
 ## my scope (ML)
 1. ML model — predicts seasonal crop condition for a field given crop sequence, season climate, soil, terrain
 2. agro calculator — water use (Kc × ET0, FAO-56), N fixation, bare days, simplified RUSLE erosion
-3. ranking — candidate rotations (current, + cover crop, + legume, drought-tolerant, perennial) →
-   model prediction + calculator → scores 0-100 → weighted by farmer priority sliders → top 3 + explanations
+3. ranking — candidate rotations (current, + cover crop, + legume, drought-tolerant, perennial), 3 layers:
+   1. filters — agronomic rules from `config/crop_rules.yaml` (Lina): `hard_block` removes a candidate,
+      `penalty` / `bonus` shift its scores (soil pH/EC/clay/SOC, slope, TWI, regional GDD, SMAP, precipitation)
+   2. ML forecast — LightGBM seasonal crop condition (p10/p50/p90)
+   3. calculator + priorities — agro calculator metrics → scores 0-100 → weighted by farmer priority
+      sliders → top 3 + explanations
+   rules file is a draft (thresholds, points and sources are TODO); nothing loads it yet
 4. ML service implementing the contract (mock first, then real)
 
 ## model plan
 - LightGBM, quantile regression (p10/p50/p90) → `confidence` from interval width
 - target: seasonal peak NDVI (Landsat, from Lina) as deviation from the field's own mean
-- features: crop this year + previous 1-2 crops (CSB), season climate (NASA POWER), soil (SSURGO), slope (SRTM), SMAP anomalies
+- features: crop this year + previous 1-2 crops (CSB), season climate (NASA POWER), soil (SSURGO), slope + TWI (NASADEM), SMAP anomalies
 - validation: leave-one-year-out, compare against baseline (field mean of previous years); report metrics for judges
 - explanations: SHAP top features → template text for `why` / `evidence`
 - climate scenario sliders: shift temperature / precipitation features, recompute ET0 (Hargreaves) → re-predict
@@ -40,8 +45,10 @@ Full API contract: `docs/api_contract.md`. Endpoints: `GET /ml/health`, `GET /ml
   download: https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets/NationalCSB_2018-2025_rev23.zip
 - training states: Iowa 19, Illinois 17, Nebraska 31, Kansas 20; ~500 fields per state, >= 25 acres, >= 6 crop years
 - climate: NASA POWER daily point API (AG community), queried once per 0.5° × 0.625° grid cell
-- soil: SSURGO via USDA Soil Data Access REST API (AWC, organic matter, texture, hydrologic group, K factor, drainage, pH)
-- satellite (Lina, via GEE): Landsat 8/9 NDVI, SMAP L4 root-zone soil moisture (9 km — regional context only), SRTM slope
+- soil: SSURGO via USDA Soil Data Access REST API (AWC, organic matter → SOC, texture incl. clay %, hydrologic group,
+  K factor, drainage, pH, EC/salinity); OpenLandMap as fallback where SSURGO has gaps
+- terrain: NASADEM (30 m) from Lina — slope and TWI (topographic wetness index)
+- satellite (Lina, via GEE): Landsat 8/9 NDVI, SMAP L4 root-zone soil moisture (9 km — regional context only)
 - time step: monthly; spatial: mean of pixels inside the field polygon (coarse products → the pixel containing the field)
 - years: 2018-2025 (training seasons need the previous crop, so effectively 2019-2025)
 
@@ -49,13 +56,14 @@ Full API contract: `docs/api_contract.md`. Endpoints: `GET /ml/health`, `GET /ml
 - `ndvi_monthly.csv`: field_id, year, month, ndvi_mean, n_obs
 - `ndvi_season.csv`: field_id, year, ndvi_peak, ndvi_peak_doy
 - `smap_monthly.csv`: field_id, year, month, smap_rootzone
-- `terrain.csv`: field_id, slope_pct
+- `terrain.csv`: field_id, slope_deg, slope_pct, twi (NASADEM; rules use degrees, the api contract uses percent — confirm columns with Lina)
 put them into `data/lina/`
 
 ## pipeline
 - `scripts/01_sample_csb.py` — sample fields from CSB → `data/fields/` (fields.parquet, crop_history.parquet, fields_for_gee.zip) ✅ written, tested on synthetic data
 - `scripts/02_power_climate.py` — POWER climate features → `data/features/` (climate_season.parquet, climate_monthly.parquet) ✅ written, tested with mocked api
-- `scripts/03_soil_ssurgo.py` — next
+- `scripts/03_soil_ssurgo.py` — next (must also output clay %, SOC, pH, EC for the rules)
+- `config/crop_rules.yaml` — agronomic rules + crop parameters from Lina, draft, no loader yet
 - `scripts/04_build_dataset.py`, `scripts/05_train.py` — after Lina's NDVI arrives (can start on synthetic target)
 - `ml_service/` — FastAPI, mock first
 
