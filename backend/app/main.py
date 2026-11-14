@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analyses, fields, geo, locations, meta, snapshots, tiles
+from app.api import analyses, auth, fields, geo, locations, meta, snapshots, tiles
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import setup_logging
@@ -31,20 +31,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         lifespan=lifespan,
         title="Field Shift API",
-        version="0.3.0",
+        version="0.4.0",
         docs_url=f"{API_PREFIX}/docs",
         openapi_url=f"{API_PREFIX}/openapi-generated.json",
     )
     app.state.settings = settings
     app.state.limiters = {
         name: RateLimiter(settings.rate_limit_requests, settings.rate_limit_window_s)
-        for name in ("analyses", "locations")
+        for name in ("analyses", "locations", "auth")
     }
 
     install_error_handlers(app)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.frontend_origin],
+        # The refresh token is a cookie: the frontend calls /v1/auth/* with `credentials: "include"`.
+        # Credentials require an explicit origin (never "*"), which FRONTEND_ORIGIN is.
+        allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
         expose_headers=["X-Request-Id", "Location", "Retry-After"],
@@ -54,7 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     for r in (
         meta.router, geo.router, locations.router, fields.router, tiles.router, snapshots.router,
-        analyses.router,
+        analyses.router, auth.router,
     ):
         app.include_router(r, prefix=API_PREFIX)
     return app

@@ -54,9 +54,31 @@ CI (`.github/workflows/backend.yml`) runs lint, `make contract-check` and `make 
 | `LOG_LEVEL` | `INFO` | every log line carries the request id |
 | `STUB_DURATION_S` | `6` | analysis stub run time |
 | `STUB_FAIL_RATE` | `0` | 0..1, share of analysis jobs that fail on purpose |
-| `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_S` | `30` / `60` | per-IP limit on `POST /analyses` and `POST /locations/resolve` |
+| `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_S` | `30` / `60` | per-IP limit on `POST /analyses`, `POST /locations/resolve`, `POST /auth/register` and `POST /auth/login` |
+| `JWT_SECRET` | empty | signs access tokens, min 32 chars (`openssl rand -base64 48`). Empty: random per process, dev only |
+| `ACCESS_TOKEN_TTL_MIN` | `15` | access token (JWT) lifetime |
+| `REFRESH_TOKEN_TTL_DAYS` | `7` | refresh token (cookie) lifetime |
+| `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | `false` / `lax` | refresh cookie flags; see Auth below |
 
 After changing `PLSS_STATES`, run `make data-plss FORCE=1`.
+
+## Auth
+
+Email + password accounts in the `DATABASE_URL` database (tables `users`, `refresh_tokens`, created on
+startup if missing). Passwords are hashed with argon2id.
+
+- `POST /v1/auth/register`, `POST /v1/auth/login` return `{access_token, expires_in, user}` and set the
+  refresh token as an httpOnly cookie on path `/v1/auth`.
+- Send the access token as `Authorization: Bearer <token>`. Protect a route with
+  `user: User = Depends(get_current_user)` (`app/auth/deps.py`); it returns `401 UNAUTHORIZED` for a
+  missing, invalid or expired token.
+- `POST /v1/auth/refresh` (cookie only) returns a new access token and rotates the refresh token: each
+  refresh token works once. `POST /v1/auth/logout` deletes it. `GET /v1/me` returns the current user.
+- Refresh tokens are stored in the DB (sha256 only), not stateless JWTs, so logout and rotation really
+  revoke them. Access tokens are stateless and stay valid until they expire (`ACCESS_TOKEN_TTL_MIN`).
+- Frontend: call `/v1/auth/*` with `credentials: "include"`. Frontend and API on the same site (e.g.
+  `localhost:5173` and `localhost:8000`): defaults work. On different sites (e.g. `app.vercel.app` and
+  `api.fly.dev`): set `AUTH_COOKIE_SECURE=true` and `AUTH_COOKIE_SAMESITE=none` and serve over HTTPS.
 
 ## How it works
 

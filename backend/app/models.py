@@ -1,4 +1,4 @@
-"""Pydantic models mirroring `contract/openapi.yaml` (v0.3.0).
+"""Pydantic models mirroring `contract/openapi.yaml` (v0.4.0).
 
 Keep names and enums identical to the contract. The contract tests validate real responses
 against the YAML, so drift is caught there.
@@ -7,8 +7,9 @@ against the YAML, so drift is caught there.
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.errors import ErrorCode
 
@@ -342,3 +343,50 @@ class AnalysisJob(BaseModel):
     result: AnalysisResult | None = None
     error: ApiError | None = None
 
+
+
+# --- Auth -------------------------------------------------------------------------------------------
+
+PASSWORD_MIN = 8
+PASSWORD_MAX = 128
+
+
+def _normalize_email(v: Any) -> Any:
+    # Runs before EmailStr: accounts are case-insensitive, so the whole address is stored lowercase.
+    return v.strip().lower() if isinstance(v, str) else v
+
+
+Email = Annotated[EmailStr, BeforeValidator(_normalize_email), Field(max_length=254)]
+
+
+class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: Email
+    password: str = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
+
+    @field_validator("password")
+    @classmethod
+    def _password_rules(cls, v: str) -> str:
+        if not any(ch.isalpha() for ch in v) or not any(ch.isdigit() for ch in v):
+            raise ValueError("Password must contain at least one letter and one digit")
+        return v
+
+
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: Email
+    # No strength rules on login: a wrong password just fails with 401.
+    password: str = Field(min_length=1, max_length=PASSWORD_MAX)
+
+
+class UserOut(BaseModel):
+    id: UUID
+    email: str
+    created_at: datetime
+
+
+class AuthTokens(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int  # seconds
+    user: UserOut
