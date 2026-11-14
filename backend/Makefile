@@ -1,4 +1,4 @@
-.PHONY: install dev test contract-check contract-json lint data data-boundaries data-fields demo
+.PHONY: install dev test contract-check contract-json lint data data-boundaries data-fields demo docker
 
 UV ?= uv
 HOST ?= 127.0.0.1
@@ -40,3 +40,9 @@ data: data-boundaries data-fields
 demo: install
 	@test -f data/fields.pmtiles -a -f data/boundaries.pmtiles || $(MAKE) data
 	$(UV) run uvicorn app.main:app --host $(HOST) --port $(PORT)
+
+# Image with data/ baked in. Builds data first if the tiles are missing.
+IMAGE ?= field-shift-backend
+docker:
+	@test -f data/fields.pmtiles -a -f data/boundaries.pmtiles || $(MAKE) data
+	docker build -t $(IMAGE) .

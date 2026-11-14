@@ -34,6 +34,11 @@ make dev                  # http://localhost:8000/v1/health, docs at /v1/docs
 | `make contract-json` | regenerate `../contract/openapi.json` from the YAML |
 | `make data` / `data-boundaries` / `data-fields` | build `data/`; add `FORCE=1` to rebuild existing outputs |
 | `make lint` | ruff |
+| `make docker` | build image `field-shift-backend` with `data/` baked in (runs `make data` first if tiles are missing) |
+
+Docker: `make docker`, then `docker run --rm -p 8000:8000 -e FRONTEND_ORIGIN=<frontend url> field-shift-backend`.
+The image contains the prepared data (~30 MB), so it needs no tippecanoe or data download at runtime.
+Rebuild the image after `make data FORCE=1`.
 
 CI (`.github/workflows/backend.yml`) runs lint, `make contract-check` and `make test`.
 
