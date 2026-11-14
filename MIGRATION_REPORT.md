@@ -6,7 +6,7 @@ Branch: `migrate/csb-3-states`. Status: backend + contract done (2026-11-14); fr
 
 - This repo holds `/contract` and `/backend` only. There is no `/frontend` here, so section 5 of the
   migration prompt (frontend PMTiles source, wording, MSW mocks, Playwright) is **not done here**. The
-  frontend work needed is listed under "Frontend handoff" below.
+  frontend work needed is listed under "6. Open issues" below.
 - `BACKEND_PROMPT.md`, `FRONTEND_PROMPT.md`, `BACKEND_UPDATE_0.2.0.md` are not in the repo (they only
   exist outside it), so nothing was moved to `docs/archive/` or deleted. `FRONTEND_UPDATE_0.2.0.md`
   does not exist.
@@ -131,8 +131,8 @@ replaces the mapped history in the analysis stub.
 - **Concurrent uncommitted work in this checkout**: another agent added contract 0.3.1
   (`POST /fields/info`, `app/field_info/`, edits to `models.py`, `services.py`, `api/fields.py`, README,
   changelog). It is not part of these commits and was left untouched.
-- `.claude/worktrees/auth` (branch `feat/auth`) still contains PLSS code from before this migration.
-  It needs a rebase onto this branch.
+- `.claude/worktrees/auth` (branch `feat/auth`) branched from `36b2ca3`, mid-migration. It still has
+  the PLSS README and real-data tests. Rebase it onto this branch.
 - The 190 MultiPolygons are returned as one Polygon (the part under the click, else the largest), since
   the contract allows only Polygon. Tiles keep all parts.
 - `FIELD_STATES` is a code constant, not an env var, as the decision is fixed for the MVP.
