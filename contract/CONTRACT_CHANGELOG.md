@@ -16,6 +16,8 @@ Additive only. Nothing was renamed, removed, or made stricter, so 0.1.0 clients 
 - `Metric.unit` gains the documented value `fraction` (0 to 1). It is used by NASA POWER modeled soil
   wetness (`soil_wetness_surface`, `soil_wetness_rootzone`). These are new metric keys. They are modeled,
   not satellite-measured, so they are separate from the SMAP keys `soil_moisture_*` (`m3/m3`).
+- `POST /locations/resolve` documents `429 RATE_LIMITED` (with `Retry-After`), like `POST /analyses`.
+  Both endpoints are rate-limited per client IP.
 - No schema change for MultiPolygons: the backend splits multi-part CSB polygons into separate fields,
   so `FieldSelection.geometry` stays a GeoJSON `Polygon`.
 
