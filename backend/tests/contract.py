@@ -69,7 +69,12 @@ class _Resp:
         return Headers(dict(self._r.headers))
 
     @property
-    def data(self) -> bytes | None:
+    def data(self) -> bytes | str | None:
+        # openapi-core validates `type: string, format: binary` bodies as str, not bytes.
+        # For binary media types (vector tiles) hand it a lossless latin-1 str; status code,
+        # content type and headers are still checked against the contract.
+        if not self.content_type.startswith("application/json"):
+            return self._r.content.decode("latin-1")
         return self._r.content
 
 
