@@ -31,6 +31,8 @@
 #                                    OpenLandMap SOC as fallback
 #   terrain.slope_pct, terrain.twi   NASADEM slope in percent (5 degrees = 8.7 %) and topographic wetness
 #                                    index (Lina)
+#   climate.winter_tmin_c            mean over winters of the lowest daily air temperature (POWER T2M_MIN), deg C
+#                                    (scripts/03b_winter_tmin.py); POWER is smoother than a weather station
 #   climate.gdd_grow                 regional growing degree days Apr-Sep, base 10 C, cap 30 C, deg C-days,
 #                                    multi-year mean (scripts/02_power_climate.py: gdd_grow)
 #   smap.jul_aug_deficit_years_share share of years with Jul-Aug SMAP root-zone moisture below the
@@ -300,5 +302,21 @@ rules:
     explanation:
       en: "Growing-season rainfall is low; drought-tolerant crops are a safer choice."
       uk: "Опадів за вегетацію мало; посухостійкі культури - безпечніший вибір."
+    source: TODO
+    status: draft
+
+  # very cold winters kill winter wheat (winterkill); the penalty grows as the winter gets colder
+  - id: winterkill_risk_winter_wheat
+    description: cold winters hurt winter wheat, penalty grows with the cold
+    applies_to: {crops: [winter_wheat]}
+    when: []   # no hard condition, the ramp decides
+    action:
+      type: penalty
+      points: 35                                                         # maximum, reached at full_at
+      affects: [income]
+      ramp: {var: climate.winter_tmin_c, zero_at: -22.0, full_at: -28.0}  # DRAFT, tuned to POWER (smoother than stations)
+    explanation:
+      en: "Winters here are very cold (winter minimum around -22 to -28 C or lower); winter wheat risks winterkill."
+      uk: "Зими тут дуже холодні (зимовий мінімум близько -22...-28°C і нижче); озима пшениця ризикує вимерзнути."
     source: TODO
     status: draft

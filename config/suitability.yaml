@@ -1,0 +1,822 @@
+# suitability trapezoids per crop and feature, written by scripts/06_calibrate_thresholds.py (do not edit by hand,
+# rerun the script). each bound is {value, source}:
+#   source "empirical p10-p90" : plateau edge = 10th / 90th percentile of the feature over fields where the crop grew
+#                                 (only crops with >= 100 fields, and only if the bias check allows it)
+#   source "literature"        : DRAFT value typed from general agronomy knowledge, TODO verify against FAO ECOCROP /
+#                                 Maas-Hoffman (EC). Lina confirms.
+#   source "open"              : no bound on this side, no penalty there
+# suitability of one feature = 1 on the plateau, linear to 0 at the hard bounds, 0 (crop blocked) outside them.
+# bias check: no bias (gap 0.001 <= 0.03); empirical p10-p90 plateaus are used for ['corn', 'soybean', 'winter_wheat', 'sorghum'].
+version: 1
+status: draft
+min_fields_for_empirical: 100
+plateau_mode: empirical+literature
+crops:
+  corn:
+    n_fields: 1779
+    plateau_source: empirical p10-p90
+    ph_h2o:
+      unit: pH (1:1 water)
+      hard_min:
+        value: 5.0
+        source: literature
+      opt_min:
+        value: 5.895
+        source: empirical p10-p90
+      opt_max:
+        value: 7.343
+        source: empirical p10-p90
+      hard_max:
+        value: 8.5
+        source: literature
+    clay_pct:
+      unit: '% clay, 0-30 cm'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 33.494
+        source: empirical p10-p90
+      hard_max:
+        value: 60.0
+        source: literature
+    soc_pct:
+      unit: '% soil organic carbon, 0-30 cm'
+      hard_min:
+        value: 0.2
+        source: literature
+      opt_min:
+        value: 0.764
+        source: empirical p10-p90
+      opt_max:
+        value: null
+        source: open
+      hard_max:
+        value: null
+        source: open
+    ec_ds_m:
+      unit: dS/m (saturated paste EC)
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 1.0
+        source: empirical p10-p90
+      hard_max:
+        value: 5.9
+        source: literature
+    gdd_norm:
+      unit: deg C days, Apr-Sep, base 10, normal 2017-2025
+      hard_min:
+        value: 1350.0
+        source: literature
+      opt_min:
+        value: 1698.284
+        source: empirical p10-p90
+      opt_max:
+        value: 2117.297
+        source: empirical p10-p90
+      hard_max:
+        value: 3200.0
+        source: literature
+    precip_norm:
+      unit: mm, Apr-Sep, normal 2017-2025 (NASA POWER)
+      hard_min:
+        value: 300.0
+        source: literature
+      opt_min:
+        value: 417.377
+        source: empirical p10-p90
+      opt_max:
+        value: 631.923
+        source: empirical p10-p90
+      hard_max:
+        value: 1400.0
+        source: literature
+    slope_pct:
+      unit: '% slope'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 7.726
+        source: empirical p10-p90
+      hard_max:
+        value: 25.0
+        source: literature
+  soybean:
+    n_fields: 1534
+    plateau_source: empirical p10-p90
+    ph_h2o:
+      unit: pH (1:1 water)
+      hard_min:
+        value: 5.0
+        source: literature
+      opt_min:
+        value: 5.865
+        source: empirical p10-p90
+      opt_max:
+        value: 7.109
+        source: empirical p10-p90
+      hard_max:
+        value: 8.5
+        source: literature
+    clay_pct:
+      unit: '% clay, 0-30 cm'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 34.557
+        source: empirical p10-p90
+      hard_max:
+        value: 65.0
+        source: literature
+    soc_pct:
+      unit: '% soil organic carbon, 0-30 cm'
+      hard_min:
+        value: 0.2
+        source: literature
+      opt_min:
+        value: 0.773
+        source: empirical p10-p90
+      opt_max:
+        value: null
+        source: open
+      hard_max:
+        value: null
+        source: open
+    ec_ds_m:
+      unit: dS/m (saturated paste EC)
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 1.0
+        source: empirical p10-p90
+      hard_max:
+        value: 7.5
+        source: literature
+    gdd_norm:
+      unit: deg C days, Apr-Sep, base 10, normal 2017-2025
+      hard_min:
+        value: 1300.0
+        source: literature
+      opt_min:
+        value: 1698.284
+        source: empirical p10-p90
+      opt_max:
+        value: 2127.939
+        source: empirical p10-p90
+      hard_max:
+        value: 3200.0
+        source: literature
+    precip_norm:
+      unit: mm, Apr-Sep, normal 2017-2025 (NASA POWER)
+      hard_min:
+        value: 300.0
+        source: literature
+      opt_min:
+        value: 494.208
+        source: empirical p10-p90
+      opt_max:
+        value: 633.44
+        source: empirical p10-p90
+      hard_max:
+        value: 1400.0
+        source: literature
+    slope_pct:
+      unit: '% slope'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 8.0
+        source: empirical p10-p90
+      hard_max:
+        value: 25.0
+        source: literature
+  winter_wheat:
+    n_fields: 469
+    plateau_source: empirical p10-p90
+    ph_h2o:
+      unit: pH (1:1 water)
+      hard_min:
+        value: 5.0
+        source: literature
+      opt_min:
+        value: 6.218
+        source: empirical p10-p90
+      opt_max:
+        value: 7.623
+        source: empirical p10-p90
+      hard_max:
+        value: 8.5
+        source: literature
+    clay_pct:
+      unit: '% clay, 0-30 cm'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 31.323
+        source: empirical p10-p90
+      hard_max:
+        value: 60.0
+        source: literature
+    soc_pct:
+      unit: '% soil organic carbon, 0-30 cm'
+      hard_min:
+        value: 0.2
+        source: literature
+      opt_min:
+        value: 0.777
+        source: empirical p10-p90
+      opt_max:
+        value: null
+        source: open
+      hard_max:
+        value: null
+        source: open
+    ec_ds_m:
+      unit: dS/m (saturated paste EC)
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 1.0
+        source: empirical p10-p90
+      hard_max:
+        value: 13.0
+        source: literature
+    gdd_norm:
+      unit: deg C days, Apr-Sep, base 10, normal 2017-2025
+      hard_min:
+        value: 1000.0
+        source: literature
+      opt_min:
+        value: 1779.363
+        source: empirical p10-p90
+      opt_max:
+        value: 2207.26
+        source: empirical p10-p90
+      hard_max:
+        value: 3000.0
+        source: literature
+    precip_norm:
+      unit: mm, Apr-Sep, normal 2017-2025 (NASA POWER)
+      hard_min:
+        value: 200.0
+        source: literature
+      opt_min:
+        value: 349.313
+        source: empirical p10-p90
+      opt_max:
+        value: 576.918
+        source: empirical p10-p90
+      hard_max:
+        value: 1200.0
+        source: literature
+    slope_pct:
+      unit: '% slope'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 4.95
+        source: empirical p10-p90
+      hard_max:
+        value: 30.0
+        source: literature
+  sorghum:
+    n_fields: 249
+    plateau_source: empirical p10-p90
+    ph_h2o:
+      unit: pH (1:1 water)
+      hard_min:
+        value: 5.0
+        source: literature
+      opt_min:
+        value: 6.128
+        source: empirical p10-p90
+      opt_max:
+        value: 7.626
+        source: empirical p10-p90
+      hard_max:
+        value: 8.8
+        source: literature
+    clay_pct:
+      unit: '% clay, 0-30 cm'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 32.792
+        source: empirical p10-p90
+      hard_max:
+        value: 65.0
+        source: literature
+    soc_pct:
+      unit: '% soil organic carbon, 0-30 cm'
+      hard_min:
+        value: 0.1
+        source: literature
+      opt_min:
+        value: 0.811
+        source: empirical p10-p90
+      opt_max:
+        value: null
+        source: open
+      hard_max:
+        value: null
+        source: open
+    ec_ds_m:
+      unit: dS/m (saturated paste EC)
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 1.0
+        source: empirical p10-p90
+      hard_max:
+        value: 9.9
+        source: literature
+    gdd_norm:
+      unit: deg C days, Apr-Sep, base 10, normal 2017-2025
+      hard_min:
+        value: 1400.0
+        source: literature
+      opt_min:
+        value: 1959.432
+        source: empirical p10-p90
+      opt_max:
+        value: 2200.464
+        source: empirical p10-p90
+      hard_max:
+        value: 3400.0
+        source: literature
+    precip_norm:
+      unit: mm, Apr-Sep, normal 2017-2025 (NASA POWER)
+      hard_min:
+        value: 150.0
+        source: literature
+      opt_min:
+        value: 372.594
+        source: empirical p10-p90
+      opt_max:
+        value: 552.735
+        source: empirical p10-p90
+      hard_max:
+        value: 1200.0
+        source: literature
+    slope_pct:
+      unit: '% slope'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 4.95
+        source: empirical p10-p90
+      hard_max:
+        value: 25.0
+        source: literature
+  alfalfa:
+    n_fields: 73
+    plateau_source: literature
+    ph_h2o:
+      unit: pH (1:1 water)
+      hard_min:
+        value: 5.5
+        source: literature
+      opt_min:
+        value: 6.5
+        source: literature
+      opt_max:
+        value: 7.8
+        source: literature
+      hard_max:
+        value: 8.5
+        source: literature
+    clay_pct:
+      unit: '% clay, 0-30 cm'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 35.0
+        source: literature
+      hard_max:
+        value: 50.0
+        source: literature
+    soc_pct:
+      unit: '% soil organic carbon, 0-30 cm'
+      hard_min:
+        value: 0.2
+        source: literature
+      opt_min:
+        value: 0.9
+        source: literature
+      opt_max:
+        value: null
+        source: open
+      hard_max:
+        value: null
+        source: open
+    ec_ds_m:
+      unit: dS/m (saturated paste EC)
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 2.0
+        source: literature
+      hard_max:
+        value: 8.8
+        source: literature
+    gdd_norm:
+      unit: deg C days, Apr-Sep, base 10, normal 2017-2025
+      hard_min:
+        value: 900.0
+        source: literature
+      opt_min:
+        value: 1400.0
+        source: literature
+      opt_max:
+        value: 2800.0
+        source: literature
+      hard_max:
+        value: 3400.0
+        source: literature
+    precip_norm:
+      unit: mm, Apr-Sep, normal 2017-2025 (NASA POWER)
+      hard_min:
+        value: 250.0
+        source: literature
+      opt_min:
+        value: 400.0
+        source: literature
+      opt_max:
+        value: 1000.0
+        source: literature
+      hard_max:
+        value: 1500.0
+        source: literature
+    slope_pct:
+      unit: '% slope'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 10.0
+        source: literature
+      hard_max:
+        value: 35.0
+        source: literature
+  oats:
+    n_fields: 0
+    plateau_source: literature
+    ph_h2o:
+      unit: pH (1:1 water)
+      hard_min:
+        value: 4.5
+        source: literature
+      opt_min:
+        value: 5.5
+        source: literature
+      opt_max:
+        value: 7.5
+        source: literature
+      hard_max:
+        value: 8.5
+        source: literature
+    clay_pct:
+      unit: '% clay, 0-30 cm'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 40.0
+        source: literature
+      hard_max:
+        value: 60.0
+        source: literature
+    soc_pct:
+      unit: '% soil organic carbon, 0-30 cm'
+      hard_min:
+        value: 0.2
+        source: literature
+      opt_min:
+        value: 0.8
+        source: literature
+      opt_max:
+        value: null
+        source: open
+      hard_max:
+        value: null
+        source: open
+    ec_ds_m:
+      unit: dS/m (saturated paste EC)
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 5.0
+        source: literature
+      hard_max:
+        value: 10.0
+        source: literature
+    gdd_norm:
+      unit: deg C days, Apr-Sep, base 10, normal 2017-2025
+      hard_min:
+        value: 900.0
+        source: literature
+      opt_min:
+        value: 1100.0
+        source: literature
+      opt_max:
+        value: 1900.0
+        source: literature
+      hard_max:
+        value: 2500.0
+        source: literature
+    precip_norm:
+      unit: mm, Apr-Sep, normal 2017-2025 (NASA POWER)
+      hard_min:
+        value: 250.0
+        source: literature
+      opt_min:
+        value: 350.0
+        source: literature
+      opt_max:
+        value: 750.0
+        source: literature
+      hard_max:
+        value: 1200.0
+        source: literature
+    slope_pct:
+      unit: '% slope'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 8.0
+        source: literature
+      hard_max:
+        value: 30.0
+        source: literature
+  barley:
+    n_fields: 0
+    plateau_source: literature
+    ph_h2o:
+      unit: pH (1:1 water)
+      hard_min:
+        value: 5.5
+        source: literature
+      opt_min:
+        value: 6.5
+        source: literature
+      opt_max:
+        value: 8.0
+        source: literature
+      hard_max:
+        value: 8.8
+        source: literature
+    clay_pct:
+      unit: '% clay, 0-30 cm'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 35.0
+        source: literature
+      hard_max:
+        value: 55.0
+        source: literature
+    soc_pct:
+      unit: '% soil organic carbon, 0-30 cm'
+      hard_min:
+        value: 0.2
+        source: literature
+      opt_min:
+        value: 0.8
+        source: literature
+      opt_max:
+        value: null
+        source: open
+      hard_max:
+        value: null
+        source: open
+    ec_ds_m:
+      unit: dS/m (saturated paste EC)
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 8.0
+        source: literature
+      hard_max:
+        value: 18.0
+        source: literature
+    gdd_norm:
+      unit: deg C days, Apr-Sep, base 10, normal 2017-2025
+      hard_min:
+        value: 900.0
+        source: literature
+      opt_min:
+        value: 1100.0
+        source: literature
+      opt_max:
+        value: 1900.0
+        source: literature
+      hard_max:
+        value: 2500.0
+        source: literature
+    precip_norm:
+      unit: mm, Apr-Sep, normal 2017-2025 (NASA POWER)
+      hard_min:
+        value: 200.0
+        source: literature
+      opt_min:
+        value: 300.0
+        source: literature
+      opt_max:
+        value: 700.0
+        source: literature
+      hard_max:
+        value: 1100.0
+        source: literature
+    slope_pct:
+      unit: '% slope'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 8.0
+        source: literature
+      hard_max:
+        value: 30.0
+        source: literature
+  cereal_rye:
+    n_fields: 0
+    plateau_source: literature
+    ph_h2o:
+      unit: pH (1:1 water)
+      hard_min:
+        value: 4.5
+        source: literature
+      opt_min:
+        value: 5.5
+        source: literature
+      opt_max:
+        value: 7.5
+        source: literature
+      hard_max:
+        value: 8.5
+        source: literature
+    clay_pct:
+      unit: '% clay, 0-30 cm'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 40.0
+        source: literature
+      hard_max:
+        value: 60.0
+        source: literature
+    soc_pct:
+      unit: '% soil organic carbon, 0-30 cm'
+      hard_min:
+        value: 0.1
+        source: literature
+      opt_min:
+        value: 0.5
+        source: literature
+      opt_max:
+        value: null
+        source: open
+      hard_max:
+        value: null
+        source: open
+    ec_ds_m:
+      unit: dS/m (saturated paste EC)
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 11.4
+        source: literature
+      hard_max:
+        value: 16.0
+        source: literature
+    gdd_norm:
+      unit: deg C days, Apr-Sep, base 10, normal 2017-2025
+      hard_min:
+        value: 800.0
+        source: literature
+      opt_min:
+        value: 1000.0
+        source: literature
+      opt_max:
+        value: 2500.0
+        source: literature
+      hard_max:
+        value: 3200.0
+        source: literature
+    precip_norm:
+      unit: mm, Apr-Sep, normal 2017-2025 (NASA POWER)
+      hard_min:
+        value: 150.0
+        source: literature
+      opt_min:
+        value: 250.0
+        source: literature
+      opt_max:
+        value: 800.0
+        source: literature
+      hard_max:
+        value: 1300.0
+        source: literature
+    slope_pct:
+      unit: '% slope'
+      hard_min:
+        value: null
+        source: open
+      opt_min:
+        value: null
+        source: open
+      opt_max:
+        value: 10.0
+        source: literature
+      hard_max:
+        value: 35.0
+        source: literature

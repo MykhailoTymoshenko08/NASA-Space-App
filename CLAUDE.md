@@ -71,8 +71,11 @@ put them into `data/lina/`
 - `scripts/03_soil_ssurgo.py` — SSURGO topsoil (0-30 cm) via SDA REST → `data/features/soil.parquet` (clay, sand, om, soc, pH, EC, awc, kw, hydgrp, drainage, texture, slope_r) ✅ run on real api, 2000/2000 fields
 - `config/crop_rules.yaml` — agronomic rules + crop parameters from Lina, draft, no loader yet
 - `scripts/04_build_dataset.py` — field × year crop table → `data/dataset/crops_train.parquet` (label = crop this year) ✅
-- `scripts/05_train.py` — LightGBM crop classifier, leave-one-year-out, top-3 accuracy, next
-- `ml_service/ranking.py` — rules → model → transitions → top-3 crops, after 05
+- `scripts/03b_winter_tmin.py` — winter minimum temperature per field from the POWER cache → `data/features/winter_tmin.parquet` ✅
+- `scripts/05_train.py` — LightGBM crop classifier (no class balancing) + temperature calibration; main check grouped by field → `models/crop_model/` ✅ (top-1 78.2% vs 66.7% for corn↔soy alternation on unseen fields; the gain is in KS/NE, in IA/IL ≈ alternation)
+- `scripts/06_calibrate_thresholds.py` — suitability trapezoids (plateau = empirical p10-p90 for crops with >= 100 fields, hard bounds = literature DRAFT; a bias check switches everything to literature if literature-only crops look systematically more suitable) → `config/suitability.yaml`, `config/suitability_check.yaml`, `docs/suitability_literature_vs_real.md` (pitch table)
+- `ml_service/ranking.py` (+ `rules.py`, `field_context.py`, `feature_text.py`) — crop ranking: score = hard filters × calibrated model prob × transition (`config/transition_matrix.yaml`, softened: M ** beta, beta = 0.5) × suitability × soft rules; top-3 of different groups; `scripts/07_demo_ranking.py` shows it ✅
+  rules-only crops (oats, barley, cereal_rye) get a neutral model value = the field's lowest model probability; cover crops are never offered as a main crop
 - `ml_service/` — FastAPI, mock first
 
 ## conventions
