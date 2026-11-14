@@ -1,0 +1,846 @@
+{
+  "request_id": "demo-polk-1",
+  "field_id": "191825000314326",
+  "model_version": "0.2.0",
+  "generated_at": "2026-11-14T21:30:52Z",
+  "status": "partial",
+  "detected_rotation": {
+    "sequence": [
+      "corn",
+      "soybean"
+    ],
+    "label": "Corn – Soybean",
+    "confidence": 0.95,
+    "years_used": [
+      2018,
+      2025
+    ],
+    "source": "csb",
+    "cycle_years": 2
+  },
+  "summary": {
+    "headline": "Field is bare ~188 days/year and short on moisture in Jul–Aug (evaporation exceeds rain).",
+    "overall_risk": "medium",
+    "key_numbers": [
+      {
+        "id": "bare_days",
+        "label": "Bare soil days / year",
+        "value": 188.0,
+        "unit": "days",
+        "source_ids": [
+          "csb"
+        ]
+      },
+      {
+        "id": "jul_aug_water_deficit",
+        "label": "Jul–Aug water deficit (ET0 − rain)",
+        "value": 151.0,
+        "unit": "mm",
+        "source_ids": [
+          "power"
+        ]
+      },
+      {
+        "id": "heat_days",
+        "label": "Days > 32°C (avg)",
+        "value": 30.0,
+        "unit": "days",
+        "source_ids": [
+          "power"
+        ]
+      }
+    ]
+  },
+  "vulnerability_timeline": [
+    {
+      "month": 1,
+      "bare_soil": 0.8,
+      "moisture_deficit": 0.0,
+      "heat_stress": 0.0,
+      "frost_risk": 0.98,
+      "extreme_precip": 0.0,
+      "flags": [
+        "bare",
+        "frost"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 2,
+      "bare_soil": 0.8,
+      "moisture_deficit": 0.13,
+      "heat_stress": 0.0,
+      "frost_risk": 0.92,
+      "extreme_precip": 0.0,
+      "flags": [
+        "bare",
+        "frost"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 3,
+      "bare_soil": 0.8,
+      "moisture_deficit": 0.01,
+      "heat_stress": 0.0,
+      "frost_risk": 0.68,
+      "extreme_precip": 0.2,
+      "flags": [
+        "bare",
+        "frost"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 4,
+      "bare_soil": 0.8,
+      "moisture_deficit": 0.34,
+      "heat_stress": 0.0,
+      "frost_risk": 0.27,
+      "extreme_precip": 0.11,
+      "flags": [
+        "bare"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 5,
+      "bare_soil": 0.76,
+      "moisture_deficit": 0.17,
+      "heat_stress": 0.06,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.49,
+      "flags": [
+        "bare",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 6,
+      "bare_soil": 0.33,
+      "moisture_deficit": 0.31,
+      "heat_stress": 0.59,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.49,
+      "flags": [
+        "heat",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 7,
+      "bare_soil": 0.0,
+      "moisture_deficit": 0.45,
+      "heat_stress": 1.0,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.59,
+      "flags": [
+        "drought",
+        "heat",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 8,
+      "bare_soil": 0.0,
+      "moisture_deficit": 0.49,
+      "heat_stress": 0.91,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.36,
+      "flags": [
+        "drought",
+        "heat",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 9,
+      "bare_soil": 0.0,
+      "moisture_deficit": 0.33,
+      "heat_stress": 0.41,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.36,
+      "flags": [
+        "heat",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 10,
+      "bare_soil": 0.33,
+      "moisture_deficit": 0.0,
+      "heat_stress": 0.04,
+      "frost_risk": 0.14,
+      "extreme_precip": 0.49,
+      "flags": [
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 11,
+      "bare_soil": 0.8,
+      "moisture_deficit": 0.0,
+      "heat_stress": 0.0,
+      "frost_risk": 0.64,
+      "extreme_precip": 0.2,
+      "flags": [
+        "bare",
+        "frost"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 12,
+      "bare_soil": 0.8,
+      "moisture_deficit": 0.0,
+      "heat_stress": 0.0,
+      "frost_risk": 0.92,
+      "extreme_precip": 0.11,
+      "flags": [
+        "bare",
+        "frost"
+      ],
+      "bare_soil_source": "crop_calendar"
+    }
+  ],
+  "strategies": [
+    {
+      "id": "current",
+      "is_current": true,
+      "name": "Current: Corn – Soybean",
+      "sequence": [
+        {
+          "year": 1,
+          "season": "main",
+          "crop": "corn"
+        },
+        {
+          "year": 2,
+          "season": "main",
+          "crop": "soybean"
+        },
+        {
+          "year": 3,
+          "season": "main",
+          "crop": "corn"
+        }
+      ],
+      "scores": {
+        "water": 25,
+        "soil_health": 40,
+        "nitrogen": 39,
+        "erosion": 60,
+        "income": 79,
+        "overall": 57
+      },
+      "delta_vs_current": null,
+      "metrics": {
+        "water_use_mm_yr": 628,
+        "n_fixed_kg_ha_yr": 20,
+        "bare_days_yr": 189,
+        "erosion_t_ha_yr": 8.9
+      },
+      "why": "Baseline read from the CSB history 2018-2025 (cycle of 2 years, 100% match), continued for 3 years.",
+      "evidence": [],
+      "benefits": [
+        "Comparable to the current rotation"
+      ],
+      "risks": [],
+      "data_gaps": [
+        "No field-level irrigation data",
+        "Livestock / forage demand unknown",
+        "Slope comes from SSURGO (NASADEM not available yet)",
+        "Income is a relative index, not money",
+        "No NDVI from Lina: the last-season stress rule is off"
+      ],
+      "check_with_agronomist": [],
+      "confidence": 0.95
+    },
+    {
+      "id": "s1",
+      "is_current": false,
+      "name": "Corn – Soybean – Corn + cereal rye cover",
+      "sequence": [
+        {
+          "year": 1,
+          "season": "main",
+          "crop": "corn"
+        },
+        {
+          "year": 1,
+          "season": "cover",
+          "crop": "cereal_rye"
+        },
+        {
+          "year": 2,
+          "season": "main",
+          "crop": "soybean"
+        },
+        {
+          "year": 2,
+          "season": "cover",
+          "crop": "cereal_rye"
+        },
+        {
+          "year": 3,
+          "season": "main",
+          "crop": "corn"
+        },
+        {
+          "year": 3,
+          "season": "cover",
+          "crop": "cereal_rye"
+        }
+      ],
+      "scores": {
+        "water": 13,
+        "soil_health": 68,
+        "nitrogen": 42,
+        "erosion": 80,
+        "income": 76,
+        "overall": 60
+      },
+      "delta_vs_current": {
+        "water": -12,
+        "soil_health": 28,
+        "nitrogen": 3,
+        "erosion": 20,
+        "income": -3,
+        "overall": 3
+      },
+      "metrics": {
+        "water_use_mm_yr": 716,
+        "n_fixed_kg_ha_yr": 20,
+        "bare_days_yr": 74,
+        "erosion_t_ha_yr": 4.4
+      },
+      "why": "The same crops, with rye covering the soil in winter. Bare days 189->74 a year, erosion 8.9->4.4 t/ha, nitrogen -70->-60 kg/ha.",
+      "evidence": [
+        {
+          "text": "Bare soil days: 189 -> 74 a year (from crop calendars)",
+          "source_ids": [
+            "csb"
+          ]
+        },
+        {
+          "text": "Erosion 8.9 -> 4.4 t/ha/yr (RUSLE: rain 803 mm/yr, K=0.26, slope 3.5%)",
+          "source_ids": [
+            "power",
+            "ssurgo"
+          ]
+        },
+        {
+          "text": "Water use 628 -> 716 mm/yr (Kc x ET0, FAO-56; rain 803 mm/yr)",
+          "source_ids": [
+            "power"
+          ]
+        },
+        {
+          "text": "Nitrogen balance -70 -> -60 kg/ha/yr (legume fixation 20 kg/ha/yr)",
+          "source_ids": [
+            "csb"
+          ]
+        }
+      ],
+      "benefits": [
+        "Bare days down 61%",
+        "Erosion down 50%",
+        "Better nitrogen balance: +10 kg/ha/yr"
+      ],
+      "risks": [
+        "Uses more water: +88 mm/yr",
+        "Income lower by 3 points",
+        "Rye uses spring moisture and may suppress the next crop's emergence"
+      ],
+      "data_gaps": [
+        "No field-level irrigation data",
+        "Livestock / forage demand unknown",
+        "Slope comes from SSURGO (NASADEM not available yet)",
+        "Income is a relative index, not money",
+        "No NDVI from Lina: the last-season stress rule is off"
+      ],
+      "check_with_agronomist": [
+        "Rye seeding and termination dates before the main crop",
+        "Effect of rye on spring moisture"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "id": "s2",
+      "is_current": false,
+      "name": "Sorghum – Soybean – Corn + cereal rye cover",
+      "sequence": [
+        {
+          "year": 1,
+          "season": "main",
+          "crop": "sorghum"
+        },
+        {
+          "year": 1,
+          "season": "cover",
+          "crop": "cereal_rye"
+        },
+        {
+          "year": 2,
+          "season": "main",
+          "crop": "soybean"
+        },
+        {
+          "year": 2,
+          "season": "cover",
+          "crop": "cereal_rye"
+        },
+        {
+          "year": 3,
+          "season": "main",
+          "crop": "corn"
+        },
+        {
+          "year": 3,
+          "season": "cover",
+          "crop": "cereal_rye"
+        }
+      ],
+      "scores": {
+        "water": 21,
+        "soil_health": 76,
+        "nitrogen": 45,
+        "erosion": 80,
+        "income": 70,
+        "overall": 55
+      },
+      "delta_vs_current": {
+        "water": -4,
+        "soil_health": 36,
+        "nitrogen": 6,
+        "erosion": 20,
+        "income": -9,
+        "overall": -2
+      },
+      "metrics": {
+        "water_use_mm_yr": 656,
+        "n_fixed_kg_ha_yr": 20,
+        "bare_days_yr": 78,
+        "erosion_t_ha_yr": 4.4
+      },
+      "why": "Sorghum instead of the thirstiest crops: better with heat and drought. Bare days 189->78 a year, erosion 8.9->4.4 t/ha, nitrogen -70->-50 kg/ha.",
+      "evidence": [
+        {
+          "text": "Bare soil days: 189 -> 78 a year (from crop calendars)",
+          "source_ids": [
+            "csb"
+          ]
+        },
+        {
+          "text": "Erosion 8.9 -> 4.4 t/ha/yr (RUSLE: rain 803 mm/yr, K=0.26, slope 3.5%)",
+          "source_ids": [
+            "power",
+            "ssurgo"
+          ]
+        },
+        {
+          "text": "Water use 628 -> 656 mm/yr (Kc x ET0, FAO-56; rain 803 mm/yr)",
+          "source_ids": [
+            "power"
+          ]
+        },
+        {
+          "text": "Nitrogen balance -70 -> -50 kg/ha/yr (legume fixation 20 kg/ha/yr)",
+          "source_ids": [
+            "csb"
+          ]
+        }
+      ],
+      "benefits": [
+        "Bare days down 59%",
+        "Erosion down 50%",
+        "Better nitrogen balance: +20 kg/ha/yr"
+      ],
+      "risks": [
+        "Uses more water: +28 mm/yr",
+        "Income lower by 9 points",
+        "Unusual for this region: the model gives such a crop a low chance",
+        "Rye uses spring moisture and may suppress the next crop's emergence"
+      ],
+      "data_gaps": [
+        "No field-level irrigation data",
+        "Livestock / forage demand unknown",
+        "Slope comes from SSURGO (NASADEM not available yet)",
+        "Income is a relative index, not money",
+        "No NDVI from Lina: the last-season stress rule is off"
+      ],
+      "check_with_agronomist": [
+        "Local sorghum contracts and basis",
+        "Hybrid choice for your region"
+      ],
+      "confidence": 0.63
+    },
+    {
+      "id": "s3",
+      "is_current": false,
+      "name": "Corn – Soybean – Barley + cereal rye cover",
+      "sequence": [
+        {
+          "year": 1,
+          "season": "main",
+          "crop": "corn"
+        },
+        {
+          "year": 1,
+          "season": "cover",
+          "crop": "cereal_rye"
+        },
+        {
+          "year": 2,
+          "season": "main",
+          "crop": "soybean"
+        },
+        {
+          "year": 2,
+          "season": "cover",
+          "crop": "cereal_rye"
+        },
+        {
+          "year": 3,
+          "season": "main",
+          "crop": "barley"
+        }
+      ],
+      "scores": {
+        "water": 29,
+        "soil_health": 67,
+        "nitrogen": 48,
+        "erosion": 79,
+        "income": 67,
+        "overall": 55
+      },
+      "delta_vs_current": {
+        "water": 4,
+        "soil_health": 27,
+        "nitrogen": 9,
+        "erosion": 19,
+        "income": -12,
+        "overall": -2
+      },
+      "metrics": {
+        "water_use_mm_yr": 609,
+        "n_fixed_kg_ha_yr": 20,
+        "bare_days_yr": 135,
+        "erosion_t_ha_yr": 4.7
+      },
+      "why": "Small grains break pest cycles and spread weather risk. Bare days 189->135 a year, erosion 8.9->4.7 t/ha, nitrogen -70->-40 kg/ha.",
+      "evidence": [
+        {
+          "text": "Bare soil days: 189 -> 135 a year (from crop calendars)",
+          "source_ids": [
+            "csb"
+          ]
+        },
+        {
+          "text": "Erosion 8.9 -> 4.7 t/ha/yr (RUSLE: rain 803 mm/yr, K=0.26, slope 3.5%)",
+          "source_ids": [
+            "power",
+            "ssurgo"
+          ]
+        },
+        {
+          "text": "Water use 628 -> 609 mm/yr (Kc x ET0, FAO-56; rain 803 mm/yr)",
+          "source_ids": [
+            "power"
+          ]
+        },
+        {
+          "text": "Nitrogen balance -70 -> -40 kg/ha/yr (legume fixation 20 kg/ha/yr)",
+          "source_ids": [
+            "csb"
+          ]
+        }
+      ],
+      "benefits": [
+        "Bare days down 29%",
+        "Erosion down 47%",
+        "Better nitrogen balance: +30 kg/ha/yr",
+        "Water use down 20 mm/yr"
+      ],
+      "risks": [
+        "Income lower by 12 points",
+        "Unusual for this region: the model gives such a crop a low chance",
+        "Rye uses spring moisture and may suppress the next crop's emergence"
+      ],
+      "data_gaps": [
+        "No field-level irrigation data",
+        "Livestock / forage demand unknown",
+        "Slope comes from SSURGO (NASADEM not available yet)",
+        "Income is a relative index, not money",
+        "No NDVI from Lina: the last-season stress rule is off"
+      ],
+      "check_with_agronomist": [
+        "Equipment and labour for an extra crop",
+        "Seed and elevator availability"
+      ],
+      "confidence": 0.62
+    }
+  ],
+  "sources": [
+    {
+      "id": "power",
+      "name": "NASA POWER AG",
+      "variable": "T2M, T2M_MAX, T2M_MIN, PRECTOTCORR",
+      "resolution": "0.5° × 0.625°, daily",
+      "period": "2017–2025"
+    },
+    {
+      "id": "csb",
+      "name": "USDA Crop Sequence Boundaries",
+      "variable": "fields + crop history",
+      "resolution": "field, yearly",
+      "period": "2018–2025"
+    },
+    {
+      "id": "ssurgo",
+      "name": "USDA NRCS SSURGO",
+      "variable": "soil properties",
+      "resolution": "field-scale map units",
+      "period": "current"
+    }
+  ],
+  "warnings": [
+    "No Landsat NDVI: bare soil in the timeline comes from the crop calendar and the last-season stress rule is off",
+    "No SMAP data: soil-moisture rules were not evaluated",
+    "No TWI: low-lying wetness rules were not evaluated",
+    "No NASADEM DEM: slope comes from SSURGO",
+    "Field features come from precomputed data"
+  ],
+  "disclaimer": "Decision-support only. Validate with local agronomic expertise before changing your rotation.",
+  "crop_suitability": [
+    {
+      "crop": "corn",
+      "name": "Corn",
+      "group": "cereal",
+      "fit_score": 69.8,
+      "next_year_share": 96.3,
+      "rank": 1,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Best choice for next year: it suits the field (fit 70) and follows 'Soybean' well (96% of the advice).",
+      "top_factors": [
+        "Last year's crop: Soybean - raises the chance",
+        "Crop two years ago: Corn - raises the chance",
+        "Typical climate of the place: day of first fall frost = 298.0 - lowers the chance"
+      ],
+      "top3_role": "highest score",
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.8975,
+        "model_prob_source": "model",
+        "transition": 1.224744871391589,
+        "suitability": 1.0,
+        "rules": 1.0,
+        "score_raw": 1.09923,
+        "fit_prob": 0.6983
+      }
+    },
+    {
+      "crop": "soybean",
+      "name": "Soybean",
+      "group": "legume",
+      "fit_score": 81.2,
+      "next_year_share": 2.6,
+      "rank": 2,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Suits the field (fit 81), but last year was already Soybean: repeating the same crop cuts its chance to 3%.",
+      "top_factors": [
+        "Last year's crop: Soybean - lowers the chance",
+        "Typical climate of the place: summer rainfall = 280.8 - raises the chance",
+        "Crop two years ago: Corn - lowers the chance"
+      ],
+      "top3_role": "best of another group (legumes)",
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.0922,
+        "model_prob_source": "model",
+        "transition": 0.31622776601683794,
+        "suitability": 1.0,
+        "rules": 1.005,
+        "score_raw": 0.02931,
+        "fit_prob": 0.8079
+      }
+    },
+    {
+      "crop": "winter_wheat",
+      "name": "Winter wheat",
+      "group": "cereal",
+      "fit_score": 1.1,
+      "next_year_share": 0.6,
+      "rank": 3,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Suits this field poorly (fit 1): fields like this are rarely sown with it in the region.",
+      "top_factors": [
+        "Typical climate of the place: days above 35 C = 7.1 - lowers the chance",
+        "Last year's crop: Soybean - raises the chance",
+        "Region (where the field is): longitude = -93.8 - lowers the chance"
+      ],
+      "top3_role": "next by score",
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.007,
+        "model_prob_source": "model",
+        "transition": 1.224744871391589,
+        "suitability": 1.0,
+        "rules": 0.769,
+        "score_raw": 0.00663,
+        "fit_prob": 0.0149
+      }
+    },
+    {
+      "crop": "sorghum",
+      "name": "Sorghum",
+      "group": "cereal",
+      "fit_score": 0.5,
+      "next_year_share": 0.2,
+      "rank": 4,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Suits this field poorly (fit 0): fields like this are rarely sown with it in the region.",
+      "top_factors": [
+        "Typical climate of the place: solar radiation = 20.1 - lowers the chance",
+        "Last season's weather: spring rainfall = 316.2 - raises the chance",
+        "Region (where the field is): latitude = 41.7 - lowers the chance"
+      ],
+      "top3_role": null,
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.0021,
+        "model_prob_source": "model",
+        "transition": 1.224744871391589,
+        "suitability": 0.983,
+        "rules": 1.0,
+        "score_raw": 0.00259,
+        "fit_prob": 0.0051
+      }
+    },
+    {
+      "crop": "alfalfa",
+      "name": "Alfalfa",
+      "group": "other",
+      "fit_score": 14.0,
+      "next_year_share": 0.1,
+      "rank": 5,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Suits this field poorly (fit 14): fields like this are rarely sown with it in the region.",
+      "top_factors": [
+        "Last season's weather: summer rainfall = 440.3 - lowers the chance",
+        "Soil: soil water holding capacity = 0.2 - lowers the chance",
+        "Typical climate of the place: day of first fall frost = 298.0 - raises the chance"
+      ],
+      "top3_role": null,
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.0011,
+        "model_prob_source": "model",
+        "transition": 0.7071067811865476,
+        "suitability": 0.976,
+        "rules": 1.005,
+        "score_raw": 0.00077,
+        "fit_prob": 0.143
+      }
+    },
+    {
+      "crop": "barley",
+      "name": "Barley",
+      "group": "cereal",
+      "fit_score": 0.5,
+      "next_year_share": 0.1,
+      "rank": 6,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "The model does not score this crop (too few examples in the region); only the rules count (fit 0).",
+      "top_factors": [
+        "follows a legume, which leaves nitrogen in the soil (x1.22)",
+        "soil pH = 6.34: outside the optimal range (6.5–8.0) (x0.84)"
+      ],
+      "top3_role": null,
+      "model_class": false,
+      "role": null,
+      "parts": {
+        "model_prob": 0.0011,
+        "model_prob_source": "neutral",
+        "transition": 1.224744871391589,
+        "suitability": 0.976,
+        "rules": 1.0,
+        "score_raw": 0.00132,
+        "fit_prob": 0.0051
+      }
+    },
+    {
+      "crop": "oats",
+      "name": "Oats",
+      "group": "cereal",
+      "fit_score": 0.5,
+      "next_year_share": 0.1,
+      "rank": 7,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "The model does not score this crop (too few examples in the region); only the rules count (fit 0).",
+      "top_factors": [
+        "follows a legume, which leaves nitrogen in the soil (x1.22)"
+      ],
+      "top3_role": null,
+      "model_class": false,
+      "role": null,
+      "parts": {
+        "model_prob": 0.0011,
+        "model_prob_source": "neutral",
+        "transition": 1.224744871391589,
+        "suitability": 1.0,
+        "rules": 1.0,
+        "score_raw": 0.00136,
+        "fit_prob": 0.0051
+      }
+    },
+    {
+      "crop": "cereal_rye",
+      "name": "Cereal rye (cover)",
+      "group": "cereal",
+      "fit_score": 0.5,
+      "next_year_share": 0.0,
+      "rank": 8,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "A cover crop: not offered as a main crop, see the strategies for where it fits in the rotation.",
+      "top_factors": [
+        "follows a legume, which leaves nitrogen in the soil (x1.22)"
+      ],
+      "top3_role": null,
+      "model_class": false,
+      "role": "cover",
+      "parts": {
+        "model_prob": 0.0011,
+        "model_prob_source": "neutral",
+        "transition": 1.224744871391589,
+        "suitability": 1.0,
+        "rules": 1.0,
+        "score_raw": 0.00136,
+        "fit_prob": 0.0051
+      }
+    }
+  ],
+  "score_notes": {
+    "income": "income_index: a relative 0-100 index of margin, not money"
+  },
+  "feature_source": "precomputed"
+}

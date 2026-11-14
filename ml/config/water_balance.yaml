@@ -1,0 +1,25 @@
+# water balance of a crop vs the field's climate normal -> a trapezoid penalty in fit_score and in the ranking (ml_service/ranking.py).
+# DRAFT numbers, TODO confirm with an agronomist.
+#
+# demand = sum over the crop's growing months of Kc x ET0           (FAO-56; Kc from ml_service/agro.py, ET0 = Hargreaves of the normal)
+# supply = effective_rain x rain of the same months  +  awc x root depth x available_storage     (soil water that the roots can reach)
+# ratio  = supply / demand.   ratio >= r_full: no penalty;  ratio <= r_floor: the minimum factor;  linear in between (a trapezoid).
+# irrigated = true  -> no penalty.   irrigated = null (unknown) -> HALF of the penalty and a data gap asks to set irrigated.
+version: 1
+status: draft
+
+effective_rain: 0.8           # share of the rain that does not run off or evaporate
+available_storage: 0.5        # share of the plant-available water (awc x root depth) that is in the soil when the season starts
+r_full: 0.90
+r_floor: 0.55
+min_factor: 0.10              # never exactly 0: a crop can still be irrigated, so water alone does not block it
+irrigated_unknown_share: 0.5
+
+root_depth_cm:                # how deep the roots take water from
+  corn: 120
+  soybean: 100
+  winter_wheat: 120
+  sorghum: 150
+  alfalfa: 200
+  oats: 80
+  barley: 90

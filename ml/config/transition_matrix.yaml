@@ -1,0 +1,37 @@
+# how much the previous crop helps or hurts the next one (multiplies the crop score in ml_service/ranking.py).
+# DRAFT numbers: agronomic rules of thumb, not fitted to data. source: TODO (extension rotation guides).
+#
+# first matching rule wins, for (previous crop -> candidate crop):
+#   1. same_crop            the same crop again (monoculture)
+#   2. after_legume         previous crop is a legume and the candidate is not (nitrogen credit, break in disease cycles)
+#   3. same_family          same botanical family (shared diseases and pests)
+#   4. otherwise            neutral
+# a previous crop that is not a candidate ("other": fallow, pasture, unknown) is always neutral.
+#
+# note: the ML model already sees the previous crops, so this is a second, agronomic opinion on top of it.
+# to avoid counting the rotation twice, the multiplier is softened: effective = multiplier ** beta.
+version: 1
+status: draft
+
+beta: 0.5   # 1 = full effect, 0 = matrix ignored. with 0.5: 0.1 -> 0.32, 0.5 -> 0.71, 1.5 -> 1.22
+
+families:
+  poaceae:  [corn, winter_wheat, sorghum, oats, barley, cereal_rye]   # grasses
+  fabaceae: [soybean, alfalfa]                                         # legumes
+
+multipliers:
+  same_crop: 0.1
+  after_legume: 1.5
+  same_family: 0.5
+  neutral: 1.0
+
+reasons:   # shown next to the score
+  same_crop:
+    en: "the same crop two years in a row builds up disease and pests"
+    uk: "та сама культура два роки поспіль накопичує хвороби та шкідників"
+  after_legume:
+    en: "follows a legume, which leaves nitrogen in the soil"
+    uk: "іде після бобової, яка залишає азот у ґрунті"
+  same_family:
+    en: "same plant family as last year's crop, shared diseases and pests"
+    uk: "та сама родина, що й торішня культура, спільні хвороби та шкідники"

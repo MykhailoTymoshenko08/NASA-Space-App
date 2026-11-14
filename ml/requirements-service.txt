@@ -1,0 +1,13 @@
+# what the ML service needs at run time. no shap / matplotlib / scikit-learn: explanations come from LightGBM's own
+# pred_contrib=True, plots and training live in requirements.txt only.
+# NOTE: `pip install lightgbm` also installs scipy (~150 MB), which the service never uses (only lightgbm.Booster is used);
+# the Dockerfile installs lightgbm with --no-deps. for a plain virtualenv `pip install -r requirements-service.txt` is fine.
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.7
+numpy>=1.26
+pandas>=2.1
+pyarrow>=15
+requests>=2.31
+pyyaml>=6
+lightgbm>=4.3
