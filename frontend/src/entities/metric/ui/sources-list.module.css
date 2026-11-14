@@ -1,0 +1,27 @@
+.title {
+  margin: 0 0 var(--s-12);
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+}
+.name {
+  font-weight: 600;
+}
+.muted {
+  color: var(--color-ink-muted);
+  font-size: var(--text-small);
+}

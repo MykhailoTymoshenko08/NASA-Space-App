@@ -1,0 +1,11 @@
+.main {
+  outline: none;
+}
+.mockBanner {
+  padding: var(--s-8) var(--page-gutter);
+  background: var(--color-info-bg);
+  color: var(--color-info-fg);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  text-align: center;
+}

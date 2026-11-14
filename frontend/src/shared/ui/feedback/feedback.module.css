@@ -1,0 +1,61 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: var(--s-12) 14px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+}
+.message > svg {
+  margin-top: 0;
+}
+.messageBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.success {
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+}
+.info {
+  background: var(--color-info-bg);
+  color: var(--color-info-fg);
+}
+.error {
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+}
+.neutral {
+  background: var(--color-paper-wash);
+  color: var(--color-ink-muted);
+}
+
+.skeleton {
+  display: block;
+  border-radius: var(--radius-control-inner);
+  background: var(--color-line-soft);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.skeletonSoft {
+  background: var(--color-skeleton);
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

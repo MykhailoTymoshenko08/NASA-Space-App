@@ -1,2 +1,8 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.woff2 binary
+
 # Large binary data shared with the team via Git LFS (https://git-lfs.com). Run `git lfs install` once.
+# Kept last so it overrides the text rules above for this file.
 backend/data/csb_ia_il_ne.pmtiles filter=lfs diff=lfs merge=lfs -text

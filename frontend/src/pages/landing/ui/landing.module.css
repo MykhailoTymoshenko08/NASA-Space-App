@@ -1,0 +1,158 @@
+.muted {
+  color: var(--color-ink-muted);
+}
+
+/* Hero */
+.hero {
+  padding-top: var(--s-48);
+  padding-bottom: var(--s-32);
+}
+.heroEyebrow {
+  margin-bottom: var(--s-16);
+}
+.heroTitle {
+  max-width: 880px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(40px, 6vw, var(--text-display));
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.heroLead {
+  margin-top: var(--s-24);
+  max-width: 660px;
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-lh);
+  color: var(--color-ink-muted);
+  text-wrap: pretty;
+}
+.heroActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-16) var(--s-24);
+  margin-top: var(--s-32);
+}
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-min);
+  font-weight: 500;
+  color: var(--color-green-700);
+}
+
+/* Map stage (placeholder until the map API exists) */
+.mapStage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 720px;
+  padding: var(--s-24);
+  overflow: hidden;
+  border-radius: var(--radius-stage);
+  border: 1px solid var(--color-line-control);
+  background: var(--color-map-ground);
+}
+.mapNotice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-12);
+  max-width: 440px;
+  padding: var(--s-24);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+  color: var(--color-ink);
+}
+.mapTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-4);
+  line-height: var(--text-title-4-lh);
+}
+
+/* How it works */
+.how {
+  padding-top: var(--s-96);
+  padding-bottom: var(--s-32);
+}
+.sectionTitle {
+  margin-bottom: 40px;
+  max-width: 640px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-2);
+  line-height: var(--text-title-2-lh);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--s-24);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stepNumber {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  color: var(--color-wheat-700);
+}
+.stepTitle {
+  margin: var(--s-12) 0 var(--s-8);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-4);
+  line-height: var(--text-title-4-lh);
+}
+
+/* CTA band */
+.ctaWrap {
+  padding-top: var(--s-64);
+  padding-bottom: var(--s-96);
+}
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-24);
+  padding: var(--s-48);
+  border-radius: var(--radius-band);
+  background: var(--color-green-700);
+  color: var(--color-white);
+}
+.ctaTitle {
+  max-width: 560px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-2);
+  line-height: var(--text-title-2-lh);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+@media (max-width: 600px) {
+  .hero {
+    padding-top: var(--s-24);
+  }
+  .mapStage {
+    height: 480px;
+    padding: var(--s-16);
+  }
+  .how {
+    padding-top: var(--s-64);
+  }
+  .sectionTitle,
+  .ctaTitle {
+    font-size: 32px;
+    line-height: 38px;
+  }
+  .cta {
+    padding: var(--s-32) var(--s-24);
+  }
+}

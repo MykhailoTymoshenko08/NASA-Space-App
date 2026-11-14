@@ -1,0 +1,12 @@
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-12);
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 var(--page-gutter) var(--s-48);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
