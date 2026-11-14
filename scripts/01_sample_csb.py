@@ -29,6 +29,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pyogrio
+import shapely
 
 # cdl codes that mean "cultivated land" - crops, fallow, tree crops, double crops.
 # everything else (water, forest, grass/pasture, developed, wetlands) is non-crop.
@@ -112,10 +113,30 @@ def read_geometry(src: str, layer: str, fids: np.ndarray) -> gpd.GeoDataFrame:
     return gdf
 
 
+def make_valid_polygons(geoms: gpd.GeoSeries) -> gpd.GeoSeries:
+    """repair invalid polygons (csb has ring self-intersections from raster tracing).
+
+    make_valid can return a geometrycollection with stray lines/points - keep polygon parts only,
+    so every output geometry is a valid (multi)polygon.
+    """
+    fixed = []
+    for g in geoms:
+        if not g.is_valid:
+            g = shapely.make_valid(g)
+        parts = [p for p in shapely.get_parts(g) if p.geom_type in ("Polygon", "MultiPolygon")]
+        polys = [q for p in parts for q in shapely.get_parts(p)]
+        fixed.append(shapely.MultiPolygon(polys) if polys else g)
+    return gpd.GeoSeries(fixed, index=geoms.index, crs=geoms.crs)
+
+
 def build_outputs(attrs: pd.DataFrame, geom: gpd.GeoDataFrame) -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
     cdl_cols = cdl_year_columns(list(attrs.columns))
 
     gdf = geom.merge(attrs.reset_index(drop=True), on="CSBID", how="inner")
+    n_bad = int((~gdf.geometry.is_valid).sum())
+    if n_bad:
+        print(f"repairing {n_bad} invalid geometries (ring self-intersections)")
+        gdf["geometry"] = make_valid_polygons(gdf.geometry)
     gdf = gdf.rename(columns={
         "CSBID": "field_id",
         "STATEFIPS": "state_fips",
@@ -152,7 +173,7 @@ def write_gee_exports(gdf: gpd.GeoDataFrame, out_dir: Path) -> None:
     """minimal files for lina - field_id + geometry, slightly simplified to keep uploads small."""
     slim = gdf[["field_id", "geometry"]].copy()
     # ~3 m tolerance in degrees - invisible at 30 m landsat pixels
-    slim["geometry"] = slim.geometry.simplify(0.00003, preserve_topology=True)
+    slim["geometry"] = make_valid_polygons(slim.geometry.simplify(0.00003, preserve_topology=True))
 
     slim.to_file(out_dir / "fields_for_gee.geojson", driver="GeoJSON")
 
