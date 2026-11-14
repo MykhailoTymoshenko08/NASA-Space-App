@@ -25,13 +25,14 @@
 #   soil.clay_pct, soil.ph, soil.ec_ds_m   SSURGO (clay %, pH 1:1 water, EC dS/m); OpenLandMap fallback
 #   soil.soc_pct                     soil organic carbon %, = SSURGO organic matter % / 1.724;
 #                                    OpenLandMap SOC as fallback
-#   terrain.slope_deg, terrain.twi   NASADEM slope (degrees) and topographic wetness index (Lina)
+#   terrain.slope_pct, terrain.twi   NASADEM slope in percent (5 degrees = 8.7 %) and topographic wetness
+#                                    index (Lina)
 #   climate.gdd_grow                 regional growing degree days Apr-Sep, base 10 C, cap 30 C, deg C-days,
 #                                    multi-year mean (scripts/02_power_climate.py: gdd_grow)
 #   smap.jul_aug_deficit_years_share share of years with Jul-Aug SMAP root-zone moisture below the
 #                                    regional dry threshold (exact definition: TODO with Lina)
-#   imerg.precip_grow_mm             mean Apr-Sep precipitation, GPM IMERG. NOTE: IMERG is not in the
-#                                    agreed data list yet; POWER PRECTOTCORR (`precip_grow`) is the fallback.
+#   imerg.precip_grow_mm             mean Apr-Sep precipitation, GPM IMERG (agreed source, Lina will provide).
+#                                    until then the fallback is POWER PRECTOTCORR (`precip_grow`).
 # ---------------------------------------------------------------------------------------------
 
 version: 1
@@ -55,7 +56,7 @@ crops:
     type: legume
     gdd_to_maturity: 1300
     min_ph: 5.5
-    salinity_sensitivity: medium   # TODO: Maas-Hoffman style tables rate soybean more tolerant than corn; confirm
+    salinity_sensitivity: medium   # more tolerant than corn (Maas-Hoffman), so a smaller salinity penalty
     clay_sensitivity: low
     row_crop: true
     tags: [row_crop, legume]
@@ -175,15 +176,28 @@ rules:
     source: TODO
     status: draft
 
-  - id: high_salinity_sensitive_crops
-    description: high soil salinity hurts salt-sensitive crops
-    applies_to: {crops: [corn, soybean]}
+  # corn is more salt-sensitive than soybean (Maas-Hoffman), so its penalty is larger
+  - id: high_salinity_corn
+    description: high soil salinity hurts corn
+    applies_to: {crops: [corn]}
     when:
       - {var: soil.ec_ds_m, op: ">", value: 4}   # "high" EC; TODO threshold
     action: {type: penalty, points: 12, affects: [income]}
     explanation:
-      en: "Soil salinity is high (EC above 4 dS/m); this crop loses yield under salt stress."
-      uk: "Ґрунт засолений (EC понад 4 дСм/м); ця культура втрачає врожай через сольовий стрес."
+      en: "Soil salinity is high (EC above 4 dS/m); corn is sensitive to salt and loses yield."
+      uk: "Ґрунт засолений (EC понад 4 дСм/м); кукурудза чутлива до солей і втрачає врожай."
+    source: TODO
+    status: draft
+
+  - id: high_salinity_soybean
+    description: high soil salinity hurts soybean, less than corn
+    applies_to: {crops: [soybean]}
+    when:
+      - {var: soil.ec_ds_m, op: ">", value: 4}
+    action: {type: penalty, points: 6, affects: [income]}
+    explanation:
+      en: "Soil salinity is high (EC above 4 dS/m); soybean tolerates salt better than corn but still loses some yield."
+      uk: "Ґрунт засолений (EC понад 4 дСм/м); соя переносить сіль краще за кукурудзу, але частину врожаю втрачає."
     source: TODO
     status: draft
 
@@ -204,11 +218,11 @@ rules:
     description: steep slope, large penalty for row crops
     applies_to: {tags: [row_crop]}   # corn, sorghum, soybean
     when:
-      - {var: terrain.slope_deg, op: ">", value: 5}
+      - {var: terrain.slope_pct, op: ">", value: 8.7}   # 5 degrees = 8.7 %
     action: {type: penalty, points: 25, affects: [erosion, overall]}
     explanation:
-      en: "Slope is over 5 degrees; row crops leave soil exposed and erosion risk is high."
-      uk: "Ухил понад 5 градусів; просапні культури залишають ґрунт відкритим, ризик ерозії високий."
+      en: "Slope is over 8.7% (about 5 degrees); row crops leave soil exposed and erosion risk is high."
+      uk: "Ухил понад 8.7% (близько 5 градусів); просапні культури залишають ґрунт відкритим, ризик ерозії високий."
     source: TODO
     status: draft
 
@@ -264,7 +278,7 @@ rules:
     description: low growing-season rainfall favours drought-tolerant crops
     applies_to: {tags: [drought_tolerant]}
     when:
-      - {var: imerg.precip_grow_mm, op: "<", value: 450}   # TODO threshold; fallback var: POWER precip_grow
+      - {var: imerg.precip_grow_mm, op: "<", value: 450}   # TODO threshold; until IMERG arrives, use POWER precip_grow
     action: {type: bonus, points: 6, affects: [water]}
     explanation:
       en: "Growing-season rainfall is low; drought-tolerant crops are a safer choice."

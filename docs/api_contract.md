@@ -114,7 +114,7 @@ rules:
     { "id": "landsat_ndvi", "name": "Landsat 8/9 Collection 2 L2 NDVI", "variable": "NDVI", "resolution": "30 m, 8-16 days", "period": "2018–2025" },
     { "id": "smap", "name": "SMAP L4 Global Soil Moisture (SPL4SMGP)", "variable": "root-zone soil moisture", "resolution": "9 km, 3-hourly", "period": "2015–2025" },
     { "id": "power", "name": "NASA POWER AG", "variable": "T2M, T2M_MAX, T2M_MIN, PRECTOTCORR", "resolution": "0.5° × 0.625°, daily", "period": "2017–2025" },
-    { "id": "srtm", "name": "SRTM 30 m DEM", "variable": "slope", "resolution": "30 m", "period": "2000" },
+    { "id": "nasadem", "name": "NASADEM 30 m", "variable": "slope, TWI", "resolution": "30 m", "period": "2000" },
     { "id": "csb", "name": "USDA Crop Sequence Boundaries", "variable": "fields + crop history", "resolution": "field, yearly", "period": "2018–2025" },
     { "id": "ssurgo", "name": "USDA NRCS SSURGO", "variable": "soil properties", "resolution": "field-scale map units", "period": "current" }
   ],

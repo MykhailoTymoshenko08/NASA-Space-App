@@ -206,7 +206,7 @@ def run_analysis(req: AnalyzeRequest) -> AnalyzeResponse:
         {"id": "heat_days", "label": tx["kn_heat"], "value": round(heat), "unit": "days" if lang == "en" else "дн.",
          "source_ids": ["power"]},
         {"id": "erosion_t_ha_yr", "label": tx["kn_erosion"], "value": round(cur_eval.erosion, 1),
-         "unit": "t/ha/yr" if lang == "en" else "т/га/рік", "source_ids": ["srtm", "ssurgo"]},
+         "unit": "t/ha/yr" if lang == "en" else "т/га/рік", "source_ids": ["nasadem", "ssurgo"]},
     ]
 
     # ---- strategies
@@ -252,7 +252,7 @@ def run_analysis(req: AnalyzeRequest) -> AnalyzeResponse:
                 {"text": tx["ev_bare"].format(a=cur_eval.bare_days, b=ev.bare_days), "source_ids": ["landsat_ndvi"]},
                 {"text": tx["ev_erosion"].format(a=round(cur_eval.erosion, 1), b=round(ev.erosion, 1),
                                                  slope=soil["slope_pct"], om=soil["om_pct"]),
-                 "source_ids": ["srtm", "ssurgo"]},
+                 "source_ids": ["nasadem", "ssurgo"]},
                 {"text": tx["ev_water"].format(a=round(cur_eval.water_use), b=round(ev.water_use), anom=anomaly),
                  "source_ids": ["smap", "power"]},
             ],

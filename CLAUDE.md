@@ -9,7 +9,7 @@ Judges love numbers. The tool supports, not replaces, farmer judgment.
 
 ## team
 - Mykhailo — AI/ML + integration + team lead (owner of this repo/folder)
-- Lina — geospatial / remote sensing; processes satellite data in Google Earth Engine (Landsat 8/9 NDVI, SMAP L4, SRTM)
+- Lina — geospatial / remote sensing; processes satellite data in Google Earth Engine (Landsat 8/9 NDVI, SMAP L4, NASADEM, IMERG)
 - Sasha — backend (fields db, proxy to ML)
 - Petro — frontend (map, panel, strategy cards)
 - Ksenia — PM / UI-UX
@@ -45,6 +45,7 @@ Full API contract: `docs/api_contract.md`. Endpoints: `GET /ml/health`, `GET /ml
   download: https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets/NationalCSB_2018-2025_rev23.zip
 - training states: Iowa 19, Illinois 17, Nebraska 31, Kansas 20; ~500 fields per state, >= 25 acres, >= 6 crop years
 - climate: NASA POWER daily point API (AG community), queried once per 0.5° × 0.625° grid cell
+- precipitation for the rules: GPM IMERG (Lina will provide); until then fallback to POWER `precip_grow`
 - soil: SSURGO via USDA Soil Data Access REST API (AWC, organic matter → SOC, texture incl. clay %, hydrologic group,
   K factor, drainage, pH, EC/salinity); OpenLandMap as fallback where SSURGO has gaps
 - terrain: NASADEM (30 m) from Lina — slope and TWI (topographic wetness index)
@@ -56,7 +57,7 @@ Full API contract: `docs/api_contract.md`. Endpoints: `GET /ml/health`, `GET /ml
 - `ndvi_monthly.csv`: field_id, year, month, ndvi_mean, n_obs
 - `ndvi_season.csv`: field_id, year, ndvi_peak, ndvi_peak_doy
 - `smap_monthly.csv`: field_id, year, month, smap_rootzone
-- `terrain.csv`: field_id, slope_deg, slope_pct, twi (NASADEM; rules use degrees, the api contract uses percent — confirm columns with Lina)
+- `terrain.csv`: field_id, slope_pct, twi (NASADEM; slope in percent everywhere, 5° ≈ 8.7%)
 put them into `data/lina/`
 
 ## pipeline

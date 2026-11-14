@@ -107,7 +107,7 @@ def test_valid_response_shape_and_guarantees():
         assert set(t["flags"]) <= FLAGS
 
     source_ids = {s["id"] for s in body["sources"]}
-    assert {"landsat_ndvi", "smap", "power", "srtm", "csb", "ssurgo"} <= source_ids
+    assert {"landsat_ndvi", "smap", "power", "nasadem", "csb", "ssurgo"} <= source_ids
     refs = [k["source_ids"] for k in body["summary"]["key_numbers"]]
     for s in body["strategies"]:
         refs += [e["source_ids"] for e in s["evidence"]]
