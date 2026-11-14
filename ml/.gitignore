@@ -1,0 +1,20 @@
+.venv/
+# data: heavy / re-downloadable stuff stays out, everything slow to recompute is committed
+data/*
+!data/fields/
+data/fields/*
+!data/fields/*.parquet
+!data/features/
+data/features/*
+!data/features/*.parquet
+!data/dataset/
+!data/precomputed/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+
+# docker image archives (deploy/data IS in git: the backend builds the image from a clean clone)
+deploy/*.tar
+deploy/*.tar.gz
+!deploy/data/

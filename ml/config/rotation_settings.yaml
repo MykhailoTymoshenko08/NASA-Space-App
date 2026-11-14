@@ -1,0 +1,50 @@
+# tunables of the rotation planner (ml_service/rotations.py). DRAFT: every number is a starting point, TODO calibrate.
+version: 1
+status: draft
+
+horizon_years: 3          # length of the planned chains
+n_strategies: 3           # alternatives returned next to the current rotation
+
+# the final 0-100 score of a rotation = weighted mean of the five calculator scores (weights = farmer priorities)
+# and "fit" (how well the crops suit the field: calibrated model x rules x transitions). fit has no slider, a fixed weight:
+fit_weight: 0.6
+# fit = 100 x geometric mean over the years of (score of the chosen crop / score of the best crop at that step) ** fit_gamma.
+# gamma < 1 keeps unusual-but-sensible crops (wheat in Iowa) in play: the model says "farmers rarely do it here",
+# which is a hint, not a veto. hard vetoes come only from blocked crops (score 0).
+fit_gamma: 0.3
+# the ideas offered as alternatives, in this order (the best variant of each; the first n_strategies that exist):
+#   cover = same crops + winter cover, diversified = with small grains (wheat, oats, barley), drought = with sorghum,
+#   perennial = with alfalfa, switch = any other set of crops
+logic_order: [cover, diversified, drought, perennial, switch]
+max_loss_vs_current: 8   # an alternative may be at most 8 points worse than the current rotation
+min_fit: 20               # an alternative must reach this fit (0-100), otherwise it is not realistic for the field
+repeat_soil_penalty: 10   # soil health points lost for every year the same annual crop follows itself (pest cycle not broken)
+
+# how the current rotation is read from the CSB history (last 4-8 years): the longest window first, then the shortest cycle
+rotation_detection:
+  windows: [8, 6, 4]
+  periods: [1, 2, 3, 4]
+  min_agreement: 0.8      # share of years that repeat the year one cycle earlier
+
+# winter cover crop slot
+cover:
+  crop: cereal_rye
+  allowed_after: [corn, soybean, sorghum]     # harvested early enough in autumn
+  not_before: [winter_wheat, alfalfa]         # sown at the same time as the cover
+
+# last-season stress (NDVI of last year's crop vs neighbours), switched on when data/lina/ndvi_monthly.csv exists
+stress:
+  z_threshold: -1.5       # DRAFT: z-score under this = strong stress
+  min_neighbors: 10       # same crop, same state, same year
+  repeat_penalty: 0.5     # x (1 - 0.5 * intensity) for the same crop again
+  family_penalty: 0.25    # x (1 - 0.25 * intensity) for the same plant family
+  legume_bonus: 0.20      # x (1 + 0.20 * intensity) for a legume
+  cover_bonus_points: 10  # soil health points for strategies with a cover after the first year (x intensity)
+  default_peak_months:    # used when the NDVI file has too few fields of a crop to find the peak itself
+    corn: [7, 8]
+    soybean: [7, 8]
+    sorghum: [8, 9]
+    winter_wheat: [5, 6]
+    oats: [6, 7]
+    barley: [6, 7]
+    alfalfa: [6, 7]

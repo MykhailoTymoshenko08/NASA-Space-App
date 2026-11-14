@@ -1,0 +1,826 @@
+{
+  "request_id": "demo-reno-1",
+  "field_id": "201825002747884",
+  "model_version": "0.2.0",
+  "generated_at": "2026-11-14T21:27:59Z",
+  "status": "partial",
+  "detected_rotation": {
+    "sequence": [
+      "winter_wheat"
+    ],
+    "label": "Озима пшениця",
+    "confidence": 0.95,
+    "years_used": [
+      2018,
+      2025
+    ],
+    "source": "csb",
+    "cycle_years": 1
+  },
+  "summary": {
+    "headline": "Поле голе ~135 днів на рік, а в лют–кві та лип–вер вологи бракує (випаровування більше за опади).",
+    "overall_risk": "high",
+    "key_numbers": [
+      {
+        "id": "bare_days",
+        "label": "Днів з голим ґрунтом на рік",
+        "value": 135.0,
+        "unit": "дн.",
+        "source_ids": [
+          "csb"
+        ]
+      },
+      {
+        "id": "jul_aug_water_deficit",
+        "label": "Дефіцит води в липні–серпні (ET0 − опади)",
+        "value": 176.0,
+        "unit": "мм",
+        "source_ids": [
+          "power"
+        ]
+      },
+      {
+        "id": "heat_days",
+        "label": "Днів > 32°C (середнє)",
+        "value": 67.0,
+        "unit": "дн.",
+        "source_ids": [
+          "power"
+        ]
+      }
+    ]
+  },
+  "vulnerability_timeline": [
+    {
+      "month": 1,
+      "bare_soil": 0.5,
+      "moisture_deficit": 0.0,
+      "heat_stress": 0.0,
+      "frost_risk": 0.92,
+      "extreme_precip": 0.11,
+      "flags": [
+        "frost"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 2,
+      "bare_soil": 0.5,
+      "moisture_deficit": 0.53,
+      "heat_stress": 0.0,
+      "frost_risk": 0.81,
+      "extreme_precip": 0.11,
+      "flags": [
+        "drought",
+        "frost"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 3,
+      "bare_soil": 0.3,
+      "moisture_deficit": 0.38,
+      "heat_stress": 0.0,
+      "frost_risk": 0.37,
+      "extreme_precip": 0.28,
+      "flags": [
+        "drought"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 4,
+      "bare_soil": 0.0,
+      "moisture_deficit": 0.54,
+      "heat_stress": 0.06,
+      "frost_risk": 0.13,
+      "extreme_precip": 0.28,
+      "flags": [
+        "drought"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 5,
+      "bare_soil": 0.0,
+      "moisture_deficit": 0.0,
+      "heat_stress": 0.26,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.76,
+      "flags": [
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 6,
+      "bare_soil": 0.0,
+      "moisture_deficit": 0.32,
+      "heat_stress": 1.0,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.63,
+      "flags": [
+        "heat",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 7,
+      "bare_soil": 0.4,
+      "moisture_deficit": 0.52,
+      "heat_stress": 1.0,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.36,
+      "flags": [
+        "drought",
+        "heat",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 8,
+      "bare_soil": 0.76,
+      "moisture_deficit": 0.47,
+      "heat_stress": 1.0,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.36,
+      "flags": [
+        "bare",
+        "drought",
+        "heat",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 9,
+      "bare_soil": 0.76,
+      "moisture_deficit": 0.47,
+      "heat_stress": 1.0,
+      "frost_risk": 0.0,
+      "extreme_precip": 0.43,
+      "flags": [
+        "bare",
+        "drought",
+        "heat",
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 10,
+      "bare_soil": 0.6,
+      "moisture_deficit": 0.08,
+      "heat_stress": 0.14,
+      "frost_risk": 0.09,
+      "extreme_precip": 0.43,
+      "flags": [
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 11,
+      "bare_soil": 0.2,
+      "moisture_deficit": 0.0,
+      "heat_stress": 0.0,
+      "frost_risk": 0.39,
+      "extreme_precip": 0.43,
+      "flags": [
+        "extreme_rain"
+      ],
+      "bare_soil_source": "crop_calendar"
+    },
+    {
+      "month": 12,
+      "bare_soil": 0.4,
+      "moisture_deficit": 0.22,
+      "heat_stress": 0.0,
+      "frost_risk": 0.75,
+      "extreme_precip": 0.11,
+      "flags": [
+        "frost"
+      ],
+      "bare_soil_source": "crop_calendar"
+    }
+  ],
+  "strategies": [
+    {
+      "id": "current",
+      "is_current": true,
+      "name": "Поточна: Озима пшениця",
+      "sequence": [
+        {
+          "year": 1,
+          "season": "main",
+          "crop": "winter_wheat"
+        },
+        {
+          "year": 2,
+          "season": "main",
+          "crop": "winter_wheat"
+        },
+        {
+          "year": 3,
+          "season": "main",
+          "crop": "winter_wheat"
+        }
+      ],
+      "scores": {
+        "water": 28,
+        "soil_health": 0,
+        "nitrogen": 42,
+        "erosion": 94,
+        "income": 60,
+        "overall": 50
+      },
+      "delta_vs_current": null,
+      "metrics": {
+        "water_use_mm_yr": 590,
+        "n_fixed_kg_ha_yr": 0,
+        "bare_days_yr": 135,
+        "erosion_t_ha_yr": 1.4
+      },
+      "why": "Базова сівозміна визначена за історією CSB 2018–2025 (цикл 1 р., збіг 100%), продовжена на 3 роки.",
+      "evidence": [],
+      "benefits": [
+        "Порівнянні показники з поточною сівозміною"
+      ],
+      "risks": [
+        "Повтор тієї ж культури: цикл шкідників не розірваний"
+      ],
+      "data_gaps": [
+        "Немає даних про зрошення на рівні поля",
+        "Невідомо, чи є худоба / потреба в кормах",
+        "Ухил береться зі SSURGO (NASADEM ще немає)",
+        "Дохід — відносний індекс, а не гроші",
+        "Немає NDVI від Ліни: правило стресу минулого сезону вимкнене"
+      ],
+      "check_with_agronomist": [],
+      "confidence": 0.95
+    },
+    {
+      "id": "s1",
+      "is_current": false,
+      "name": "Соя – Озима пшениця – Соя + покривне жито",
+      "sequence": [
+        {
+          "year": 1,
+          "season": "main",
+          "crop": "soybean"
+        },
+        {
+          "year": 2,
+          "season": "main",
+          "crop": "winter_wheat"
+        },
+        {
+          "year": 3,
+          "season": "main",
+          "crop": "soybean"
+        },
+        {
+          "year": 3,
+          "season": "cover",
+          "crop": "cereal_rye"
+        }
+      ],
+      "scores": {
+        "water": 24,
+        "soil_health": 46,
+        "nitrogen": 61,
+        "erosion": 91,
+        "income": 68,
+        "overall": 61
+      },
+      "delta_vs_current": {
+        "water": -4,
+        "soil_health": 46,
+        "nitrogen": 19,
+        "erosion": -3,
+        "income": 8,
+        "overall": 11
+      },
+      "metrics": {
+        "water_use_mm_yr": 615,
+        "n_fixed_kg_ha_yr": 40,
+        "bare_days_yr": 152,
+        "erosion_t_ha_yr": 1.9
+      },
+      "why": "Малі зернові розривають цикли шкідників і розподіляють погодні ризики. Голих днів 135→152 на рік, ерозія 1.4→1.9 т/га, азот -60→+3 кг/га.",
+      "evidence": [
+        {
+          "text": "Голих днів ґрунту: 135 → 152 на рік (за календарем культур)",
+          "source_ids": [
+            "csb"
+          ]
+        },
+        {
+          "text": "Ерозія 1.4 → 1.9 т/га/рік (RUSLE: опади 809 мм/рік, K=0.25, ухил 1.0%)",
+          "source_ids": [
+            "power",
+            "ssurgo"
+          ]
+        },
+        {
+          "text": "Водоспоживання 590 → 615 мм/рік (Kc × ET0 за FAO-56; опади 809 мм/рік)",
+          "source_ids": [
+            "power"
+          ]
+        },
+        {
+          "text": "Баланс азоту -60 → +3 кг/га/рік (фіксація бобовими 40 кг/га/рік)",
+          "source_ids": [
+            "csb"
+          ]
+        }
+      ],
+      "benefits": [
+        "Кращий баланс азоту: +63 кг/га/рік",
+        "Розриває цикл шкідників (немає повтору культури)",
+        "Дохід вищий на 8 п."
+      ],
+      "risks": [
+        "Споживає більше води: +24 мм/рік",
+        "Жито витрачає весняну вологу й може придушити сходи наступної культури"
+      ],
+      "data_gaps": [
+        "Немає даних про зрошення на рівні поля",
+        "Невідомо, чи є худоба / потреба в кормах",
+        "Ухил береться зі SSURGO (NASADEM ще немає)",
+        "Дохід — відносний індекс, а не гроші",
+        "Немає NDVI від Ліни: правило стресу минулого сезону вимкнене"
+      ],
+      "check_with_agronomist": [
+        "Техніка й праця для додаткової культури",
+        "Наявність насіння та елеватора"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "id": "s2",
+      "is_current": false,
+      "name": "Соя – Сорго – Соя + покривне жито",
+      "sequence": [
+        {
+          "year": 1,
+          "season": "main",
+          "crop": "soybean"
+        },
+        {
+          "year": 1,
+          "season": "cover",
+          "crop": "cereal_rye"
+        },
+        {
+          "year": 2,
+          "season": "main",
+          "crop": "sorghum"
+        },
+        {
+          "year": 2,
+          "season": "cover",
+          "crop": "cereal_rye"
+        },
+        {
+          "year": 3,
+          "season": "main",
+          "crop": "soybean"
+        },
+        {
+          "year": 3,
+          "season": "cover",
+          "crop": "cereal_rye"
+        }
+      ],
+      "scores": {
+        "water": 14,
+        "soil_health": 65,
+        "nitrogen": 60,
+        "erosion": 94,
+        "income": 68,
+        "overall": 61
+      },
+      "delta_vs_current": {
+        "water": -14,
+        "soil_health": 65,
+        "nitrogen": 18,
+        "erosion": 0,
+        "income": 8,
+        "overall": 11
+      },
+      "metrics": {
+        "water_use_mm_yr": 677,
+        "n_fixed_kg_ha_yr": 40,
+        "bare_days_yr": 90,
+        "erosion_t_ha_yr": 1.4
+      },
+      "why": "Сорго замість найвологоємніших культур: стійкіше до спеки й посухи. Голих днів 135→90 на рік, ерозія 1.4→1.4 т/га, азот -60→+0 кг/га.",
+      "evidence": [
+        {
+          "text": "Голих днів ґрунту: 135 → 90 на рік (за календарем культур)",
+          "source_ids": [
+            "csb"
+          ]
+        },
+        {
+          "text": "Ерозія 1.4 → 1.4 т/га/рік (RUSLE: опади 809 мм/рік, K=0.25, ухил 1.0%)",
+          "source_ids": [
+            "power",
+            "ssurgo"
+          ]
+        },
+        {
+          "text": "Водоспоживання 590 → 677 мм/рік (Kc × ET0 за FAO-56; опади 809 мм/рік)",
+          "source_ids": [
+            "power"
+          ]
+        },
+        {
+          "text": "Баланс азоту -60 → +0 кг/га/рік (фіксація бобовими 40 кг/га/рік)",
+          "source_ids": [
+            "csb"
+          ]
+        }
+      ],
+      "benefits": [
+        "Голих днів менше на 33%",
+        "Кращий баланс азоту: +60 кг/га/рік",
+        "Розриває цикл шкідників (немає повтору культури)",
+        "Дохід вищий на 8 п."
+      ],
+      "risks": [
+        "Споживає більше води: +86 мм/рік",
+        "Жито витрачає весняну вологу й може придушити сходи наступної культури"
+      ],
+      "data_gaps": [
+        "Немає даних про зрошення на рівні поля",
+        "Невідомо, чи є худоба / потреба в кормах",
+        "Ухил береться зі SSURGO (NASADEM ще немає)",
+        "Дохід — відносний індекс, а не гроші",
+        "Немає NDVI від Ліни: правило стресу минулого сезону вимкнене"
+      ],
+      "check_with_agronomist": [
+        "Місцеві контракти й базис на сорго",
+        "Підбір гібрида під ваш регіон"
+      ],
+      "confidence": 0.85
+    },
+    {
+      "id": "s3",
+      "is_current": false,
+      "name": "Люцерна – Люцерна – Люцерна",
+      "sequence": [
+        {
+          "year": 1,
+          "season": "main",
+          "crop": "alfalfa"
+        },
+        {
+          "year": 2,
+          "season": "main",
+          "crop": "alfalfa"
+        },
+        {
+          "year": 3,
+          "season": "main",
+          "crop": "alfalfa"
+        }
+      ],
+      "scores": {
+        "water": 0,
+        "soil_health": 66,
+        "nitrogen": 96,
+        "erosion": 99,
+        "income": 53,
+        "overall": 59
+      },
+      "delta_vs_current": {
+        "water": -28,
+        "soil_health": 66,
+        "nitrogen": 54,
+        "erosion": 5,
+        "income": -7,
+        "overall": 9
+      },
+      "metrics": {
+        "water_use_mm_yr": 991,
+        "n_fixed_kg_ha_yr": 150,
+        "bare_days_yr": 69,
+        "erosion_t_ha_yr": 0.2
+      },
+      "why": "Багаторічна люцерна на кілька років: майже без ерозії й з великим азотним кредитом. Голих днів 135→69 на рік, ерозія 1.4→0.2 т/га, азот -60→+120 кг/га.",
+      "evidence": [
+        {
+          "text": "Голих днів ґрунту: 135 → 69 на рік (за календарем культур)",
+          "source_ids": [
+            "csb"
+          ]
+        },
+        {
+          "text": "Ерозія 1.4 → 0.2 т/га/рік (RUSLE: опади 809 мм/рік, K=0.25, ухил 1.0%)",
+          "source_ids": [
+            "power",
+            "ssurgo"
+          ]
+        },
+        {
+          "text": "Водоспоживання 590 → 991 мм/рік (Kc × ET0 за FAO-56; опади 809 мм/рік)",
+          "source_ids": [
+            "power"
+          ]
+        },
+        {
+          "text": "Баланс азоту -60 → +120 кг/га/рік (фіксація бобовими 150 кг/га/рік)",
+          "source_ids": [
+            "csb"
+          ]
+        }
+      ],
+      "benefits": [
+        "Голих днів менше на 48%",
+        "Ерозія менша на 83%",
+        "Кращий баланс азоту: +180 кг/га/рік",
+        "Розриває цикл шкідників (немає повтору культури)"
+      ],
+      "risks": [
+        "Споживає більше води: +400 мм/рік",
+        "Дохід нижчий на 7 п.",
+        "Люцерні потрібен ринок сіна або худоба"
+      ],
+      "data_gaps": [
+        "Немає даних про зрошення на рівні поля",
+        "Невідомо, чи є худоба / потреба в кормах",
+        "Ухил береться зі SSURGO (NASADEM ще немає)",
+        "Дохід — відносний індекс, а не гроші",
+        "Немає NDVI від Ліни: правило стресу минулого сезону вимкнене"
+      ],
+      "check_with_agronomist": [
+        "Попит на корми й ціни на сіно",
+        "Закладання та знищення травостою"
+      ],
+      "confidence": 0.77
+    }
+  ],
+  "sources": [
+    {
+      "id": "power",
+      "name": "NASA POWER AG",
+      "variable": "T2M, T2M_MAX, T2M_MIN, PRECTOTCORR",
+      "resolution": "0.5° × 0.625°, щодня",
+      "period": "2017–2025"
+    },
+    {
+      "id": "csb",
+      "name": "USDA Crop Sequence Boundaries",
+      "variable": "поля + історія культур",
+      "resolution": "поле, щороку",
+      "period": "2018–2025"
+    },
+    {
+      "id": "ssurgo",
+      "name": "USDA NRCS SSURGO",
+      "variable": "властивості ґрунту",
+      "resolution": "ґрунтові контури рівня поля",
+      "period": "актуальні"
+    }
+  ],
+  "warnings": [
+    "Немає NDVI від Landsat: голий ґрунт у таймлайні взято з календаря культур, правило стресу минулого сезону вимкнене",
+    "Немає даних SMAP: правила про вологу ґрунту не перевірені",
+    "Немає TWI: правила про вологі пониження не перевірені",
+    "Немає DEM NASADEM: ухил береться зі SSURGO",
+    "Ознаки поля взято з попередньо порахованих даних"
+  ],
+  "disclaimer": "Лише підтримка рішень. Перед зміною сівозміни узгодьте її з місцевим агрономом.",
+  "crop_suitability": [
+    {
+      "crop": "soybean",
+      "name": "Соя",
+      "group": "legume",
+      "fit_score": 47.4,
+      "next_year_share": 28.5,
+      "rank": 1,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Найкращий вибір на наступний рік: підходить полю (придатність 47) і добре йде після «Озима пшениця» (28% рекомендацій).",
+      "top_factors": [
+        "Попередник (що росло торік): Озима пшениця — знижує шанси",
+        "Типовий клімат місця: сонячна радіація за сезон = 22.2 — підвищує шанси",
+        "Що росло позаторік: Озима пшениця — знижує шанси"
+      ],
+      "top3_role": "найвищий бал",
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.1557,
+        "model_prob_source": "model",
+        "transition": 1.0,
+        "suitability": 0.956,
+        "rules": 1.05,
+        "score_raw": 0.15633,
+        "fit_prob": 0.4718
+      }
+    },
+    {
+      "crop": "winter_wheat",
+      "name": "Озима пшениця",
+      "group": "cereal",
+      "fit_score": 50.5,
+      "next_year_share": 27.3,
+      "rank": 2,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Підходить полю (придатність 50), але торік уже була Озима пшениця: повтор тієї ж культури знижує шанс до 27%.",
+      "top_factors": [
+        "Типовий клімат місця: днів сильної спеки понад 35°C = 25.0 — підвищує шанси",
+        "Регіон (де розташоване поле): довгота поля = -98.0 — підвищує шанси",
+        "Ґрунт: вміст глини в ґрунті = 11.9 — знижує шанси"
+      ],
+      "top3_role": "найкраща з іншої групи (злакові)",
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.5109,
+        "model_prob_source": "model",
+        "transition": 0.31622776601683794,
+        "suitability": 0.928,
+        "rules": 1.0,
+        "score_raw": 0.15,
+        "fit_prob": 0.5439
+      }
+    },
+    {
+      "crop": "sorghum",
+      "name": "Сорго",
+      "group": "cereal",
+      "fit_score": 12.7,
+      "next_year_share": 19.6,
+      "rank": 3,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Полю підходить помірно (придатність 13), але після «Озима пшениця» її в регіоні часто сіють (20% рекомендацій).",
+      "top_factors": [
+        "Типовий клімат місця: літня максимальна температура = 32.6 — підвищує шанси",
+        "Що росло позаторік: Озима пшениця — підвищує шанси",
+        "Ґрунт: схильність ґрунту до ерозії = 0.3 — підвищує шанси"
+      ],
+      "top3_role": null,
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.1633,
+        "model_prob_source": "model",
+        "transition": 0.7071067811865476,
+        "suitability": 0.935,
+        "rules": 1.0,
+        "score_raw": 0.10794,
+        "fit_prob": 0.1361
+      }
+    },
+    {
+      "crop": "corn",
+      "name": "Кукурудза",
+      "group": "cereal",
+      "fit_score": 29.1,
+      "next_year_share": 19.0,
+      "rank": 4,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Полю підходить помірно (придатність 29), але після «Озима пшениця» її в регіоні часто сіють (19% рекомендацій).",
+      "top_factors": [
+        "Типовий клімат місця: день останнього весняного заморозку = 98.6 — знижує шанси",
+        "Погода торішнього сезону: літні опади = 454.6 — знижує шанси",
+        "Що росло позаторік: Озима пшениця — знижує шанси"
+      ],
+      "top3_role": null,
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.1548,
+        "model_prob_source": "model",
+        "transition": 0.7071067811865476,
+        "suitability": 0.957,
+        "rules": 1.0,
+        "score_raw": 0.10474,
+        "fit_prob": 0.3045
+      }
+    },
+    {
+      "crop": "alfalfa",
+      "name": "Люцерна",
+      "group": "other",
+      "fit_score": 34.7,
+      "next_year_share": 2.4,
+      "rank": 5,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Підходить полю (придатність 35), але після «Озима пшениця» вдаліша Соя (28% проти 2%).",
+      "top_factors": [
+        "Попередник (що росло торік): Озима пшениця — підвищує шанси",
+        "Погода торішнього сезону: опади за вегетацію = 805.0 — підвищує шанси",
+        "Типовий клімат місця: день першого осіннього заморозку = 301.7 — знижує шанси"
+      ],
+      "top3_role": "найстійкіша до спеки й посухи",
+      "model_class": true,
+      "role": null,
+      "parts": {
+        "model_prob": 0.0153,
+        "model_prob_source": "model",
+        "transition": 1.0,
+        "suitability": 0.835,
+        "rules": 1.05,
+        "score_raw": 0.01338,
+        "fit_prob": 0.3958
+      }
+    },
+    {
+      "crop": "oats",
+      "name": "Овес",
+      "group": "cereal",
+      "fit_score": 11.9,
+      "next_year_share": 1.7,
+      "rank": 6,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Модель цю культуру не оцінює (у регіоні замало прикладів); ураховано лише правила (придатність 12).",
+      "top_factors": [
+        "типова сума активних температур = 2183.63: поза оптимальним діапазоном (1100.0–1900.0) (×0.53)",
+        "та сама родина, що й торішня культура, спільні хвороби та шкідники (×0.71)",
+        "органічний вуглець, % = 0.64: поза оптимальним діапазоном (від 0.8) (×0.73)"
+      ],
+      "top3_role": null,
+      "model_class": false,
+      "role": null,
+      "parts": {
+        "model_prob": 0.0153,
+        "model_prob_source": "neutral",
+        "transition": 0.7071067811865476,
+        "suitability": 0.873,
+        "rules": 1.0,
+        "score_raw": 0.00943,
+        "fit_prob": 0.1361
+      }
+    },
+    {
+      "crop": "barley",
+      "name": "Ячмінь",
+      "group": "cereal",
+      "fit_score": 10.6,
+      "next_year_share": 1.5,
+      "rank": 7,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Модель цю культуру не оцінює (у регіоні замало прикладів); ураховано лише правила (придатність 11).",
+      "top_factors": [
+        "кислотність ґрунту (pH) = 5.95: поза оптимальним діапазоном (6.5–8.0) (×0.45)",
+        "типова сума активних температур = 2183.63: поза оптимальним діапазоном (1100.0–1900.0) (×0.53)",
+        "та сама родина, що й торішня культура, спільні хвороби та шкідники (×0.71)"
+      ],
+      "top3_role": null,
+      "model_class": false,
+      "role": null,
+      "parts": {
+        "model_prob": 0.0153,
+        "model_prob_source": "neutral",
+        "transition": 0.7071067811865476,
+        "suitability": 0.779,
+        "rules": 1.0,
+        "score_raw": 0.00841,
+        "fit_prob": 0.1361
+      }
+    },
+    {
+      "crop": "cereal_rye",
+      "name": "Жито (покривне)",
+      "group": "cereal",
+      "fit_score": 13.6,
+      "next_year_share": 0.0,
+      "rank": 8,
+      "blocked": false,
+      "block_reasons": [],
+      "explanation": "Покривна культура: не пропонується як основна, її місце в сівозміні дивіться в стратегіях.",
+      "top_factors": [
+        "та сама родина, що й торішня культура, спільні хвороби та шкідники (×0.71)"
+      ],
+      "top3_role": null,
+      "model_class": false,
+      "role": "cover",
+      "parts": {
+        "model_prob": 0.0153,
+        "model_prob_source": "neutral",
+        "transition": 0.7071067811865476,
+        "suitability": 1.0,
+        "rules": 1.0,
+        "score_raw": 0.01079,
+        "fit_prob": 0.1361
+      }
+    }
+  ],
+  "score_notes": {
+    "income": "income_index: a relative 0-100 index of margin, not money"
+  },
+  "feature_source": "precomputed"
+}
