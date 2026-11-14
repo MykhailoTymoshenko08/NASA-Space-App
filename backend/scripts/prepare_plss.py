@@ -7,14 +7,16 @@ Source: BLM National PLSS CadNSDI MapServer (public domain, provided "as is"):
   EPSG:4326. Raw pages are cached in data/raw/plss/<STATE>/ so re-runs never re-download.
 
 Which first-division types we keep (FRSTDIVTYP):
-  SN Section and FS Fractional Section: real, surveyed sections -> kept, `division_type` records which.
+  SN Section and FS Fractional Section: real, surveyed sections -> kept; `division_type` holds the BLM
+  text (FRSTDIVTXT, e.g. "Section").
   Dropped: protracted/unsurveyed (UP, PB, UN, QT), lots (LT), tracts (TR), meandered water (MW),
   other/unknown (OT, UK, AR, UA) and rows with no type. They are not survey sections a farmer
   would recognise; points there fall back to a 500 m buffered point.
 
 Outputs (DATA_DIR):
-  sections.parquet   field_id, township_id, section_id, section_number, division_type, label,
-                     area_ha, county_fips, geometry (Polygon, EPSG:4326)
+  sections.parquet   field_id, township_id, section_id, section_number (BLM FRSTDIVNO),
+                     division_type (BLM FRSTDIVTXT), label, area_ha, county_fips,
+                     geometry (Polygon, EPSG:4326)
   townships.parquet  township_id, label, state, geometry
   plss_meta.json     edition (download date), states, counts, regions (bbox per state)
   fields.pmtiles     layer `fields` (field_id, crop_class "", area_ha, label), z11..14
@@ -40,7 +42,7 @@ SERVICE = "https://gis.blm.gov/arcgis/rest/services/Cadastral/BLM_Natl_PLSS_CadN
 TOWNSHIP_LAYER, SECTION_LAYER = 1, 2
 PAGE = 2000
 PAUSE_S = 0.5  # be polite to the BLM server
-KEEP_TYPES = {"SN": "section", "FS": "fractional_section"}
+KEEP_TYPES = {"SN", "FS"}  # Section, Fractional Section
 SECTION_FIELDS = "OBJECTID,PLSSID,FRSTDIVID,FRSTDIVTYP,FRSTDIVTXT,FRSTDIVNO,FRSTDIVDUP"
 TOWNSHIP_FIELDS = "OBJECTID,PLSSID,STATEABBR,TWNSHPLAB,PRINMER"
 
@@ -84,6 +86,18 @@ def fetch_pages(client, layer: int, where: str, fields: str, cache_dir) -> list[
     return feats
 
 
+def township_label(plssid: str) -> str | None:
+    """'IA050820N0220W0' -> 'T82N R22W'.
+
+    PLSSID layout: state(2) meridian(2) township(3) frac(1) dir(1) range(3) frac(1) dir(1) dup(1).
+    Built from the id because BLM's TWNSHPLAB text is inconsistent ('T85N R47W' vs '82N 22W').
+    """
+    s = str(plssid or "")
+    if len(s) < 14 or not (s[4:7].isdigit() and s[9:12].isdigit()):
+        return None
+    return f"T{int(s[4:7])}{s[8]} R{int(s[9:12])}{s[13]}"
+
+
 def to_gdf(feats: list[dict]) -> gpd.GeoDataFrame:
     feats = [f for f in feats if f.get("geometry")]
     rows = [f["properties"] for f in feats]
@@ -106,7 +120,7 @@ def largest_polygon(g):
 def clean_sections(raw: gpd.GeoDataFrame, townships: gpd.GeoDataFrame, counties) -> gpd.GeoDataFrame:
     stats = raw["FRSTDIVTYP"].fillna("(none)").value_counts().to_dict()
     df = raw[raw["FRSTDIVTYP"].isin(KEEP_TYPES)].copy()
-    print(f"  first-division types: {stats}; kept {len(df)} ({', '.join(KEEP_TYPES)})")
+    print(f"  first-division types: {stats}; kept {len(df)} ({', '.join(sorted(KEEP_TYPES))})")
 
     dup = df["FRSTDIVDUP"].fillna("0").astype(str).str.strip()
     suffix = dup.where(~dup.isin({"", "0"}), "")
@@ -123,17 +137,18 @@ def clean_sections(raw: gpd.GeoDataFrame, townships: gpd.GeoDataFrame, counties)
     if parts_before:
         print(f"  {parts_before} multi-part/invalid geometries reduced to their largest polygon")
 
-    tw_label = dict(zip(townships["township_id"], townships["label"], strict=False))
     df["township_id"] = df["PLSSID"].astype(str)
     df["section_id"] = df["FRSTDIVID"].astype(str)
-    df["section_number"] = pd.to_numeric(df["FRSTDIVNO"], errors="coerce").astype("Int64")
-    df["division_type"] = df["FRSTDIVTYP"].map(KEEP_TYPES)
+    # Contract PlssRef mirrors BLM: section_number = FRSTDIVNO, division_type = FRSTDIVTXT.
+    df["section_number"] = df["FRSTDIVNO"].astype("string").str.strip()
+    df["division_type"] = df["FRSTDIVTXT"].astype("string").str.strip()
 
     def label(r) -> str:
-        kind = "Section" if r.division_type == "section" else "Fractional section"
-        num = f" {int(r.section_number)}" if pd.notna(r.section_number) else ""
-        tw = tw_label.get(r.township_id)
-        return f"{kind}{num}, {tw}" if tw else f"{kind}{num}"
+        kind = "Fractional section" if r.FRSTDIVTYP == "FS" else "Section"
+        num = pd.to_numeric(r.section_number, errors="coerce")
+        num_s = f" {int(num)}" if pd.notna(num) else ""
+        tw = township_label(r.township_id)
+        return f"{kind}{num_s}, {tw}" if tw else f"{kind}{num_s}"
 
     df["label"] = [label(r) for r in df.itertuples()]
     proj = df.to_crs(5070)
@@ -154,7 +169,8 @@ def clean_townships(raw: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     df["geometry"] = [largest_polygon(g) for g in df.geometry]
     df = df[df.geometry.notna()]
     df["township_id"] = df["PLSSID"].astype(str)
-    df["label"] = df["TWNSHPLAB"].fillna("").astype(str)
+    df["label"] = [township_label(t) or (lab or "") for t, lab in zip(
+        df["township_id"], df["TWNSHPLAB"], strict=True)]
     df["state"] = df["STATEABBR"].fillna("").astype(str)
     df = df[~df["township_id"].duplicated()]
     return gpd.GeoDataFrame(df[["township_id", "label", "state", "geometry"]], geometry="geometry",
@@ -224,6 +240,9 @@ def main() -> None:
             sub = sections[sections["township_id"].str.startswith(st)]
             if len(sub):
                 regions.append({"name": f"{st} (PLSS)", "bbox": [round(v, 4) for v in sub.total_bounds]})
+        # has_field_coverage: counties holding at least one section (by the section's interior point;
+        # a plain `intersects` also catches neighbour-state counties through generalised outlines).
+        covered_counties = sorted(c for c in sections["county_fips"].unique() if c)
         downloaded = datetime.now(UTC).date().isoformat()
         write_json(meta, {
             "field_data_version": f"plss-{downloaded}-{'-'.join(sorted(states)).lower()}",
@@ -232,6 +251,7 @@ def main() -> None:
             "sections": len(sections),
             "townships": len(townships),
             "division_types": sections["division_type"].value_counts().to_dict(),
+            "counties_with_sections": covered_counties,
             "regions": regions,
             "source_url": SERVICE,
         })

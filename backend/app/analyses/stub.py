@@ -12,6 +12,7 @@ from app.analyses.engine import ProgressFn
 from app.models import (
     AnalysisOptions,
     AnalysisResult,
+    BoundaryType,
     Criterion,
     CriterionScore,
     CropYear,
@@ -95,8 +96,12 @@ def seed_for(selection: FieldSelection) -> int:
     return int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], "big")
 
 
+NO_HISTORY_GAP = "No crop history provided"
+
+
 def _history(selection: FieldSelection, options: AnalysisOptions) -> list[CropYear]:
-    hist = options.crop_history if options.crop_history else selection.crop_history
+    # v0.2: PLSS has no crop data, so the farmer's own entry is the only history source.
+    hist = options.crop_history or selection.crop_history
     return sorted(hist, key=lambda h: h.year, reverse=True)
 
 
@@ -108,14 +113,10 @@ def _baseline(selection: FieldSelection, options: AnalysisOptions) -> tuple[str,
         cycle = list(dict.fromkeys(crops))
         name = "Continue current rotation: " + " / ".join(cycle)
         basis = f"crop history {hist[-1].year}-{hist[0].year}"
-    elif selection.crop_class:
-        cycle = [selection.crop_class]
-        name = f"Continue current practice: {selection.crop_class}"
-        basis = "the latest mapped crop (USDA Crop Sequence Boundaries)"
     else:
-        cycle = ["Current crop (unknown)"]
-        name = "Continue current practice"
-        basis = "no crop data for this spot"
+        cycle = ["Current crops (unknown)"]
+        name = "Continue current practice (crops unknown)"
+        basis = "no crop history (none was entered, and survey sections carry no crop data)"
     rotation = [RotationSeason(season_index=i, crop=c, role=role_for(c)) for i, c in enumerate(cycle)]
     return name, rotation, basis
 
@@ -161,13 +162,17 @@ def _evidence(rng: random.Random, metrics: list[Metric]) -> list[Evidence]:
     return ev
 
 
-def _gaps(selection: FieldSelection, metrics: list[Metric]) -> list[str]:
-    gaps = ["Demo stub: no rotation model has evaluated this field yet."]
+def _gaps(selection: FieldSelection, options: AnalysisOptions, metrics: list[Metric]) -> list[str]:
+    gaps = ["Demo stub: no rotation model has evaluated this land yet."]
+    if not _history(selection, options):
+        gaps.append(NO_HISTORY_GAP)
     missing = [m.label for m in metrics if m.quality == Quality.unavailable]
     if missing:
         gaps.append("Data not available right now: " + ", ".join(missing) + ".")
-    if not selection.crop_history:
-        gaps.append("No multi-year crop history for this field; enter yours for a better baseline.")
+    if selection.boundary_type == BoundaryType.plss_section:
+        gaps.append(
+            "Data covers the whole survey section (about 1 square mile); your field is only part of it."
+        )
     gaps.append("Markets, equipment, labour and farm program rules are not considered.")
     return gaps
 
@@ -207,7 +212,7 @@ class StubAnalysisEngine:
                       "Placeholder: real benefits will come from the model."],
             risks=["Placeholder: real risks will come from the model."],
             evidence=_evidence(rng, metrics),
-            information_gaps=_gaps(selection, metrics),
+            information_gaps=_gaps(selection, options, metrics),
             needs_local_review=True,
         ))
 
@@ -230,7 +235,7 @@ class StubAnalysisEngine:
                 benefits=["Placeholder: example benefit text (demo)."],
                 risks=["Placeholder: example risk text (demo)."],
                 evidence=_evidence(rng, metrics),
-                information_gaps=_gaps(selection, metrics),
+                information_gaps=_gaps(selection, options, metrics),
                 needs_local_review=True,
             ))
 
@@ -242,7 +247,7 @@ class StubAnalysisEngine:
 
         warnings = [DEMO_WARNING]
         if selection.resolved_by == ResolvedBy.buffered_point:
-            warnings.append("No mapped field here: results use a 500 m circle around your point.")
+            warnings.append("No survey section here: results use a 500 m circle around your point.")
         if any(m.resolution_m and m.resolution_m > 10_000 for m in _available(metrics)):
             warnings.append("Weather and soil wetness come from ~55 km grid cells, much larger than a field.")
 

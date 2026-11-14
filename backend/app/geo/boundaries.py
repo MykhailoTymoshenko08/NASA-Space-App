@@ -35,14 +35,14 @@ class Boundaries:
     _state_tree: STRtree
 
     @classmethod
-    def load(cls, data_dir: Path, pilot_counties: list[str]) -> "Boundaries":
+    def load(cls, data_dir: Path, covered_counties: set[str]) -> "Boundaries":
+        """`covered_counties`: county FIPS that hold at least one PLSS section."""
         states = [State(**s) for s in _read_json(data_dir / "states.json")]
-        pilot = set(pilot_counties)
         counties = []
         for c in _read_json(data_dir / "counties.json"):
             rec = {k: v for k, v in c.items() if k in COUNTY_FIELDS}
-            # Coverage follows the current PILOT_REGION, not what was baked in at build time.
-            rec["has_field_coverage"] = rec["fips"] in pilot
+            # Coverage follows the section data actually present, not what was baked in at build time.
+            rec["has_field_coverage"] = rec["fips"] in covered_counties
             counties.append(County(**rec))
         pq = data_dir / "counties.parquet"
         if not pq.exists():

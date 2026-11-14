@@ -6,12 +6,13 @@ from app.core.errors import ApiException, ErrorCode, not_found
 from app.geo.crs import in_conus_bbox, lonlat_to_5070, to_4326, xy_to_lonlat
 from app.geo.fields_index import FieldRecord
 from app.models import (
+    BoundaryType,
     CountyRef,
-    CropYear,
     FieldIdRef,
     FieldSelection,
     GeoJSONPolygon,
     LatLon,
+    PlssRef,
     PointRef,
     ResolvedBy,
     SelectionRef,
@@ -63,9 +64,10 @@ def _county_ref(svc: Services, x: float, y: float, fips_hint: str = "") -> Count
 
 def selection_from_field(
     svc: Services, rec: FieldRecord, resolved_by: ResolvedBy, source: SelectionSource,
-    snap_distance_m: float = 0.0,
+    snap_distance_m: float = 0.0, anchor: LatLon | None = None,
 ) -> FieldSelection:
-    anchor = _anchor(rec)
+    """`anchor`: the clicked point when it lies inside the section; otherwise the section centroid."""
+    anchor = anchor or _anchor(rec)
     x, y = lonlat_to_5070(anchor.lon, anchor.lat)
     return FieldSelection(
         field_id=rec.field_id,
@@ -73,13 +75,21 @@ def selection_from_field(
         geometry=_polygon_json(rec.geometry),
         bbox=_bbox(rec.geometry),
         resolved_by=resolved_by,
+        boundary_type=BoundaryType.plss_section,
+        plss=PlssRef(
+            township_id=rec.township_id,
+            section_id=rec.section_id,
+            section_number=rec.section_number,
+            division_type=rec.division_type,
+        ),
+        label=rec.label,
         snap_distance_m=round(snap_distance_m, 1),
         buffer_m=None,
         area_ha=round(rec.area_ha, 2),
-        crop_class=rec.crop_class or None,
+        crop_class=None,  # PLSS has no crop data
         county=_county_ref(svc, x, y, rec.county_fips),
         source=source,
-        crop_history=[CropYear(**h) for h in rec.crop_history],
+        crop_history=[],
     )
 
 
@@ -100,10 +110,12 @@ def resolve_point(
     if idx is not None:
         rec = idx.containing(x, y)
         if rec is not None:
-            return selection_from_field(svc, rec, ResolvedBy.field_polygon, source, 0.0)
+            # Point lookups sample data at the clicked point, which lies inside the section.
+            return selection_from_field(svc, rec, ResolvedBy.field_polygon, source, 0.0, anchor=point)
         hit = idx.nearest(x, y, snap_radius_m)
         if hit is not None:
             rec, dist = hit
+            # The clicked point is outside the section, so sample at the section centroid instead.
             return selection_from_field(svc, rec, ResolvedBy.snapped_point, source, dist)
 
     # Fallback: a circle of buffer_m around the point, built in metres (EPSG:5070).
@@ -116,6 +128,9 @@ def resolve_point(
         geometry=_polygon_json(circle),
         bbox=_bbox(circle),
         resolved_by=ResolvedBy.buffered_point,
+        boundary_type=BoundaryType.buffered_point,
+        plss=None,
+        label=None,
         snap_distance_m=None,
         buffer_m=r,
         area_ha=round(circle_5070.area / 10_000, 2),

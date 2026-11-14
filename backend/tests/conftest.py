@@ -27,7 +27,6 @@ def make_settings(data_dir, tmp_path, **kw) -> Settings:
     base = dict(
         data_dir=data_dir,
         cache_dir=tmp_path / "cache",
-        pilot_region="19153",
         stub_duration_s=0,
         log_level="WARNING",
     )

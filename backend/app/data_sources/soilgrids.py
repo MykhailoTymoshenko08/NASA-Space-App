@@ -10,7 +10,7 @@ NASA does not measure soil nitrogen; this is a machine-learning estimate, not or
 import httpx
 
 from app.data_sources.base import MetricSpec
-from app.models import LatLon, Metric, MetricCategory, MetricSource, Quality
+from app.models import FieldSelection, Metric, MetricCategory, MetricSource, Quality
 
 URL = "https://rest.isric.org/soilgrids/v2.0/properties/query"
 SRC = MetricSource(dataset="SoilGrids 2.0 (nitrogen, 0-5 cm)", provider="ISRIC",
@@ -27,7 +27,8 @@ class SoilGridsSource:
     name = "soilgrids"
     specs = [SPEC]
 
-    async def fetch(self, client: httpx.AsyncClient, anchor: LatLon) -> list[Metric]:
+    async def fetch(self, client: httpx.AsyncClient, selection: FieldSelection) -> list[Metric]:
+        anchor = selection.anchor
         r = await client.get(
             URL,
             params={"lon": anchor.lon, "lat": anchor.lat, "property": "nitrogen",

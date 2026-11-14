@@ -9,7 +9,7 @@ finish in the background and serves the cached value on the next request.
 import httpx
 
 from app.data_sources.base import MetricSpec
-from app.models import LatLon, Metric, MetricCategory, MetricSource, Quality
+from app.models import FieldSelection, Metric, MetricCategory, MetricSource, Quality
 
 URL = "https://epqs.nationalmap.gov/v1/json"
 SRC = MetricSource(
@@ -18,7 +18,7 @@ SRC = MetricSource(
     url="https://www.usgs.gov/3d-elevation-program",
 )
 SPEC = MetricSpec("elevation_m", "Elevation", MetricCategory.terrain, "m", Quality.measured, SRC,
-                  10.0, "Ground elevation at the field anchor point.")
+                  10.0, "Ground elevation at the anchor point of the selection.")
 NODATA = -1_000_000  # EPQS reports large negative values outside coverage
 
 
@@ -28,7 +28,8 @@ class ElevationSource:
     # Answer the snapshot quickly; the fetch keeps running in the background and is cached.
     soft_timeout_s = 1.5
 
-    async def fetch(self, client: httpx.AsyncClient, anchor: LatLon) -> list[Metric]:
+    async def fetch(self, client: httpx.AsyncClient, selection: FieldSelection) -> list[Metric]:
+        anchor = selection.anchor
         r = await client.get(
             URL,
             params={"x": anchor.lon, "y": anchor.lat, "wkid": 4326, "units": "Meters",

@@ -10,8 +10,8 @@ from tests.test_snapshots import mock_all
 
 pytestmark = pytest.mark.contract
 
-F1 = {"field_id": "fld_f1aaaaaaaa"}
-F2 = {"field_id": "fld_f2bbbbbbbb"}
+F1 = {"field_id": "plss:IA050790N0240W0SN140"}
+F2 = {"field_id": "plss:IA050790N0240W0SN130"}
 
 
 def wait_done(client, job_id, timeout=5.0):
@@ -66,22 +66,27 @@ def test_job_succeeds_with_full_result(client):
         for k in ("rotation", "score_breakdown", "benefits", "risks", "evidence", "information_gaps"):
             assert s[k], k
     current = next(s for s in strats if s["is_current"])
-    # F1 has mapped history Corn (2024), Soybeans (2023): baseline uses it, oldest first.
-    assert [x["crop"] for x in current["rotation"]] == ["Soybeans", "Corn"]
+    # Sections carry no crop data and none was entered.
+    assert current["name"] == "Continue current practice (crops unknown)"
+    assert "No crop history provided" in current["information_gaps"]
 
 
 def test_baseline_without_history_uses_generic(client):
     _, done = run(client, {"selection": F2})
-    current = next(s for s in done.json()["result"]["strategies"] if s["is_current"])
-    assert current["name"] == "Continue current practice"
+    strats = done.json()["result"]["strategies"]
+    current = next(s for s in strats if s["is_current"])
+    assert current["name"] == "Continue current practice (crops unknown)"
+    for s in strats:
+        assert "No crop history provided" in s["information_gaps"]
 
 
-def test_farmer_crop_history_overrides_mapped(client):
+def test_farmer_crop_history_used_for_baseline(client):
     body = {"selection": F2, "options": {"crop_history": [
         {"year": 2024, "crop": "Oats"}, {"year": 2023, "crop": "Alfalfa"}]}}
     _, done = run(client, body)
     current = next(s for s in done.json()["result"]["strategies"] if s["is_current"])
     assert [x["crop"] for x in current["rotation"]] == ["Alfalfa", "Oats"]
+    assert "No crop history provided" not in current["information_gaps"]
 
 
 def test_deterministic_per_field(make_client, data_dir):

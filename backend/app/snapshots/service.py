@@ -18,7 +18,7 @@ from app.data_sources.elevation import ElevationSource
 from app.data_sources.power import PowerSource
 from app.data_sources.soilgrids import SoilGridsSource
 from app.data_sources.ssurgo import SsurgoSource
-from app.models import FieldSelection, LatLon, Metric, Quality, Snapshot
+from app.models import FieldSelection, Metric, Quality, Snapshot
 
 log = logging.getLogger(__name__)
 
@@ -34,12 +34,13 @@ def default_sources() -> list[DataSource]:
 
 def snapshot_key(sel: FieldSelection) -> str:
     if sel.field_id:
-        return f"snap:v1:field:{sel.field_id}"
-    return f"snap:v1:pt:{sel.anchor.lat:.2f},{sel.anchor.lon:.2f}"
+        return f"snap:v2:field:{sel.field_id}"
+    return f"snap:v2:pt:{sel.anchor.lat:.2f},{sel.anchor.lon:.2f}"
 
 
-def _source_key(src: DataSource, anchor: LatLon) -> str:
-    return f"src:v1:{src.name}:{anchor.lat:.5f},{anchor.lon:.5f}"
+def _source_key(src: DataSource, sel: FieldSelection) -> str:
+    where = sel.field_id or f"{sel.anchor.lat:.5f},{sel.anchor.lon:.5f}"
+    return f"src:v2:{src.name}:{where}"
 
 
 class SnapshotService:
@@ -58,22 +59,22 @@ class SnapshotService:
         self.ttl = ttl_s
         self._inflight: dict[str, asyncio.Task] = {}
 
-    async def _fetch_and_store(self, src: DataSource, anchor: LatLon, key: str) -> list[Metric]:
-        metrics = await asyncio.wait_for(src.fetch(self.client, anchor), BACKGROUND_TIMEOUT_S)
+    async def _fetch_and_store(self, src: DataSource, sel: FieldSelection, key: str) -> list[Metric]:
+        metrics = await asyncio.wait_for(src.fetch(self.client, sel), BACKGROUND_TIMEOUT_S)
         self.cache.set(key, [m.model_dump(mode="json") for m in metrics], SOURCE_CACHE_TTL_S)
         return metrics
 
-    async def _run(self, src: DataSource, anchor: LatLon) -> tuple[list[Metric], bool]:
+    async def _run(self, src: DataSource, sel: FieldSelection) -> tuple[list[Metric], bool]:
         """Return (metrics, complete). complete=False means some metrics are unavailable for a
         transient reason (timeout/error) and must not be cached for long."""
-        key = _source_key(src, anchor)
+        key = _source_key(src, sel)
         hit = self.cache.get(key)
         if hit is not None:
             return [Metric(**m) for m in hit], True
 
         task = self._inflight.get(key)
         if task is None or task.done():
-            task = asyncio.create_task(self._fetch_and_store(src, anchor, key))
+            task = asyncio.create_task(self._fetch_and_store(src, sel, key))
             self._inflight[key] = task
             task.add_done_callback(lambda t, k=key: self._done(k, t))
         try:
@@ -93,8 +94,8 @@ class SnapshotService:
         if not task.cancelled() and task.exception() is not None:
             log.debug("background fetch %s failed: %r", key, task.exception())
 
-    async def metrics_for(self, anchor: LatLon) -> tuple[list[Metric], bool]:
-        results = await asyncio.gather(*(self._run(s, anchor) for s in self.sources))
+    async def metrics_for(self, sel: FieldSelection) -> tuple[list[Metric], bool]:
+        results = await asyncio.gather(*(self._run(s, sel) for s in self.sources))
         metrics = [m for ms, _ in results for m in ms]
         return metrics, all(ok for _, ok in results)
 
@@ -108,7 +109,7 @@ class SnapshotService:
                 cached=True,
                 metrics=[Metric(**m) for m in hit["metrics"]],
             )
-        metrics, complete = await self.metrics_for(selection.anchor)
+        metrics, complete = await self.metrics_for(selection)
         now = datetime.now(UTC).replace(microsecond=0)
         if complete:
             self.cache.set(

@@ -55,11 +55,24 @@ def test_coverage(client):
     assert_matches_contract(r)
     c = r.json()
     assert c["bounds"] == [-125.0, 24.4, -66.9, 49.6]
-    assert c["field_tiles"]["url_template"] == "/v1/tiles/fields/{z}/{x}/{y}.mvt"
-    assert c["field_tiles"]["min_zoom"] == 11 and c["field_tiles"]["max_zoom"] == 16
-    assert [g["name"] for g in c["field_tiles"]["regions"]] == ["Polk County, IA"]
+    ft = c["field_tiles"]
+    assert ft["unit"] == "plss_section"
+    assert ft["url_template"] == "/v1/tiles/fields/{z}/{x}/{y}.mvt"
+    assert ft["min_zoom"] == 11 and ft["max_zoom"] == 14
+    # Regions come from the PLSS data actually present, never "all of CONUS".
+    assert [g["name"] for g in ft["regions"]] == ["IA (PLSS)"]
     assert c["field_data_version"] == "test-1"
-    assert c["field_boundary_source"]["estimated_csb"] is True
+    src = c["field_boundary_source"]
+    assert src["name"] == "BLM National PLSS (CadNSDI)"
+    assert src["boundary_type"] == "plss_section"
+    assert src["edition"] == "2026-11-14"
+    assert src["attribution"] == "Bureau of Land Management"
+
+
+def test_counties_coverage_follows_sections(client):
+    items = client.get("/v1/geo/states/19/counties").json()["items"]
+    by = {c["fips"]: c["has_field_coverage"] for c in items}
+    assert by == {"19153": True, "19169": False}
 
 
 def test_coverage_without_fields_advertises_no_regions(make_client, empty_data_dir):
@@ -76,15 +89,29 @@ def _resolve(client, lat, lon, **kw):
     return r
 
 
-def test_point_inside_field(client):
+def test_point_inside_section(client):
     s = _resolve(client, *F1_POINT).json()
-    assert s["field_id"] == "fld_f1aaaaaaaa"
+    assert s["field_id"] == "plss:IA050790N0240W0SN140"
     assert s["resolved_by"] == "field_polygon"
+    assert s["boundary_type"] == "plss_section"
+    assert s["plss"] == {
+        "township_id": "IA050790N0240W0", "section_id": "IA050790N0240W0SN140",
+        "section_number": "14", "division_type": "Section",
+    }
+    assert s["label"] == "Section 14, T79N R24W"
     assert s["snap_distance_m"] == 0
     assert s["source"] == "map_click"
     assert s["county"] == {"fips": "19153", "name": "Polk", "state_postal": "IA"}
-    assert s["crop_class"] == "Corn"
-    assert s["crop_history"][0] == {"year": 2024, "crop": "Corn"}
+    # PLSS has no crop data: never guessed.
+    assert s["crop_class"] is None and s["crop_history"] == []
+    # Point lookups sample at the clicked point.
+    assert s["anchor"] == {"lat": F1_POINT[0], "lon": F1_POINT[1]}
+
+
+def test_point_lookup_anchor_is_clicked_point(client):
+    s = _resolve(client, 41.6010, -93.6010).json()
+    assert s["boundary_type"] == "plss_section"
+    assert s["anchor"] == {"lat": 41.6010, "lon": -93.6010}
 
 
 def test_geometry_is_lon_lat(client):
@@ -102,7 +129,7 @@ def test_snaps_to_nearest_within_radius(client):
     # ~100 m south of F1 (F1 south edge is 41.5973).
     s = _resolve(client, 41.5964, -93.60).json()
     assert s["resolved_by"] == "snapped_point"
-    assert s["field_id"] == "fld_f1aaaaaaaa"
+    assert s["field_id"] == "plss:IA050790N0240W0SN140"
     assert 80 < s["snap_distance_m"] < 120
 
 
@@ -114,7 +141,8 @@ def test_snap_radius_zero_buffers(client):
 def test_far_point_buffers_500m_circle(client):
     s = _resolve(client, 41.70, -93.70, source="coordinates").json()
     assert s["resolved_by"] == "buffered_point"
-    assert s["field_id"] is None
+    assert s["boundary_type"] == "buffered_point"
+    assert s["field_id"] is None and s["plss"] is None and s["label"] is None
     assert s["buffer_m"] == 500
     assert s["source"] == "coordinates"
     # pi * 500^2 m2 = 78.5 ha; polygon approximation is slightly smaller.
@@ -159,13 +187,15 @@ def test_resolve_validation(client, body):
 
 
 def test_get_field_by_id(client):
-    r = client.get("/v1/fields/fld_f2bbbbbbbb")
+    r = client.get("/v1/fields/plss:IA050790N0240W0SN130")
     assert_matches_contract(r)
     s = r.json()
     assert s["source"] == "landing_map_click"
     assert s["resolved_by"] == "field_polygon"
-    assert s["crop_class"] is None  # empty string in data -> unknown
-    assert s["crop_history"] == []
+    assert s["boundary_type"] == "plss_section"
+    assert s["label"] == "Section 13, T79N R24W"
+    # Id lookups anchor at the section centroid (F2 is centred on -93.582, 41.60).
+    assert abs(s["anchor"]["lon"] + 93.582) < 1e-3 and abs(s["anchor"]["lat"] - 41.60) < 1e-3
 
 
 def test_no_field_data_falls_back_to_buffer(make_client, empty_data_dir):

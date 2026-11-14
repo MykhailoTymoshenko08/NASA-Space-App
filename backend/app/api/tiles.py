@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Response
 
-from app.geo.coverage import pilot_regions
+from app.geo.coverage import unit_regions
 from app.geo.tiles import TileSource, bbox_intersects, tile_bbox, valid_tile
 from app.services import Services, get_services
 
@@ -34,7 +34,7 @@ def field_tile(z: Z, x: XY, y: XY, svc: Services = Depends(get_services)) -> Res
         return Response(status_code=204)
     if valid_tile(z, x, y):
         tb = tile_bbox(z, x, y)
-        if not any(bbox_intersects(tb, r["bbox"]) for r in pilot_regions(svc)):
+        if not any(bbox_intersects(tb, r["bbox"]) for r in unit_regions(svc)):
             return Response(status_code=204)
     return _tile_response(src, z, x, y)
 

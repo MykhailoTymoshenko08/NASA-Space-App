@@ -1,15 +1,15 @@
-"""In-memory spatial index over data/fields.parquet (built by scripts/prepare_field_data.py).
+"""In-memory spatial index over data/sections.parquet (BLM PLSS sections, scripts/prepare_plss.py).
 
-Expected columns: field_id, crop_class, area_ha, county_fips, crop_history (JSON string,
-newest first), geometry (Polygon, EPSG:4326).
+Expected columns: field_id, township_id, section_id, section_number, division_type, label, area_ha,
+county_fips, geometry (Polygon, EPSG:4326).
 """
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import shapely
 from shapely import STRtree
 
@@ -19,12 +19,19 @@ from app.geo.crs import to_5070
 @dataclass(frozen=True)
 class FieldRecord:
     field_id: str
-    crop_class: str
+    township_id: str
+    section_id: str
+    section_number: str | None
+    division_type: str | None
+    label: str | None
     area_ha: float
     county_fips: str
-    crop_history: list[dict]
     geometry: shapely.Polygon  # EPSG:4326
     geometry_5070: shapely.Polygon
+
+
+def _opt(v) -> str | None:
+    return None if v is None or (isinstance(v, float) and np.isnan(v)) or pd.isna(v) or v == "" else str(v)
 
 
 class FieldIndex:
@@ -47,13 +54,15 @@ class FieldIndex:
 
     def _record(self, i: int) -> FieldRecord:
         row = self._gdf.iloc[i]
-        hist = row.get("crop_history")
         return FieldRecord(
             field_id=row["field_id"],
-            crop_class=row.get("crop_class") or "",
+            township_id=str(row["township_id"]),
+            section_id=str(row["section_id"]),
+            section_number=_opt(row.get("section_number")),
+            division_type=_opt(row.get("division_type")),
+            label=_opt(row.get("label")),
             area_ha=float(row["area_ha"]),
-            county_fips=row.get("county_fips") or "",
-            crop_history=json.loads(hist) if isinstance(hist, str) and hist else [],
+            county_fips=_opt(row.get("county_fips")) or "",
             geometry=self._geoms[i],
             geometry_5070=self._geoms_5070[i],
         )
@@ -63,7 +72,7 @@ class FieldIndex:
         return None if i is None else self._record(i)
 
     def containing(self, x: float, y: float) -> FieldRecord | None:
-        """Field polygon containing the EPSG:5070 point. Smallest wins if polygons overlap."""
+        """Section containing the EPSG:5070 point. Smallest wins if polygons overlap."""
         hits = self._tree.query(shapely.Point(x, y), predicate="intersects")
         if len(hits) == 0:
             return None

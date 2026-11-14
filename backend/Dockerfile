@@ -29,7 +29,7 @@ COPY app ./app
 # Prepared data (gitignored, built by `make data`). Fail the build early if it is missing.
 COPY data ./data
 RUN for f in states.json counties.json counties.parquet states.parquet boundaries.pmtiles \
-        fields.parquet fields_meta.json fields.pmtiles; do \
+        sections.parquet townships.parquet plss_meta.json fields.pmtiles; do \
         test -s "data/$f" || { echo "data/$f missing: run 'make data' before docker build" >&2; exit 1; }; \
     done \
     && mkdir -p /app/.cache && chown app:app /app/.cache

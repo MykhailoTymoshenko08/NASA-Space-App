@@ -47,6 +47,7 @@ class County(BaseModel):
 
 
 class FieldTilesInfo(BaseModel):
+    unit: Literal["plss_section", "estimated_csb"] = "plss_section"
     min_zoom: int
     max_zoom: int
     url_template: str
@@ -56,16 +57,15 @@ class FieldTilesInfo(BaseModel):
 class FieldBoundarySource(BaseModel):
     name: str
     edition: str
-    estimated_csb: bool
-    attribution: str
-    url: str | None = None
+    boundary_type: str
+    attribution: str | None = None
 
 
 class Coverage(BaseModel):
     bounds: list[float]
     supported_states: list[str]
     field_data_version: str
-    field_boundary_source: FieldBoundarySource | None = None
+    field_boundary_source: FieldBoundarySource
     field_tiles: FieldTilesInfo
 
 
@@ -76,6 +76,19 @@ class SelectionSource(StrEnum):
     location_link = "location_link"
     coordinates = "coordinates"
     map_click = "map_click"
+
+
+class BoundaryType(StrEnum):
+    plss_section = "plss_section"
+    estimated_csb = "estimated_csb"  # reserved, not served in v0.2
+    buffered_point = "buffered_point"
+
+
+class PlssRef(BaseModel):
+    township_id: str
+    section_id: str
+    section_number: str | None = None
+    division_type: str | None = None
 
 
 class ResolvedBy(StrEnum):
@@ -114,9 +127,13 @@ class FieldSelection(BaseModel):
     geometry: GeoJSONPolygon
     bbox: list[float]
     resolved_by: ResolvedBy
+    boundary_type: BoundaryType
+    plss: PlssRef | None = None
+    label: str | None = None
     snap_distance_m: float | None = None
     buffer_m: float | None = None
     area_ha: float | None
+    # PLSS has no crop data: always null / [] in v0.2. Never guessed.
     crop_class: str | None = None
     county: CountyRef
     source: SelectionSource

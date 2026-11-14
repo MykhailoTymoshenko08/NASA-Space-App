@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 import httpx
 
 from app.data_sources.base import MetricSpec
-from app.models import LatLon, Metric, MetricCategory, MetricSource, Period, Quality
+from app.models import FieldSelection, LatLon, Metric, MetricCategory, MetricSource, Period, Quality
 
 URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
 FILL = -999.0
@@ -75,7 +75,8 @@ class PowerSource:
             "time-standard": "UTC",
         }
 
-    async def fetch(self, client: httpx.AsyncClient, anchor: LatLon) -> list[Metric]:
+    async def fetch(self, client: httpx.AsyncClient, selection: FieldSelection) -> list[Metric]:
+        anchor = selection.anchor
         r = await client.get(URL, params=self.params(anchor))
         r.raise_for_status()
         data = r.json()["properties"]["parameter"]

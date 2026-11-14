@@ -3,14 +3,11 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 REPO_DIR = BACKEND_DIR.parent
-
-# Central Iowa pilot: Polk, Story, Dallas, Boone.
-DEFAULT_PILOT_REGION = "19153,19169,19049,19015"
 
 
 class Settings(BaseSettings):
@@ -19,8 +16,6 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     data_dir: Path = BACKEND_DIR / "data"
     cache_dir: Path = BACKEND_DIR / ".cache"
-    # Comma-separated 5-digit county FIPS codes where field polygons are prepared.
-    pilot_region: str = DEFAULT_PILOT_REGION
     # States whose BLM PLSS sections are prepared by scripts/prepare_plss.py.
     plss_states: str = "IA"
     log_level: str = "INFO"
@@ -44,19 +39,6 @@ class Settings(BaseSettings):
     field_tiles_min_zoom: int = 11
     field_tiles_max_zoom: int = 14
     buffer_radius_m: float = 500.0
-
-    @field_validator("pilot_region")
-    @classmethod
-    def _check_region(cls, v: str) -> str:
-        codes = [c.strip() for c in v.split(",") if c.strip()]
-        for c in codes:
-            if len(c) != 5 or not c.isdigit():
-                raise ValueError(f"PILOT_REGION must be 5-digit county FIPS codes, got {c!r}")
-        return ",".join(codes)
-
-    @property
-    def pilot_counties(self) -> list[str]:
-        return [c for c in self.pilot_region.split(",") if c]
 
 
 @lru_cache

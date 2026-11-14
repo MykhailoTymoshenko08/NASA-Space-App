@@ -3,7 +3,8 @@
 Layout: one state ("Iowa", 19) made of two square counties around Des Moines:
   19153 "Polk"  lon -93.80..-93.40, lat 41.50..41.85   (pilot)
   19169 "Story" lon -93.80..-93.40, lat 41.85..42.20   (not pilot)
-Fields (all in Polk): F1 is a ~600 m square centred on (41.60, -93.60); F2 sits ~1 km east.
+PLSS sections (all in Polk): F1 is a ~600 m square centred on (41.60, -93.60); F2 sits ~1 km east.
+(Real sections are ~1.6 km; size does not matter for these tests.)
 """
 
 import gzip
@@ -25,6 +26,8 @@ IOWA = shapely.box(-93.80, 41.50, -93.40, 42.20)
 F1 = shapely.box(-93.6036, 41.5973, -93.5964, 41.6027)
 F2 = shapely.box(-93.5856, 41.5973, -93.5784, 41.6027)
 F1_POINT = (41.60, -93.60)  # (lat, lon) inside F1
+F1_ID = "plss:IA050790N0240W0SN140"
+F2_ID = "plss:IA050790N0240W0SN130"
 
 FAKE_TILE = gzip.compress(b"\x1a\x00fake-mvt")
 
@@ -100,26 +103,25 @@ def build(d: Path, with_fields: bool = True) -> Path:
     if with_fields:
         gpd.GeoDataFrame(
             {
-                "field_id": ["fld_f1aaaaaaaa", "fld_f2bbbbbbbb"],
-                "crop_class": ["Corn", ""],
+                "field_id": [F1_ID, F2_ID],
+                "township_id": ["IA050790N0240W0", "IA050790N0240W0"],
+                "section_id": ["IA050790N0240W0SN140", "IA050790N0240W0SN130"],
+                "section_number": ["14", "13"],
+                "division_type": ["Section", "Section"],
+                "label": ["Section 14, T79N R24W", "Section 13, T79N R24W"],
                 "area_ha": [36.0, 36.0],
                 "county_fips": ["19153", "19153"],
-                "crop_history": [
-                    json.dumps([{"year": 2024, "crop": "Corn"}, {"year": 2023, "crop": "Soybeans"}]),
-                    "[]",
-                ],
-                "csb_id": ["1", "2"],
             },
             geometry=[F1, F2], crs=4326,
-        ).to_parquet(d / "fields.parquet")
-        (d / "fields_meta.json").write_text(json.dumps({
+        ).to_parquet(d / "sections.parquet")
+        (d / "plss_meta.json").write_text(json.dumps({
             "field_data_version": "test-1",
-            "field_boundary_source": {
-                "name": "USDA Crop Sequence Boundaries", "edition": "2024",
-                "estimated_csb": True, "attribution": "test", "url": None,
-            },
+            "edition": "2026-11-14",
+            "states": ["IA"],
+            "regions": [{"name": "IA (PLSS)", "bbox": list(F1.union(F2).bounds)}],
+            "counties_with_sections": ["19153"],
         }))
-        _write_pmtiles(d / "fields.pmtiles", range(11, 17), F1.union(F2).bounds)
+        _write_pmtiles(d / "fields.pmtiles", range(11, 15), F1.union(F2).bounds)
     return d
 
 

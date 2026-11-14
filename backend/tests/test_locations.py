@@ -313,7 +313,7 @@ def test_endpoint_plain_coordinates(client):
     assert j["input_kind"] == "plain_coordinates"
     assert j["point"] == {"lat": F1_POINT[0], "lon": F1_POINT[1]}
     assert j["selection"]["source"] == "coordinates"
-    assert j["selection"]["field_id"] == "fld_f1aaaaaaaa"
+    assert j["selection"]["field_id"] == "plss:IA050790N0240W0SN140"
 
 
 @pytest.mark.contract

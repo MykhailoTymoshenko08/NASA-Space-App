@@ -8,4 +8,7 @@
 tests
 scripts
 data/_*
+data/raw
+data/fields.parquet
+data/fields_meta.json
 data/README.md

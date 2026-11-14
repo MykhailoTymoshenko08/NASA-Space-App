@@ -38,8 +38,9 @@ def test_analyses_rate_limited(make_client, data_dir):
     c = make_client(data_dir, rate_limit_requests=1)
     with respx.mock(assert_all_called=False) as router:
         mock_all(router)
-        assert c.post("/v1/analyses", json={"selection": {"field_id": "fld_f1aaaaaaaa"}}).status_code == 202
-        r = c.post("/v1/analyses", json={"selection": {"field_id": "fld_f1aaaaaaaa"}})
+        body = {"selection": {"field_id": "plss:IA050790N0240W0SN140"}}
+        assert c.post("/v1/analyses", json=body).status_code == 202
+        r = c.post("/v1/analyses", json=body)
     assert r.status_code == 429
     assert r.headers["retry-after"]
     assert_matches_contract(r)

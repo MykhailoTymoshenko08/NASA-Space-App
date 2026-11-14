@@ -5,7 +5,7 @@ from typing import Protocol
 
 import httpx
 
-from app.models import LatLon, Metric, MetricCategory, MetricSource, Quality
+from app.models import FieldSelection, Metric, MetricCategory, MetricSource, Quality
 
 
 @dataclass(frozen=True)
@@ -44,8 +44,9 @@ class DataSource(Protocol):
     name: str
     specs: list[MetricSpec]
 
-    async def fetch(self, client: httpx.AsyncClient, anchor: LatLon) -> list[Metric]:
-        """Return one Metric per spec (unavailable ones included). May raise on transport errors."""
+    async def fetch(self, client: httpx.AsyncClient, selection: FieldSelection) -> list[Metric]:
+        """Return one Metric per spec (unavailable ones included). May raise on transport errors.
+        Point datasets sample `selection.anchor`; area datasets may use `selection.geometry`."""
         ...
 
 

@@ -30,25 +30,28 @@ class Services:
         d: Path = settings.data_dir
         self.cache = TwoLevelCache(settings.cache_dir)
 
+        # PLSS metadata written by scripts/prepare_plss.py (regions, edition, covered counties).
+        self.plss_meta: dict[str, Any] = {}
+        meta = d / "plss_meta.json"
+        if meta.exists():
+            self.plss_meta = json.loads(meta.read_text())
+
         self._boundaries: Boundaries | None = None
         try:
-            self._boundaries = Boundaries.load(d, settings.pilot_counties)
+            self._boundaries = Boundaries.load(
+                d, set(self.plss_meta.get("counties_with_sections", []))
+            )
         except DataMissing as e:
             log.warning("boundaries unavailable: %s", e)
-
-        self.fields_meta: dict[str, Any] = {}
-        meta = d / "fields_meta.json"
-        if meta.exists():
-            self.fields_meta = json.loads(meta.read_text())
 
         # Imported here to keep geopandas-heavy modules out of import cycles.
         from app.geo.fields_index import FieldIndex
 
         self._fields: FieldIndex | None = None
-        if (d / "fields.parquet").exists():
-            self._fields = FieldIndex.load(d / "fields.parquet")
+        if (d / "sections.parquet").exists():
+            self._fields = FieldIndex.load(d / "sections.parquet")
         else:
-            log.warning("fields.parquet missing: point resolution falls back to buffered points")
+            log.warning("sections.parquet missing: point resolution falls back to buffered points")
 
         from app.geo.links import make_link_client, system_resolver
 
@@ -97,7 +100,7 @@ class Services:
 
     @property
     def fields(self):
-        """FieldIndex, or None when no field data was prepared (everything is a buffered point)."""
+        """FieldIndex over PLSS sections, or None when none were prepared (all buffered points)."""
         return self._fields
 
     async def aclose(self) -> None:
