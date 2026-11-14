@@ -49,6 +49,11 @@ class Services:
         else:
             log.warning("fields.parquet missing: point resolution falls back to buffered points")
 
+        from app.geo.links import make_link_client, system_resolver
+
+        self.link_client = make_link_client()
+        self.dns_resolver = system_resolver
+
         self.field_tiles = self._tiles(d / "fields.pmtiles")
         self.boundary_tiles = self._tiles(d / "boundaries.pmtiles")
 
@@ -70,7 +75,8 @@ class Services:
         """FieldIndex, or None when no field data was prepared (everything is a buffered point)."""
         return self._fields
 
-    def close(self) -> None:
+    async def aclose(self) -> None:
+        await self.link_client.aclose()
         self.cache.close()
         for t in (self.field_tiles, self.boundary_tiles):
             if t:
