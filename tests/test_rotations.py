@@ -237,7 +237,7 @@ def test_irrigation_and_livestock_inputs():
         assert inc(cattle) > inc(no_cattle)
 
 
-@pytest.mark.skipif(not (ROOT / "data/features/climate_season.parquet").exists(), reason="needs data/ (not in git)")
+@pytest.mark.skipif(not (ROOT / "data/features/power_cache").is_dir(), reason="needs data/features/power_cache (not in git)")
 def test_scenario_recomputes_climate_and_scores():
     from ml_service.field_context import load_field_context
     fid = "191825002125636"
@@ -253,7 +253,7 @@ def test_scenario_recomputes_climate_and_scores():
     assert zero.climate_norm == base.climate_norm
 
 
-@pytest.mark.skipif(not (ROOT / "data/features/climate_season.parquet").exists(), reason="needs data/ (not in git)")
+@pytest.mark.skipif(not (ROOT / "data/features/power_cache").is_dir(), reason="needs data/features/power_cache (not in git)")
 def test_zero_shift_recompute_equals_stored_tables():
     from ml_service import season_climate as sc
     from ml_service.field_context import CLIMATE_COLS, load_field_context
