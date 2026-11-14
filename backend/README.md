@@ -54,6 +54,105 @@ is mounted as a volume, so neither is in the image.
 CI (`.github/workflows/backend.yml`) runs lint, `make contract-check` and `make test` with a PostGIS
 service container.
 
+## Getting the data (map, fields and tiles)
+
+The map needs four inputs. Only the first comes with `git clone`; the others are downloaded or built
+locally and are gitignored.
+
+| What | Used for | How you get it | Size |
+|---|---|---|---|
+| `data/csb_ia_il_ne.pmtiles` | field polygons on the map, served at `/v1/tiles/fields.pmtiles` | Git LFS, step 1 | 540 MB |
+| PostGIS tables `fields`, `field_crop_history`, `field_data_meta` | field clicks, `/fields/*`, crop history, coverage zooms | `make data-csb`, step 3 (downloads the CSB zip) | 3.2 GB database |
+| `data/raw/csb/NationalCSB_2018-2025_rev23.zip` | source for the PostGIS import and for rebuilding the tiles | downloaded by `make data-csb`, or by hand (below) | 3.76 GB |
+| `data/states.*`, `data/counties.*`, `data/boundaries.pmtiles` | state/county pickers, boundary tiles, county lookups | `make data-boundaries`, step 3 | about 10 MB |
+
+The CDL crop-code list (`scripts/cdl_codes.json`) is in git, so nothing is needed for it.
+
+### 1. Field tiles (Git LFS)
+
+```sh
+git lfs install                 # once per machine (Arch: pacman -S git-lfs, macOS: brew install git-lfs)
+git lfs pull                    # fetches backend/data/csb_ia_il_ne.pmtiles
+ls -l data/csb_ia_il_ne.pmtiles # must be 539948783 bytes
+head -c 7 data/csb_ia_il_ne.pmtiles; echo   # must print "PMTiles"
+sha256sum data/csb_ia_il_ne.pmtiles         # f8304f1a846347a2ac2a7709a6411322d1e423480af4e3732abe59a0833ae6f7
+```
+
+If the file is about 130 bytes and starts with `version https://git-lfs.github.com/spec/v1`, it is
+still the LFS pointer: run `git lfs install && git lfs pull`. A GitHub "LFS bandwidth exceeded" error
+means the repo's monthly LFS quota is used up. Then rebuild the tiles yourself (step 4) or get the file
+from a teammate and copy it to `backend/data/`.
+
+### 2. PostGIS
+
+```sh
+make db        # postgis/postgis:16-3.5 on localhost:5433, user/password/db fieldshift
+```
+
+### 3. Boundaries and the CSB import
+
+```sh
+make data-boundaries   # US Census TIGERweb states + counties (a few MB, ~1 min)
+make data-csb          # downloads the CSB zip once (3.76 GB), imports IA, IL, NE into PostGIS (~12 min)
+```
+
+Check it worked:
+
+```sh
+psql postgresql://fieldshift:fieldshift@localhost:5433/fieldshift \
+  -c "SELECT count(*) FROM fields"          # 1784509
+```
+
+`make data-csb` downloads the zip itself and resumes an interrupted download. The source is USDA NASS
+Crop Sequence Boundaries 2018-2025, rev23, public domain:
+- page: https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/
+- file: https://www.nass.usda.gov/sites/default/files/Research_and_Science/Crop-Sequence-Boundaries/datasets/NationalCSB_2018-2025_rev23.zip
+- size: 3,758,023,527 bytes
+
+To download it by hand (for example on a faster machine), note that the NASS server **answers only
+HTTP Range requests**: a plain `curl -O` or a browser download gets `HTTP 500`. Fetch it in ranges:
+
+```sh
+cd backend
+URL=https://www.nass.usda.gov/sites/default/files/Research_and_Science/Crop-Sequence-Boundaries/datasets/NationalCSB_2018-2025_rev23.zip
+OUT=data/raw/csb/NationalCSB_2018-2025_rev23.zip
+SIZE=3758023527
+mkdir -p data/raw/csb && touch "$OUT"
+while [ "$(wc -c < "$OUT")" -lt "$SIZE" ]; do
+  HAVE=$(wc -c < "$OUT")
+  curl -sS --fail -r "$HAVE-$((HAVE + 268435455))" "$URL" >> "$OUT" || sleep 5   # 256 MiB per request
+done
+unzip -l "$OUT" | head -5      # must list CSB1825.gdb/...; do NOT unzip, the import reads the zip directly
+```
+
+Re-run the loop if it stops: it continues from the current size. With the zip in place,
+`make data-csb` skips the download. After the import you may delete the zip, but you need it again to
+re-import or to rebuild the tiles.
+
+### 4. Rebuilding the field tiles (only after a data change)
+
+Needs [tippecanoe](https://github.com/felt/tippecanoe) 2.x and the PostGIS import from step 3.
+
+```sh
+make data-tiles FORCE=1        # PostGIS -> GeoJSONSeq -> tippecanoe -> data/csb_ia_il_ne.pmtiles (~7 min)
+git add data/csb_ia_il_ne.pmtiles && git commit -m "Rebuild field PMTiles"   # stored via LFS
+```
+
+The build tries min zoom 11, then 12, then 13 (max zoom 14). It keeps the lowest zoom that fits
+tippecanoe's tile size limit without dropping any field, and checks that every `field_id` is in the
+tiles. It writes the chosen zooms to `field_data_meta` in PostGIS, so `/v1/meta/coverage` reports
+them.
+
+### 5. Check the whole chain
+
+```sh
+make dev
+curl -s localhost:8000/v1/meta/coverage                       # field_tiles: z11-14, url .../v1/tiles/fields.pmtiles
+curl -s -D - -o /dev/null -H "Range: bytes=0-16383" localhost:8000/v1/tiles/fields.pmtiles | head -1   # 206
+curl -s -X POST localhost:8000/v1/fields/resolve -H 'content-type: application/json' \
+  -d '{"point":{"lat":41.98,"lon":-93.70}}'                   # boundary_type estimated_csb, crop history
+```
+
 ## Configuration (env vars)
 
 | Variable | Default | Notes |
