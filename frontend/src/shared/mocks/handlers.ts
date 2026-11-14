@@ -31,10 +31,16 @@ const isTest = import.meta.env.MODE === "test";
 const wait = (ms = 700) => delay(isTest ? 0 : ms);
 const requestId = () => `mock-${Math.random().toString(36).slice(2, 10)}`;
 
-function errorResponse(status: number, code: S["ErrorCode"], message: string, headers: Record<string, string> = {}) {
+function errorResponse(
+  status: number,
+  code: S["ErrorCode"],
+  message: string,
+  headers: Record<string, string> = {},
+  details?: Record<string, unknown>,
+) {
   const id = requestId();
   return HttpResponse.json<S["ErrorResponse"]>(
-    { error: { code, message, request_id: id } },
+    { error: { code, message, request_id: id, ...(details ? { details } : {}) } },
     { status, headers: { "X-Request-Id": id, ...headers } },
   );
 }
@@ -464,7 +470,11 @@ export const handlers: AnyHandler[] = [
     const account = bearerAccount(request);
     if (!account) return unauthorized();
     const { current_password, new_password } = await request.json();
-    if (account.password !== current_password) return errorResponse(401, "UNAUTHORIZED", "Current password is incorrect.");
+    if (account.password !== current_password) {
+      return errorResponse(401, "UNAUTHORIZED", "Current password is incorrect.", { "WWW-Authenticate": "Bearer" }, {
+        reason: "invalid_credentials",
+      });
+    }
     if (!validNewPassword(new_password)) {
       return errorResponse(422, "VALIDATION_ERROR", "Use at least 8 characters with one letter and one number.");
     }

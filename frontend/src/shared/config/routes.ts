@@ -10,6 +10,8 @@ export const ROUTES = {
   signIn: "/sign-in",
   signUp: "/sign-up",
   resetPassword: "/reset-password",
+  /** Signed-in password change (POST /auth/change-password). */
+  changePassword: "/account/password",
   myFields: "/my-fields",
 } as const;
 

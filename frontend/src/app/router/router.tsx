@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router";
 import { AnalysisPage, AnalysisSetupPage } from "@/pages/analysis";
+import { ChangePasswordPage } from "@/pages/change-password";
 import { FieldPage } from "@/pages/field";
 import { MyFieldsPage } from "@/pages/my-fields";
 import { NotFoundPage } from "@/pages/not-found";
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
       { path: ROUTES.signUp, element: <SignUpPage /> },
       { path: ROUTES.resetPassword, element: <ResetPasswordPage /> },
       { path: ROUTES.myFields, element: <MyFieldsPage /> },
+      { path: ROUTES.changePassword, element: <ChangePasswordPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

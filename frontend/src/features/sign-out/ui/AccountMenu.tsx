@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { signOut } from "@/entities/session";
 import { ROUTES } from "@/shared/config";
 import { Icon } from "@/shared/ui/icon";
 import s from "./account-menu.module.css";
 
-/** Round account button (44 px) with a small menu: who is signed in, and Sign out (POST /auth/logout). */
+/** Round account button (44 px) with a small menu: who is signed in, Change password, and Sign out (POST /auth/logout). */
 export function AccountMenu({ email }: { email: string }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -55,6 +55,9 @@ export function AccountMenu({ email }: { email: string }) {
             <span className={s.muted}>Signed in as</span>
             <span className={s.email}>{email}</span>
           </div>
+          <Link to={ROUTES.changePassword} className={s.item} onClick={() => setOpen(false)}>
+            Change password
+          </Link>
           <button type="button" className={s.item} onClick={onSignOut} disabled={pending}>
             {pending ? "Signing out…" : "Sign out"}
           </button>

@@ -54,6 +54,7 @@ change the contract first (and add an entry to `CONTRACT_CHANGELOG.md`), then ru
 | Analysis | `/analysis/:jobId?field_id=..&p=..&h=..` | `GET /analyses/{job_id}`, every 2 s, every 5 s after 30 s |
 | Sign in, create account | `/sign-in`, `/sign-up` | `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh` (on start), `POST /auth/logout` |
 | Reset password | `/reset-password` | `POST /auth/forgot-password`, `POST /auth/reset-password` |
+| Change password | `/account/password` | `POST /auth/change-password` (account menu link) |
 | My fields, compare | `/my-fields` | `GET`/`POST /me/fields`, `DELETE /me/fields/{id}` (Save field button too). Compare: `POST /snapshots` per field |
 
 Auth: the access token is kept in memory only; the refresh token is the backend's httpOnly cookie
@@ -65,9 +66,11 @@ from the URL, and sends it only in the reset request body. Links expire after on
 The page uses a generic confirmation for known and unknown accounts. A successful reset clears the
 local session; the user signs in again. Referrers are disabled to keep reset links out of external requests.
 
-Authenticated password change is available to UI callers through
-`entities/session.changePassword(currentPassword, newPassword)`, which calls
-`POST /auth/change-password` and clears the local session on success. No settings screen is included.
+Signed-in users change their password at `/account/password` (account menu, "Change password").
+The form calls `entities/session.changePassword(currentPassword, newPassword)`, which calls
+`POST /auth/change-password` and clears the local session on success; the page then asks the user
+to sign in again. A 401 with `details.reason: invalid_credentials` marks the current password as
+wrong; any other 401 means the session ended, so the session is cleared and the user signs in again.
 
 ### PDF export
 
@@ -95,9 +98,9 @@ instead of sending mail. Reset an existing demo account; the new password replac
 src/
   app/        router (map pages load lazily), query client, root layout, mock worker, session restore
   pages/      landing, pick-field, field, analysis (setup + job), sign-in, sign-up, reset-password,
-              my-fields, not-found
+              change-password, my-fields, not-found
   widgets/    site-header, site-footer, explore-map, pick-map, analysis-result, saved-fields
-  features/   sign-in, sign-up, sign-out, reset-password, pick-by-county, pick-by-location,
+  features/   sign-in, sign-up, sign-out, reset-password, change-password, pick-by-county, pick-by-location,
               save-field, configure-analysis, export-pdf
   entities/   session, field, metric, region, analysis, saved-field
   shared/     api (client, auth token, errors, generated types), config, lib (units, geo, dates),
