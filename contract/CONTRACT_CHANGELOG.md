@@ -3,6 +3,34 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.6.0 (2026-11-14): saved fields per user
+
+Additive. All new routes need `Authorization: Bearer`.
+
+- New tag `saved-fields`: `GET`/`POST /me/fields`, `GET`/`PATCH`/`DELETE /me/fields/{saved_field_id}`,
+  `POST /me/fields/{saved_field_id}/refresh-info`. Under `/me` because `/fields/{field_id}` is the CSB lookup.
+- A saved field stores the user's name, the GeoJSON Polygon or Point, the CSB `field_id` if any, derived
+  `centroid`, `area_ha` and `state` (IA/IL/NE), optional farmer `crop_history`, and a `/fields/info`
+  snapshot (`info`, `info_fetched_at`) fetched on create and on `refresh-info`.
+- Another user's field, or a malformed id, is `404 NOT_FOUND`. Delete is permanent.
+- Cap per user (default 50, `SavedFieldList.limit`): new error code `FIELD_LIMIT_REACHED` (409).
+- New schemas `SavedField`, `SavedFieldList`, `SavedFieldCreate`, `SavedFieldUpdate`, `SavedCropYear`.
+
+## 0.5.0 (2026-11-14): profitability estimate
+
+Additive.
+
+- New tag `profitability`: `POST /profitability/estimate`. Synchronous profit per acre
+  (yield x price - costs) at a low, base and high price for Corn, Soybeans or Winter Wheat in IA, IL or NE.
+- Yield is the optional `predicted_yield` from the ML model, else a baseline default per crop and state.
+  Prices and costs come from static baseline tables; no price forecast and no external calls.
+- Optional `cost_overrides`: `land_rent_per_acre` replaces the baseline rent; `total_cost_per_acre`
+  replaces all costs. Corn with `previous_crop: Soybeans` gets a nitrogen credit on fertilizer.
+- Response carries the cost lines, the three scenarios, plain-English `assumptions` and
+  `baseline.is_placeholder` (true until the tables hold real USDA numbers).
+- New schemas `ProfitCrop`, `ProfitState`, `ProfitEstimateRequest`, `ProfitEstimate`, `ProfitScenario`,
+  `ProfitCostItem`.
+
 ## 0.4.2 (2026-11-14): audit fixes for validation and slow data sources
 
 Additive contract correction; existing response shapes are unchanged.

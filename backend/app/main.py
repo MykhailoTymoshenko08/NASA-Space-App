@@ -5,7 +5,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analyses, auth, fields, geo, locations, meta, snapshots, tiles
+from app.api import (
+    analyses,
+    auth,
+    fields,
+    geo,
+    locations,
+    meta,
+    profitability,
+    saved_fields,
+    snapshots,
+    tiles,
+)
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import setup_logging
@@ -48,7 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # The refresh token is a cookie: the frontend calls /v1/auth/* with `credentials: "include"`.
         # Credentials require an explicit origin (never "*"), which FRONTEND_ORIGIN is.
         allow_credentials=True,
-        allow_methods=["GET", "HEAD", "POST", "OPTIONS"],
+        allow_methods=["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
         # ETag, Content-Range, Content-Length: needed by the PMTiles client reading fields.pmtiles.
         expose_headers=[
@@ -60,7 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     for r in (
         meta.router, geo.router, locations.router, fields.router, tiles.router, snapshots.router,
-        analyses.router, auth.router,
+        analyses.router, profitability.router, auth.router, saved_fields.router,
     ):
         app.include_router(r, prefix=API_PREFIX)
     return app

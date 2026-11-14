@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Field Shift API",
-    "version": "0.4.2",
+    "version": "0.6.0",
     "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it), so analysis still works.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one PMTiles file read with HTTP\n  Range requests; its URL is `coverage.field_tiles.url_template`. By default the backend serves it at\n  `GET /tiles/fields.pmtiles`; a deployment may point the URL at external static hosting instead.\n"
   },
   "servers": [
@@ -31,7 +31,14 @@
       "name": "analyses"
     },
     {
+      "name": "profitability"
+    },
+    {
       "name": "auth"
+    },
+    {
+      "name": "saved-fields",
+      "description": "A signed-in farmer's own saved fields. Every route needs a bearer token."
     }
   ],
   "paths": {
@@ -680,6 +687,41 @@
         }
       }
     },
+    "/profitability/estimate": {
+      "post": {
+        "tags": [
+          "profitability"
+        ],
+        "operationId": "estimateProfitability",
+        "summary": "Rough profit per acre for one crop (low / base / high)",
+        "description": "Profit per acre = yield x price - costs, for a low, base and high price. Synchronous and\ndeterministic: static baseline tables, no price forecast, no external calls.\nYield is `predicted_yield` when given (from the ML yield model), else a per-crop, per-state\ndefault. Costs are the baseline for the crop and state; `land_rent_per_acre` replaces the\nbaseline rent and `total_cost_per_acre` replaces all costs. Corn after soybeans gets a nitrogen\ncredit on fertilizer. `assumptions` explains each number in plain English for the UI.\nWhile `baseline.is_placeholder` is true the tables hold rough placeholder values, not USDA data.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfitEstimateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estimate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfitEstimate"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
     "/auth/register": {
       "post": {
         "tags": [
@@ -848,6 +890,310 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/me/fields": {
+      "get": {
+        "tags": [
+          "saved-fields"
+        ],
+        "operationId": "listSavedFields",
+        "summary": "The signed-in user's saved fields, newest first",
+        "description": "Each item carries its stored context snapshot (`info`), so no external calls are made.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedFieldList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "saved-fields"
+        ],
+        "operationId": "createSavedField",
+        "summary": "Save a field selected on the map",
+        "description": "Send `FieldSelection.geometry` (a Polygon) and `FieldSelection.field_id`, or a GeoJSON Point.\nThe backend derives `centroid` (inside the polygon), `area_ha` (EPSG:5070, null for points) and\n`state`. Every position must lie in Iowa, Illinois or Nebraska (rough state envelopes, as in\n`/fields/info`). Polygon rules: each ring closed and at least 4 positions, at most 20 rings and\n2000 positions, valid (no self-intersection), area above 0 and at most 2000 ha.\nThe `/fields/info` context for the centroid is fetched once on create (same per-source deadline).\n`info` is null when every source is unavailable; call `refresh-info` later.\nAt most `SavedFieldList.limit` (default 50) fields per user, else `409 FIELD_LIMIT_REACHED`.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedFieldCreate"
+              },
+              "example": {
+                "name": "North 80",
+                "field_id": "csb2025_1900001",
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -93.7,
+                        41.98
+                      ],
+                      [
+                        -93.69,
+                        41.98
+                      ],
+                      [
+                        -93.69,
+                        41.99
+                      ],
+                      [
+                        -93.7,
+                        41.99
+                      ],
+                      [
+                        -93.7,
+                        41.98
+                      ]
+                    ]
+                  ]
+                },
+                "crop_history": [
+                  {
+                    "year": 2025,
+                    "crop": "Corn"
+                  },
+                  {
+                    "year": 2024,
+                    "crop": "Soybeans"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved",
+            "headers": {
+              "Location": {
+                "description": "`/v1/me/fields/{id}`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedField"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "`FIELD_LIMIT_REACHED`. `details.limit` is the per-user cap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION_ERROR` (bad name, geometry or crop history) or `OUTSIDE_COVERAGE`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/fields/{saved_field_id}": {
+      "parameters": [
+        {
+          "name": "saved_field_id",
+          "in": "path",
+          "required": true,
+          "description": "Saved field id (UUID). Another user's id, or a malformed one, is `404`.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "saved-fields"
+        ],
+        "operationId": "getSavedField",
+        "summary": "One of the signed-in user's saved fields",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedField"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "saved-fields"
+        ],
+        "operationId": "updateSavedField",
+        "summary": "Rename a saved field or change its crop history",
+        "description": "Omitted keys stay as they are. `crop_history` null clears it. `name` cannot be null.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedFieldUpdate"
+              },
+              "example": {
+                "name": "Home quarter"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated saved field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedField"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "saved-fields"
+        ],
+        "operationId": "deleteSavedField",
+        "summary": "Delete a saved field (permanent)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/me/fields/{saved_field_id}/refresh-info": {
+      "parameters": [
+        {
+          "name": "saved_field_id",
+          "in": "path",
+          "required": true,
+          "description": "Saved field id (UUID). Another user's id, or a malformed one, is `404`.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "saved-fields"
+        ],
+        "operationId": "refreshSavedFieldInfo",
+        "summary": "Fetch the field context again and store it",
+        "description": "Same data as `/fields/info` for the saved centroid. When every source is unavailable the old\nsnapshot is kept and the response is `502 UPSTREAM_DATA_UNAVAILABLE`.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved field with the new snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedField"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "description": "`UPSTREAM_DATA_UNAVAILABLE`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1152,6 +1498,210 @@
                 }
               }
             }
+          }
+        }
+      },
+      "SavedCropYear": {
+        "description": "A farmer-entered crop for one year.",
+        "type": "object",
+        "required": [
+          "year",
+          "crop"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "year": {
+            "type": "integer",
+            "minimum": 1990,
+            "maximum": 2100
+          },
+          "crop": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      },
+      "SavedFieldCreate": {
+        "type": "object",
+        "required": [
+          "name",
+          "geometry"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Trimmed; must not be blank."
+          },
+          "geometry": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GeoJSONPolygon"
+              },
+              {
+                "$ref": "#/components/schemas/GeoJSONPoint"
+              }
+            ]
+          },
+          "field_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "`FieldSelection.field_id` when a mapped CSB field was picked; null otherwise."
+          },
+          "crop_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "description": "Last crops grown, newest first. Optional.",
+            "items": {
+              "$ref": "#/components/schemas/SavedCropYear"
+            }
+          }
+        }
+      },
+      "SavedFieldUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "crop_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/SavedCropYear"
+            }
+          }
+        }
+      },
+      "SavedField": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "field_id",
+          "geometry",
+          "centroid",
+          "area_ha",
+          "state",
+          "crop_history",
+          "info",
+          "info_fetched_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "field_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "geometry": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GeoJSONPolygon"
+              },
+              {
+                "$ref": "#/components/schemas/GeoJSONPoint"
+              }
+            ]
+          },
+          "centroid": {
+            "$ref": "#/components/schemas/LatLon",
+            "description": "Inside the polygon (or the point itself). `/fields/info` is sampled here."
+          },
+          "area_ha": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Polygon area in hectares (EPSG:5070); null for a point."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "IA",
+              "IL",
+              "NE"
+            ]
+          },
+          "crop_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SavedCropYear"
+            }
+          },
+          "info": {
+            "description": "Stored `/fields/info` snapshot; null until it could be fetched.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FieldInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "info_fetched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SavedFieldList": {
+        "type": "object",
+        "required": [
+          "items",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SavedField"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum saved fields per user."
           }
         }
       },
@@ -2262,6 +2812,237 @@
           }
         }
       },
+      "ProfitCrop": {
+        "type": "string",
+        "description": "Crops with baseline data. Names match the CDL class names in `crop_class` / `crop_history`.",
+        "enum": [
+          "Corn",
+          "Soybeans",
+          "Winter Wheat"
+        ]
+      },
+      "ProfitState": {
+        "type": "string",
+        "description": "State postal code. Only the three supported states have baseline data.",
+        "enum": [
+          "IA",
+          "IL",
+          "NE"
+        ]
+      },
+      "ProfitEstimateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "crop",
+          "state"
+        ],
+        "properties": {
+          "crop": {
+            "$ref": "#/components/schemas/ProfitCrop"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProfitState"
+          },
+          "predicted_yield": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "maximum": 1000,
+            "description": "Yield per acre from the ML model, in the crop's unit (`bu`). Null or missing uses the baseline default yield."
+          },
+          "previous_crop": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100,
+            "description": "Last season's crop (e.g. newest `crop_history` entry). \"Soybeans\" before Corn lowers the corn fertilizer cost (nitrogen credit). Other values are ignored."
+          },
+          "cost_overrides": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "land_rent_per_acre": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 5000,
+                "description": "Replaces the baseline land rent ($/acre). Use 0 for owned land."
+              },
+              "total_cost_per_acre": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10000,
+                "description": "Replaces every baseline cost ($/acre, rent included). Wins over `land_rent_per_acre`."
+              }
+            }
+          }
+        },
+        "example": {
+          "crop": "Corn",
+          "state": "IA",
+          "predicted_yield": 205,
+          "previous_crop": "Soybeans",
+          "cost_overrides": {
+            "land_rent_per_acre": 250
+          }
+        }
+      },
+      "ProfitScenario": {
+        "type": "object",
+        "required": [
+          "price",
+          "revenue_per_acre",
+          "cost_per_acre",
+          "profit_per_acre"
+        ],
+        "properties": {
+          "price": {
+            "type": "number",
+            "description": "$ per yield unit."
+          },
+          "revenue_per_acre": {
+            "type": "number"
+          },
+          "cost_per_acre": {
+            "type": "number"
+          },
+          "profit_per_acre": {
+            "type": "number",
+            "description": "Negative means a loss."
+          }
+        }
+      },
+      "ProfitCostItem": {
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "amount_per_acre",
+          "source"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "seed",
+              "fertilizer",
+              "chemicals",
+              "other_operating",
+              "land_rent",
+              "total"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "amount_per_acre": {
+            "type": "number"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "baseline",
+              "farmer",
+              "baseline_with_nitrogen_credit"
+            ]
+          }
+        }
+      },
+      "ProfitEstimate": {
+        "type": "object",
+        "required": [
+          "crop",
+          "state",
+          "yield_per_acre",
+          "yield_unit",
+          "yield_source",
+          "costs",
+          "scenarios",
+          "assumptions",
+          "baseline"
+        ],
+        "properties": {
+          "crop": {
+            "$ref": "#/components/schemas/ProfitCrop"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProfitState"
+          },
+          "yield_per_acre": {
+            "type": "number"
+          },
+          "yield_unit": {
+            "type": "string",
+            "example": "bu"
+          },
+          "yield_source": {
+            "type": "string",
+            "enum": [
+              "model",
+              "baseline_default"
+            ]
+          },
+          "costs": {
+            "type": "array",
+            "description": "Cost lines that add up to `scenarios.*.cost_per_acre`. One `total` line when the farmer gave `total_cost_per_acre`.",
+            "items": {
+              "$ref": "#/components/schemas/ProfitCostItem"
+            }
+          },
+          "scenarios": {
+            "type": "object",
+            "description": "Same yield and costs; only the price differs.",
+            "required": [
+              "low",
+              "base",
+              "high"
+            ],
+            "properties": {
+              "low": {
+                "$ref": "#/components/schemas/ProfitScenario"
+              },
+              "base": {
+                "$ref": "#/components/schemas/ProfitScenario"
+              },
+              "high": {
+                "$ref": "#/components/schemas/ProfitScenario"
+              }
+            }
+          },
+          "assumptions": {
+            "type": "array",
+            "description": "Plain-English lines showing how each number was calculated, e.g. \"Revenue = 205 bu × $4.30 = $881.50\". Display as-is.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "baseline": {
+            "type": "object",
+            "required": [
+              "version",
+              "is_placeholder"
+            ],
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "is_placeholder": {
+                "type": "boolean",
+                "description": "True while the tables hold placeholder values. The UI should label the numbers as illustrative."
+              }
+            }
+          }
+        }
+      },
       "ErrorCode": {
         "type": "string",
         "enum": [
@@ -2274,7 +3055,8 @@
           "RATE_LIMITED",
           "INTERNAL_ERROR",
           "UNAUTHORIZED",
-          "EMAIL_TAKEN"
+          "EMAIL_TAKEN",
+          "FIELD_LIMIT_REACHED"
         ]
       },
       "ApiError": {

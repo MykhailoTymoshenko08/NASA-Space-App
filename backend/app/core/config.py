@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = False
     auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
+    # Saved fields (per user, in the `database_url` database).
+    saved_fields_max_per_user: int = Field(default=50, ge=1)
+
     @field_validator("jwt_secret")
     @classmethod
     def _secret_long_enough(cls, v: SecretStr) -> SecretStr:

@@ -85,6 +85,14 @@ class Services:
         self.users: UserStore | None = (
             UserStore.connect(settings.database_url) if settings.database_url else None
         )
+        from app.saved_fields.store import SavedFieldStore
+
+        self.saved_fields: SavedFieldStore | None = None
+        if self.users is not None:
+            try:
+                self.saved_fields = SavedFieldStore.attach(self.users.pool)
+            except Exception as e:  # noqa: BLE001 - any DB failure means "saved fields unavailable"
+                log.error("saved_fields table unavailable (%s): saved-field endpoints return 500", e)
         self.jwt_secret = settings.jwt_secret.get_secret_value()
         if not self.jwt_secret:
             log.warning("JWT_SECRET not set: using a random per-process secret (tokens die on restart)")
@@ -101,6 +109,10 @@ class Services:
     def boundaries(self) -> Boundaries:
         if self._boundaries is None:
             raise _missing("boundaries")
+        return self._boundaries
+
+    @property
+    def boundaries_or_none(self) -> Boundaries | None:
         return self._boundaries
 
     @property

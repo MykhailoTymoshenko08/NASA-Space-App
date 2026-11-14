@@ -9,7 +9,16 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.core.errors import ErrorCode
 
@@ -27,6 +36,11 @@ class LatLon(BaseModel):
 class GeoJSONPolygon(BaseModel):
     type: Literal["Polygon"] = "Polygon"
     coordinates: list[list[list[float]]]
+
+
+class GeoJSONPoint(BaseModel):
+    type: Literal["Point"] = "Point"
+    coordinates: list[float] = Field(min_length=2, max_length=2)
 
 
 # ---------- geo ----------
@@ -351,6 +365,70 @@ class AnalysisJob(BaseModel):
     error: ApiError | None = None
 
 
+# ---------- profitability ----------
+class ProfitCrop(StrEnum):
+    corn = "Corn"
+    soybeans = "Soybeans"
+    winter_wheat = "Winter Wheat"
+
+
+class ProfitState(StrEnum):
+    IA = "IA"
+    IL = "IL"
+    NE = "NE"
+
+
+class CostOverrides(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    land_rent_per_acre: float | None = Field(default=None, ge=0, le=5000)
+    total_cost_per_acre: float | None = Field(default=None, ge=0, le=10000)
+
+
+class ProfitEstimateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    crop: ProfitCrop
+    state: ProfitState
+    predicted_yield: float | None = Field(default=None, gt=0, le=1000)
+    previous_crop: str | None = Field(default=None, max_length=100)
+    cost_overrides: CostOverrides = Field(default_factory=CostOverrides)
+
+
+class ProfitScenario(BaseModel):
+    price: float
+    revenue_per_acre: float
+    cost_per_acre: float
+    profit_per_acre: float
+
+
+class ProfitCostItem(BaseModel):
+    key: Literal["seed", "fertilizer", "chemicals", "other_operating", "land_rent", "total"]
+    label: str
+    amount_per_acre: float
+    source: Literal["baseline", "farmer", "baseline_with_nitrogen_credit"]
+
+
+class ProfitScenarios(BaseModel):
+    low: ProfitScenario
+    base: ProfitScenario
+    high: ProfitScenario
+
+
+class ProfitBaselineInfo(BaseModel):
+    version: str
+    is_placeholder: bool
+
+
+class ProfitEstimate(BaseModel):
+    crop: ProfitCrop
+    state: ProfitState
+    yield_per_acre: float
+    yield_unit: str
+    yield_source: Literal["model", "baseline_default"]
+    costs: list[ProfitCostItem]
+    scenarios: ProfitScenarios
+    assumptions: list[str]
+    baseline: ProfitBaselineInfo
+
 
 # --- Auth -------------------------------------------------------------------------------------------
 
@@ -397,3 +475,63 @@ class AuthTokens(BaseModel):
     token_type: Literal["bearer"] = "bearer"
     expires_in: int  # seconds
     user: UserOut
+
+
+# --- Saved fields -----------------------------------------------------------------------------------
+
+SAVED_FIELD_NAME_MAX = 100
+SavedFieldName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=SAVED_FIELD_NAME_MAX)
+]
+SavedGeometry = Annotated[GeoJSONPoint | GeoJSONPolygon, Field(discriminator="type")]
+
+
+class SavedCropYear(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    year: int = Field(ge=1990, le=2100)
+    crop: str = Field(min_length=1, max_length=64)
+
+
+class SavedFieldCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: SavedFieldName
+    geometry: SavedGeometry
+    # CSB id when the farmer picked a mapped field; null for a buffered point or a drawn shape.
+    field_id: str | None = Field(default=None, min_length=1, max_length=64)
+    crop_history: list[SavedCropYear] | None = Field(default=None, max_length=10)
+
+
+class SavedFieldUpdate(BaseModel):
+    """Partial update. Omitted keys stay as they are; `crop_history: null` clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: SavedFieldName | None = None
+    crop_history: list[SavedCropYear] | None = Field(default=None, max_length=10)
+
+    @model_validator(mode="after")
+    def _name_not_null(self) -> "SavedFieldUpdate":
+        if "name" in self.model_fields_set and self.name is None:
+            raise ValueError("name cannot be null")
+        if not self.model_fields_set:
+            raise ValueError("Give at least one of name, crop_history")
+        return self
+
+
+class SavedField(BaseModel):
+    id: UUID
+    name: str
+    field_id: str | None
+    geometry: SavedGeometry
+    centroid: LatLon
+    area_ha: float | None
+    state: Literal["IA", "IL", "NE"]
+    crop_history: list[SavedCropYear] | None
+    info: FieldInfo | None
+    info_fetched_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SavedFieldList(BaseModel):
+    items: list[SavedField]
+    limit: int

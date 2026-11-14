@@ -80,6 +80,11 @@ class UserStore:
             return None
         return cls(pool)
 
+    @property
+    def pool(self) -> ConnectionPool:
+        """Shared with SavedFieldStore: same database, and its table references `users`."""
+        return self._pool
+
     def close(self) -> None:
         self._pool.close()
 
