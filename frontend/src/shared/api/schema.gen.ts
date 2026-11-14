@@ -241,6 +241,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tiles/plss/{z}/{x}/{y}.mvt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey townships and sections in the field states (vector tile)
+         * @description Mapbox Vector Tile of the Public Land Survey System (BLM National PLSS CadNSDI) in the supported
+         *     states, zoom 7 to 12 (clients overzoom past 12). A survey township is about 6 x 6 miles; it has
+         *     36 sections of 1 square mile. Layers:
+         *     `townships` (polygons; props: `plssid`, `label` like `T84N R23W`, `name` like `Grant Twp` or
+         *     empty when the area has no civil township, `w`, `s`, `e`, `n` bbox of the whole township),
+         *     `township_labels` (points; props: `plssid`, `label`, `name`, `county_fips`),
+         *     `sections` from zoom 11 (polygons, no props),
+         *     `section_labels` from zoom 11 (points; props: `n` section number 1 to 36, `county_fips`).
+         *     Suggested use: townships between the county and field scales, sections with the fields.
+         *     `204` when the tile is empty or the server has no PLSS data.
+         */
+        get: operations["getPlssTile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/snapshots": {
         parameters: {
             query?: never;
@@ -1590,6 +1619,30 @@ export interface operations {
         };
     };
     getBoundaryTile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                z: components["parameters"]["Z"];
+                x: components["parameters"]["X"];
+                y: components["parameters"]["Y"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["VectorTile"];
+            /** @description Empty tile */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getPlssTile: {
         parameters: {
             query?: never;
             header?: never;

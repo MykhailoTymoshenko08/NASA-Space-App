@@ -12,3 +12,5 @@ data/raw
 # Mounted as a volume (docker-compose.yml), not copied into the image.
 data/csb_*.pmtiles
 data/README.md
+# Download cache of scripts/prepare_plss.py: the API only reads plss.pmtiles.
+data/plss_*.parquet

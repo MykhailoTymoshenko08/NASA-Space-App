@@ -1,6 +1,7 @@
 """Vector tiles.
 
 - Boundaries (states, counties): XYZ tiles read out of a prebuilt PMTiles archive.
+- Survey townships and sections (PLSS) in the field states: XYZ tiles, same way.
 - Field polygons: the whole PMTiles file, served as a static file with HTTP Range support; the frontend
   reads it with the PMTiles client (`pmtiles://` protocol), never as XYZ tiles.
 """
@@ -48,3 +49,8 @@ def fields_pmtiles(svc: Services = Depends(get_services)) -> Response:
 @router.get("/tiles/boundaries/{z}/{x}/{y}.mvt")
 def boundary_tile(z: Z, x: XY, y: XY, svc: Services = Depends(get_services)) -> Response:
     return _tile_response(svc.boundary_tiles, z, x, y)
+
+
+@router.get("/tiles/plss/{z}/{x}/{y}.mvt")
+def plss_tile(z: Z, x: XY, y: XY, svc: Services = Depends(get_services)) -> Response:
+    return _tile_response(svc.plss_tiles, z, x, y)

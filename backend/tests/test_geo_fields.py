@@ -68,6 +68,7 @@ def test_not_found(client, url):
     "/v1/geo/states/abc/counties", "/v1/geo/counties/abc",
     "/v1/tiles/boundaries/23/0/0.mvt", "/v1/tiles/boundaries/-1/0/0.mvt",
     "/v1/tiles/boundaries/7/-1/0.mvt", "/v1/tiles/boundaries/7/0/nope.mvt",
+    "/v1/tiles/plss/23/0/0.mvt", "/v1/tiles/plss/7/0/nope.mvt",
 ])
 def test_invalid_path_is_contract_validation_error(client, url):
     r = client.get(url)
@@ -307,3 +308,14 @@ def test_boundary_tile(client):
     assert r.status_code == 200
     assert_matches_contract(r)
     assert client.get("/v1/tiles/boundaries/7/0/0.mvt").status_code == 204
+
+
+def test_plss_tile(client):
+    z, x, y = tile_for(41.7, -93.6, 11)
+    r = client.get(f"/v1/tiles/plss/{z}/{x}/{y}.mvt")
+    assert r.status_code == 200
+    assert_matches_contract(r)
+    # Outside the data, and outside the archive's zooms (7 to 12): empty.
+    assert client.get("/v1/tiles/plss/11/0/0.mvt").status_code == 204
+    z, x, y = tile_for(41.7, -93.6, 6)
+    assert client.get(f"/v1/tiles/plss/{z}/{x}/{y}.mvt").status_code == 204

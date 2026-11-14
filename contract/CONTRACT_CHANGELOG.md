@@ -3,6 +3,16 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.8.0 (2026-11-14): survey townships and sections
+
+Additive.
+
+- `GET /tiles/plss/{z}/{x}/{y}.mvt`: PLSS survey townships (about 6 x 6 miles, labelled `T84N R23W`
+  plus the civil township name where there is one) and their 36 sections, in the field states.
+  Layers `townships`, `township_labels`, `sections`, `section_labels`. Built by
+  `backend/scripts/prepare_plss.py` from BLM National PLSS CadNSDI and Census TIGERweb.
+  `204` when the server has no PLSS data.
+
 ## 0.7.0 (2026-11-14): password change and recovery
 
 - `POST /auth/change-password`: bearer auth plus current password; returns 204.

@@ -9,8 +9,9 @@ __pycache__/
 backend/.cache/
 backend/data/*
 !backend/data/README.md
-# Field PMTiles is shared with the team through Git LFS (.gitattributes).
+# Field and survey (PLSS) PMTiles are shared with the team through Git LFS (.gitattributes).
 !backend/data/csb_ia_il_ne.pmtiles
+!backend/data/plss.pmtiles
 
 # Secrets
 .env

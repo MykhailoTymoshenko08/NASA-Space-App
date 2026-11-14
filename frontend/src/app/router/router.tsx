@@ -9,6 +9,9 @@ import { SignInPage } from "@/pages/sign-in";
 import { SignUpPage } from "@/pages/sign-up";
 import { ROUTES } from "@/shared/config";
 import { RootLayout } from "../layout/RootLayout";
+import { resetEntryScroll } from "./entry-scroll";
+
+resetEntryScroll();
 
 /** Route table only. Every screen lives in src/pages. Map pages load lazily (MapLibre is large). */
 export const router = createBrowserRouter([

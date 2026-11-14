@@ -2,14 +2,28 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { areaText, coordsText, selectionSearch, useField } from "@/entities/field";
 import { CONUS_BBOX, mapConfigFrom, supportedStatesText, useCounty, useCoverage, useStates } from "@/entities/region";
+import { useSavedFieldShapes } from "@/entities/saved-field";
+import { useSession } from "@/entities/session";
 import { friendlyMessage, type GeoState } from "@/shared/api";
 import { fieldPath, ROUTES } from "@/shared/config";
 import type { BBox } from "@/shared/lib";
 import { buttonClass } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
-import { FieldMap, type FieldMapHandle, type MapHit, type MapStateHit } from "@/shared/ui/map";
 import {
+  FieldMap,
+  focusForView,
+  sameFocus,
+  ZOOM,
+  type FieldMapHandle,
+  type MapFocus,
+  type MapHit,
+  type MapStateHit,
+  type MapTownshipHit,
+  type MapView,
+} from "@/shared/ui/map";
+import {
+  CROP_LEGEND_ITEMS,
   MapBottomBar,
   MapCard,
   MapHint,
@@ -18,6 +32,9 @@ import {
   MapStage,
   MapTopBar,
   MapZoomControls,
+  SAVED_LEGEND_ITEM,
+  SECTION_LEGEND_ITEM,
+  TOWNSHIP_LEGEND_ITEM,
   type LegendItem,
 } from "@/shared/ui/map-overlay";
 import s from "./explore-map.module.css";
@@ -25,11 +42,19 @@ import s from "./explore-map.module.css";
 const STAGE_NAMES = ["Country", "State", "County", "Field"] as const;
 type Stage = 0 | 1 | 2 | 3;
 
-/** Zoom bands. Fields start at coverage.field_tiles.min_zoom. Between county and field there is no API unit. */
+/**
+ * Zoom bands. Fields start at coverage.field_tiles.min_zoom. Between county and field, the county scale
+ * shows survey townships (from ZOOM.township): a click on one goes to its fields.
+ */
 const stageOf = (zoom: number, fieldMinZoom: number): Stage =>
   zoom >= fieldMinZoom ? 3 : zoom >= 7 ? 2 : zoom >= 5 ? 1 : 0;
 
-const legendFor = (stage: Stage, covered: boolean): { title: string; items: LegendItem[]; note: string } => {
+const legendFor = (
+  stage: Stage,
+  covered: boolean,
+  hasSaved: boolean,
+  countyFocused: boolean,
+): { title: string; items: LegendItem[]; note: string } => {
   const line = "var(--color-map-region-line)";
   switch (stage) {
     case 0:
@@ -45,22 +70,31 @@ const legendFor = (stage: Stage, covered: boolean): { title: string; items: Lege
       return {
         title: "Counties",
         items: [{ label: "County", fill: "var(--color-map-county)", line }],
-        note: covered ? "Click a county to zoom to it." : "No field outlines in this state yet.",
+        note: covered ? "Click a county to see its townships." : "No field outlines in this state yet.",
       };
     case 2:
+      // Townships are drawn only in the focused county (FieldMap townshipsFollowFocus).
+      if (!countyFocused)
+        return {
+          title: "Counties",
+          items: [{ label: "County", fill: "var(--color-map-county)", line }],
+          note: "Click a county to see its townships.",
+        };
       return {
-        title: "Counties",
-        items: [{ label: "County", fill: "var(--color-map-county)", line }],
-        note: "Estimated field areas appear as you zoom in further.",
+        title: "Counties and townships",
+        items: [{ label: "County", fill: "var(--color-map-county)", line }, TOWNSHIP_LEGEND_ITEM],
+        note: "Townships are the survey squares from your deed or plat book. Click yours to see its fields.",
       };
     default:
       return {
-        title: "Fields",
+        title: "Fields by latest crop",
         items: [
-          { label: "Estimated field area", fill: "var(--color-map-field-1)", line: "var(--color-map-field-line)" },
+          ...CROP_LEGEND_ITEMS,
           { label: "Selected", fill: "var(--color-map-field-selected)", line: "var(--color-map-outline)" },
+          ...(hasSaved ? [SAVED_LEGEND_ITEM] : []),
+          SECTION_LEGEND_ITEM,
         ],
-        note: "Estimated from USDA crop maps. Not a legal or ownership boundary.",
+        note: "Zoom in further to see each field's crop and acres. Estimated from USDA crop maps. Not a legal or ownership boundary.",
       };
   }
 };
@@ -78,33 +112,46 @@ export function ExploreMap() {
   const [zoom, setZoom] = useState(3);
   const [focusState, setFocusState] = useState<MapStateHit | null>(null);
   const [countyFips, setCountyFips] = useState<string | null>(null);
+  const [township, setTownship] = useState<MapTownshipHit | null>(null);
   const [hoverName, setHoverName] = useState<{ name: string; supported: boolean } | null>(null);
   const [fieldId, setFieldId] = useState<string | null>(null);
   const [noCoverageIn, setNoCoverageIn] = useState<string | null>(null);
 
+  const session = useSession();
+  const saved = useSavedFieldShapes(session.user?.id ?? null);
   const county = useCounty(countyFips);
   const field = useField(fieldId);
   const stage = stageOf(zoom, config.fieldMinZoom);
   const supported = useCallback((postal: string) => config.supportedStates.includes(postal), [config.supportedStates]);
   const stateCovered = focusState ? supported(focusState.postal) : true;
 
-  // Fit the map to the supported states once coverage arrives.
-  const fittedOnce = useRef(false);
+  // A county click fits the map to the county once its bbox arrives (the tiles carry no bbox).
+  // If the county cannot be loaded, go straight to the fields where the user clicked, as before.
+  const pendingCounty = useRef<{ fips: string; point: MapHit["point"] } | null>(null);
   useEffect(() => {
-    if (coverage.data && !fittedOnce.current) {
-      fittedOnce.current = true;
-      mapRef.current?.fitBBox(coverage.data.bounds as BBox);
+    const pending = pendingCounty.current;
+    if (!pending || pending.fips !== countyFips) return;
+    if (county.data?.fips === pending.fips) {
+      pendingCounty.current = null;
+      mapRef.current?.fitBBox(county.data.bbox as BBox, config.fieldMinZoom - 0.5);
+    } else if (county.isError) {
+      pendingCounty.current = null;
+      mapRef.current?.flyTo(pending.point, config.fieldMinZoom + 0.5);
     }
-  }, [coverage.data]);
+  }, [county.data, county.isError, countyFips, config.fieldMinZoom]);
 
-  // Zoom to a county once its bbox loads.
-  useEffect(() => {
-    if (county.data) mapRef.current?.fitBBox(county.data.bbox as BBox, config.fieldMinZoom - 0.5);
-  }, [county.data, config.fieldMinZoom]);
+  /** A township fills the map, never further out than the fields' zoom. */
+  const goTownship = (t: MapTownshipHit) => {
+    setTownship(t);
+    setFieldId(null);
+    mapRef.current?.fitBBox(t.bbox, undefined, config.fieldMinZoom + 0.25);
+  };
 
   const goState = (st: GeoState) => {
     setFocusState({ fips: st.fips, name: st.name, postal: st.postal });
     setCountyFips(null);
+    setTownship(null);
+    pendingCounty.current = null;
     setFieldId(null);
     setNoCoverageIn(null);
     mapRef.current?.fitBBox(st.bbox as BBox);
@@ -113,24 +160,108 @@ export function ExploreMap() {
   const reset = () => {
     setFocusState(null);
     setCountyFips(null);
+    setTownship(null);
+    pendingCounty.current = null;
     setFieldId(null);
     setNoCoverageIn(null);
-    mapRef.current?.fitBBox((coverage.data?.bounds as BBox | undefined) ?? CONUS_BBOX);
+    mapRef.current?.fitBBox(CONUS_BBOX);
   };
 
-  const onClick = (hit: MapHit) => {
+  // Only the focused state (and county, and township) is shown. Zooming out past it brings the rest back.
+  const focus: MapFocus | null = focusState
+    ? {
+        stateFips: focusState.fips,
+        statePostal: focusState.postal,
+        countyFips,
+        // Ends below field scale (onZoomEnd clears the township).
+        township: township ? { plssid: township.plssid, bbox: township.bbox } : null,
+      }
+    : null;
+
+  /** Zoom below which a focus ends: one level under the zoom that fits the area. */
+  const floorFor = (bbox: number[] | undefined, fallback: number) => {
+    const z = bbox ? mapRef.current?.zoomForBBox(bbox as BBox) : null;
+    return z != null ? z - 1 : fallback;
+  };
+
+  const onZoomEnd = (z: number) => {
+    setZoom(z);
+    // Fields are hidden below their zoom: the selection goes with them.
+    if (z < config.fieldMinZoom) {
+      setFieldId(null);
+      setTownship(null);
+    }
+    if (countyFips && z < Math.min(floorFor(county.data?.bbox, 8), config.fieldMinZoom - 1)) setCountyFips(null);
+    if (focusState && z < floorFor(states.data?.find((x) => x.fips === focusState.fips)?.bbox, 5)) {
+      setFocusState(null);
+      setCountyFips(null);
+      setNoCoverageIn(null);
+    }
+  };
+
+  // Moving the map focuses what is under its center, as a click would (shared/ui/map/view-focus.ts).
+  const onViewChange = (view: MapView) => {
+    // Our own camera moves follow a click, which already set the focus.
+    if (!view.byUser || pendingCounty.current) return;
+    const st = view.state ? states.data?.find((x) => x.fips === view.state!.fips) : undefined;
+    const stateFitZoom = st ? (mapRef.current?.zoomForBBox(st.bbox as BBox) ?? null) : null;
+    const cur = { state: focusState, countyFips, township };
+    const next = focusForView(view, cur, { fieldMinZoom: config.fieldMinZoom, stateFitZoom, region: "follow" });
+    if (sameFocus(next, cur)) return;
+    if (next.state?.fips !== focusState?.fips) {
+      setFocusState(next.state);
+      setNoCoverageIn(null);
+    }
+    if (next.countyFips !== countyFips) setCountyFips(next.countyFips);
+    if (next.township?.plssid !== township?.plssid) {
+      setTownship(next.township);
+      // The selected field may now be under the mask.
+      setFieldId(null);
+    }
+  };
+
+  const onClick = (rawHit: MapHit) => {
     setNoCoverageIn(null);
+    // A click on a hidden area moves the focus there: a township at field scale, else its county or state.
+    if (rawHit.outsideFocus && stage === 3) {
+      if (rawHit.township) {
+        if (rawHit.state) setFocusState(rawHit.state);
+        if (rawHit.county) setCountyFips(rawHit.county.fips);
+        pendingCounty.current = null;
+        goTownship(rawHit.township);
+      }
+      return;
+    }
+    // Outside the focused county, go to the county first, not straight into one of its townships.
+    const hit = rawHit.outsideFocus ? { ...rawHit, township: null } : rawHit;
     if (stage === 3) {
       setFieldId(hit.field ? hit.field.field_id : null);
       return;
     }
-    if (stage === 2) {
-      // Between county and field there is no API unit: zoom in where the user clicked.
-      mapRef.current?.flyTo(hit.point, config.fieldMinZoom + 0.5);
+    // A click goes one level down. Township (county scale): its fields. The state and county are kept
+    // for the focus and the breadcrumb.
+    if (hit.township) {
+      if (hit.state && focusState?.fips !== hit.state.fips) setFocusState(hit.state);
+      if (hit.county) setCountyFips(hit.county.fips);
+      pendingCounty.current = null;
+      goTownship(hit.township);
       return;
     }
-    if (hit.county && hit.zoom >= 6) {
+    // County: fit it, so its townships show. The focused county again (no township under the pointer,
+    // e.g. a server without survey data): straight to its fields, where the user clicked.
+    if (hit.county && hit.zoom >= ZOOM.countyLines) {
+      if (hit.state && focusState?.fips !== hit.state.fips) setFocusState(hit.state);
+      if (hit.county.fips === countyFips) {
+        mapRef.current?.flyTo(hit.point, config.fieldMinZoom + 0.5);
+        return;
+      }
       setCountyFips(hit.county.fips);
+      setTownship(null);
+      pendingCounty.current = { fips: hit.county.fips, point: hit.point };
+      return;
+    }
+    if (stage === 2) {
+      mapRef.current?.flyTo(hit.point, config.fieldMinZoom + 0.5);
       return;
     }
     if (hit.state) {
@@ -152,13 +283,13 @@ export function ExploreMap() {
     setHoverName(st ? { name: st.name, supported: supported(st.postal) } : null);
   };
 
-  const legend = legendFor(stage, stateCovered);
+  const legend = legendFor(stage, stateCovered, saved.length > 0, countyFips !== null);
   const hint = [
     hoverName
       ? `${hoverName.name}: click to zoom in${hoverName.supported ? "" : ". Point analysis only"}`
       : "Click a state to zoom in",
-    stateCovered ? "Click a county, or use + to zoom in" : "No field outlines here yet. Use Pick a field for a point",
-    "Click where your field is to zoom in",
+    stateCovered ? "Click a county to see its townships" : "No field outlines here yet. Use Pick a field for a point",
+    countyFips ? "Click your township to see its fields" : "Click a county to see its townships",
     fieldId ? "Selected. Open it to see base conditions" : "Click an estimated field area to select it",
   ][stage];
 
@@ -172,9 +303,14 @@ export function ExploreMap() {
       label: `${county.data.name} County`,
       onClick: () => {
         setFieldId(null);
+        setTownship(null);
         mapRef.current?.fitBBox(county.data!.bbox as BBox, config.fieldMinZoom - 0.5);
       },
     });
+  }
+  if (township && stage === 3) {
+    const t = township;
+    crumbs.push({ label: t.name ? `${t.name} (${t.label})` : t.label, onClick: () => goTownship(t) });
   }
 
   const selectionShape = field.data
@@ -189,10 +325,15 @@ export function ExploreMap() {
         initialBBox={CONUS_BBOX}
         selection={selectionShape}
         pin={null}
+        saved={saved}
+        focus={focus}
+        townshipsFollowFocus
+        outerBBox={CONUS_BBOX}
         ariaLabel="Map of the contiguous United States. Zoom from states to counties and estimated field areas."
         onClick={onClick}
         onHover={onHover}
-        onZoomEnd={setZoom}
+        onZoomEnd={onZoomEnd}
+        onViewChange={onViewChange}
       />
 
       <MapTopBar>

@@ -1,4 +1,4 @@
-.PHONY: install dev test contract-check contract-json lint db up data data-boundaries data-csb data-tiles demo docker
+.PHONY: install dev test contract-check contract-json lint db up data data-boundaries data-plss data-csb data-tiles demo docker
 
 UV ?= uv
 HOST ?= 127.0.0.1
@@ -37,6 +37,11 @@ FORCE_FLAG = $(if $(FORCE),--force,)
 data-boundaries:
 	$(UV) run python scripts/prepare_boundaries.py $(FORCE_FLAG)
 
+# Survey townships and sections (PLSS) of the field states, from BLM. Needs data-boundaries first.
+# data/plss.pmtiles is tracked with Git LFS: commit the rebuilt file so teammates get it.
+data-plss: data-boundaries
+	$(UV) run python scripts/prepare_plss.py $(FORCE_FLAG)
+
 # USDA CSB polygons + crop history for IA, IL, NE into PostGIS (downloads ~3.8 GB once).
 data-csb: db
 	$(UV) run python scripts/prepare_csb.py import $(FORCE_FLAG)
@@ -46,11 +51,12 @@ data-csb: db
 data-tiles: db
 	$(UV) run python scripts/prepare_csb.py tiles $(FORCE_FLAG)
 
-data: data-boundaries data-csb data-tiles
+data: data-boundaries data-plss data-csb data-tiles
 
 # Boot everything for a demo: install deps, build data if missing, run the API.
 demo: install
 	@test -f data/boundaries.pmtiles -a -f data/csb_ia_il_ne.pmtiles || $(MAKE) data
+	@test -f data/plss.pmtiles || $(MAKE) data-plss
 	$(UV) run uvicorn app.main:app --host $(HOST) --port $(PORT)
 
 # PostGIS + API in docker compose; data/csb_ia_il_ne.pmtiles is mounted read-only into the api container.
@@ -63,4 +69,5 @@ up:
 IMAGE ?= field-shift-backend
 docker:
 	@test -f data/boundaries.pmtiles || $(MAKE) data-boundaries
+	@test -f data/plss.pmtiles || $(MAKE) data-plss
 	docker build -t $(IMAGE) .

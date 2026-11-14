@@ -1,3 +1,18 @@
 export { FieldMap } from "./FieldMap";
-export type { FieldMapHandle, MapCountyHit, MapFieldHit, MapHit, MapShape, MapStateHit } from "./FieldMap";
-export type { MapStyleInput } from "./map-style";
+export type {
+  FieldMapHandle,
+  MapCountyHit,
+  MapFieldHit,
+  MapHit,
+  MapSavedShape,
+  MapShape,
+  MapStateHit,
+  MapTownshipHit,
+  MapView,
+} from "./FieldMap";
+export { CROP_GROUPS, cropGroupOf } from "./crops";
+export type { CropGroup } from "./crops";
+export { FIELD_LABEL_ZOOM, ZOOM } from "./map-style";
+export type { MapFocus, MapStyleInput } from "./map-style";
+export { AUTO_COUNTY_ZOOM, focusForView, sameFocus } from "./view-focus";
+export type { ViewFocus } from "./view-focus";

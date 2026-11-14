@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Field Shift API
-  version: 0.7.0
+  version: 0.8.0
   description: |
     Contract between the frontend and backend of the Field Shift farmer map
     (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
@@ -373,6 +373,34 @@ paths:
         Suggested use: `states` at zoom < 7, `counties` at zoom 7 to 10, then the field polygons from the
         PMTiles file in `coverage.field_tiles` from `coverage.field_tiles.min_zoom`.
         Field polygons are not XYZ tiles: see `GET /tiles/fields.pmtiles`.
+      parameters:
+      - $ref: '#/components/parameters/Z'
+      - $ref: '#/components/parameters/X'
+      - $ref: '#/components/parameters/Y'
+      responses:
+        '200':
+          $ref: '#/components/responses/VectorTile'
+        '204':
+          description: Empty tile
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /tiles/plss/{z}/{x}/{y}.mvt:
+    get:
+      tags:
+      - tiles
+      operationId: getPlssTile
+      summary: Survey townships and sections in the field states (vector tile)
+      description: |
+        Mapbox Vector Tile of the Public Land Survey System (BLM National PLSS CadNSDI) in the supported
+        states, zoom 7 to 12 (clients overzoom past 12). A survey township is about 6 x 6 miles; it has
+        36 sections of 1 square mile. Layers:
+        `townships` (polygons; props: `plssid`, `label` like `T84N R23W`, `name` like `Grant Twp` or
+        empty when the area has no civil township, `w`, `s`, `e`, `n` bbox of the whole township),
+        `township_labels` (points; props: `plssid`, `label`, `name`, `county_fips`),
+        `sections` from zoom 11 (polygons, no props),
+        `section_labels` from zoom 11 (points; props: `n` section number 1 to 36, `county_fips`).
+        Suggested use: townships between the county and field scales, sections with the fields.
+        `204` when the tile is empty or the server has no PLSS data.
       parameters:
       - $ref: '#/components/parameters/Z'
       - $ref: '#/components/parameters/X'

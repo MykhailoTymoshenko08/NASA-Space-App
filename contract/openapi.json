@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Field Shift API",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it), so analysis still works.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one PMTiles file read with HTTP\n  Range requests; its URL is `coverage.field_tiles.url_template`. By default the backend serves it at\n  `GET /tiles/fields.pmtiles`; a deployment may point the URL at external static hosting instead.\n"
   },
   "servers": [
@@ -519,6 +519,38 @@
         "operationId": "getBoundaryTile",
         "summary": "State and county outlines (vector tile)",
         "description": "Mapbox Vector Tile, all of CONUS. Layers: `states` (props: `fips`, `name`, `postal`),\n`counties` (props: `fips`, `name`, `state_fips`).\nSuggested use: `states` at zoom < 7, `counties` at zoom 7 to 10, then the field polygons from the\nPMTiles file in `coverage.field_tiles` from `coverage.field_tiles.min_zoom`.\nField polygons are not XYZ tiles: see `GET /tiles/fields.pmtiles`.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Z"
+          },
+          {
+            "$ref": "#/components/parameters/X"
+          },
+          {
+            "$ref": "#/components/parameters/Y"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/VectorTile"
+          },
+          "204": {
+            "description": "Empty tile"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/tiles/plss/{z}/{x}/{y}.mvt": {
+      "get": {
+        "tags": [
+          "tiles"
+        ],
+        "operationId": "getPlssTile",
+        "summary": "Survey townships and sections in the field states (vector tile)",
+        "description": "Mapbox Vector Tile of the Public Land Survey System (BLM National PLSS CadNSDI) in the supported\nstates, zoom 7 to 12 (clients overzoom past 12). A survey township is about 6 x 6 miles; it has\n36 sections of 1 square mile. Layers:\n`townships` (polygons; props: `plssid`, `label` like `T84N R23W`, `name` like `Grant Twp` or\nempty when the area has no civil township, `w`, `s`, `e`, `n` bbox of the whole township),\n`township_labels` (points; props: `plssid`, `label`, `name`, `county_fips`),\n`sections` from zoom 11 (polygons, no props),\n`section_labels` from zoom 11 (points; props: `n` section number 1 to 36, `county_fips`).\nSuggested use: townships between the county and field scales, sections with the fields.\n`204` when the tile is empty or the server has no PLSS data.\n",
         "parameters": [
           {
             "$ref": "#/components/parameters/Z"

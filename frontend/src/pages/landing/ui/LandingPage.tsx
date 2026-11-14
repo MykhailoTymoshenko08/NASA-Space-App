@@ -24,10 +24,14 @@ const STEPS = [
   },
 ] as const;
 
+const reducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+
 export function LandingPage() {
   useEffect(() => {
     document.title = `${APP_NAME}: know your field before you plant`;
   }, []);
+
 
   return (
     <>
@@ -45,7 +49,15 @@ export function LandingPage() {
             Pick your field
             <Icon name="arrow-right" />
           </ButtonLink>
-          <a href="#map" className={s.textLink}>
+          <a
+            href="#map"
+            className={s.textLink}
+            onClick={(e) => {
+              // Scroll without putting #map in the URL (entering the site starts at the top: app/router/entry-scroll.ts).
+              e.preventDefault();
+              document.getElementById("map")?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth" });
+            }}
+          >
             or explore the map below
           </a>
         </div>

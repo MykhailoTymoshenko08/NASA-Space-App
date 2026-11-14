@@ -79,6 +79,7 @@ class Services:
         )
 
         self.boundary_tiles = self._tiles(d / "boundaries.pmtiles")
+        self.plss_tiles = self._tiles(d / "plss.pmtiles")
 
         from app.auth.store import UserStore
 
@@ -132,6 +133,8 @@ class Services:
         self.cache.close()
         if self.boundary_tiles:
             self.boundary_tiles.close()
+        if self.plss_tiles:
+            self.plss_tiles.close()
         if self._fields:
             self._fields.close()
         if self.users:
