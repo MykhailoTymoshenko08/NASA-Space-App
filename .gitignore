@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 .DS_Store
 .env
+
+# docker image archives (deploy/data IS in git: the backend builds the image from a clean clone)
+deploy/*.tar
+deploy/*.tar.gz
+!deploy/data/

@@ -1,0 +1,14 @@
+.git
+.venv
+.claude
+__pycache__
+*.pyc
+data
+docs
+tests
+scripts/*
+!scripts/03_soil_ssurgo.py
+models/**/reliability.png
+models/**/metrics.json
+deploy/*.tar
+deploy/*.tar.gz

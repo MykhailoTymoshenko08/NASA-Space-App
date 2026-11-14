@@ -80,6 +80,10 @@ put them into `data/lina/`
 - `scripts/09_precompute_region.py --counties <fips5> ...` — ALL CSB fields of the counties: soil (SDA), climate (POWER, cached), history → `data/precomputed/<county>.parquet` (Polk 19153: 5263 fields in 94 s)
 - the real `/ml/v1/analyze` (`ml_service/real.py`, `features.py`, `precomputed.py`, `power_client.py`, `soil_sda.py`): features from a precomputed county, else the 2000-field tables, else on the fly (request history or 422; SDA soil; POWER cell, 503 if it cannot be downloaded in time) → detected rotation, vulnerability timeline (bare soil from NDVI, else the crop calendar), summary, strategies, NEW `crop_suitability`, only the sources really used; `status: partial` while NDVI / SMAP / TWI are missing. `ML_MODE=mock` keeps the mock, `real` is the default. ~0.3 s for a known field.
   income in the answer is an index (`score_notes.income`), not money
+- `scripts/09b_export_demo_polygons.py` — polygons of the demo counties for Lina (GEE): `data/fields/demo_fields_for_gee.{zip,geojson}` (field_id + geometry, EPSG:4326): Polk 19153 = 5,263, Reno 20155 = 20,961 fields
+- `scripts/10_ingest_lina.py --incoming <dir>` — validates Lina's CSV (ndvi_monthly, ndvi_season, smap_monthly, terrain [+ slope_class]: columns, ranges, empty values, duplicate keys, unknown field_ids; >5% bad rows = file refused), installs them in `data/lina/`, writes `derived.parquet` (NASADEM slope/TWI, SMAP dry-year share) and rebuilds the precomputed county files. The service picks them up by itself (sources nasadem/smap/landsat_ndvi, no more partial warnings). The model keeps reading the SSURGO slope it was trained on; NASADEM feeds rules/suitability/erosion.
+- `crop_suitability` has two numbers: `fit_score` (field suitability without last year's crop, averaged over the predecessors that usually come before the crop, `scripts/05b_predecessor_mix.py`) and `next_year_share` (advice with the real predecessor, adds up to 100)
+- delivery: `README_BACKEND.md` (for the backend), `docs/pitch_numbers.md` (for the pitch), `Dockerfile` + `docker-compose.yml` + `scripts/11_prepare_deploy.py` (image `fieldshift-ml:0.2.0`, models and precomputed counties inside, port from `PORT`)
 - the mock service's engine lives in `ml_service/mock_rotations.py` (was `rotations.py`, renamed when the real planner took the name)
 - `ml_service/` — FastAPI, mock first
 
@@ -90,3 +94,7 @@ put them into `data/lina/`
 - work in sequential phases and stop after each phase for review
 - `data/` is gitignored (large files); never commit data
 - metric units, snake_case, WGS84 lat/lon in outputs
+
+## addendum (water balance, deploy)
+- `config/water_balance.yaml` + `ranking.water_balance`: seasonal Kc x ET0 vs 0.8 x rain + awc x root depth x 0.5 -> water factor in score and `fit_score`; `irrigated` true = no penalty, null = half, false = full
+- `deploy/data` (6 MB, precomputed counties + POWER cells) is committed ON PURPOSE so the image builds from a clean clone; refresh with `scripts/11_prepare_deploy.py`. the rest of `data/` stays ignored

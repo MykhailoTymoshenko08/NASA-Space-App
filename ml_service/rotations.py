@@ -248,7 +248,8 @@ TX = {
             "diversified": ["Техніка й праця для додаткової культури", "Наявність насіння та елеватора"],
             "switch": ["Чи відповідає новий набір культур вашим контрактам і техніці"],
         },
-        "gap_irrigation": "Немає даних про зрошення на рівні поля", "gap_livestock": "Невідомо, чи є худоба / потреба в кормах",
+        "gap_irrigation": "Немає даних про зрошення на рівні поля",
+        "gap_irrigation_set": "Якщо поле зрошується, вкажіть irrigated=true: рекомендація зміниться", "gap_livestock": "Невідомо, чи є худоба / потреба в кормах",
         "gap_slope": "Ухил береться зі SSURGO (NASADEM ще немає)", "gap_income": "Дохід — відносний індекс, а не гроші",
         "gap_stress": "Немає NDVI від Ліни: правило стресу минулого сезону вимкнене",
         "gap_cover_blocked": "Покривна культура не дозволена правилами: {why}",
@@ -290,7 +291,8 @@ TX = {
             "diversified": ["Equipment and labour for an extra crop", "Seed and elevator availability"],
             "switch": ["Whether the new set of crops fits your contracts and equipment"],
         },
-        "gap_irrigation": "No field-level irrigation data", "gap_livestock": "Livestock / forage demand unknown",
+        "gap_irrigation": "No field-level irrigation data",
+        "gap_irrigation_set": "If the field is irrigated, set irrigated=true — the recommendation will change", "gap_livestock": "Livestock / forage demand unknown",
         "gap_slope": "Slope comes from SSURGO (NASADEM not available yet)", "gap_income": "Income is a relative index, not money",
         "gap_stress": "No NDVI from Lina: the last-season stress rule is off",
         "gap_cover_blocked": "A cover crop is not allowed by the rules: {why}",
@@ -379,7 +381,7 @@ def plan_rotations(ctx: FieldContext, a: Assets, *, priorities: dict | None = No
             evidence = [
                 {"text": t["ev_bare"].format(a=r0.bare_days, b=r.bare_days), "source_ids": ["csb"]},
                 {"text": t["ev_erosion"].format(a=r0.erosion_t_ha, b=r.erosion_t_ha, p=ctx.precip_annual, k=ctx.soil["kw_factor"], s=ctx.slope_pct),
-                 "source_ids": ["power", "ssurgo"]},
+                 "source_ids": ["power", "ssurgo", "nasadem"] if ctx.slope_source == "nasadem" else ["power", "ssurgo"]},
                 {"text": t["ev_water"].format(a=r0.water_use_mm, b=r.water_use_mm, p=ctx.precip_annual), "source_ids": ["power"]},
                 {"text": t["ev_nitrogen"].format(a=r0.n_net, b=r.n_net, f=r.n_fixed), "source_ids": ["csb"]},
             ]
@@ -467,10 +469,12 @@ def _scores(v: dict) -> dict:
 def _data_gaps(ctx, pl: Planner, fi: dict, t: dict, stress) -> list[str]:
     gaps = []
     if fi.get("irrigated") is None and not ctx.irrigated:
-        gaps.append(t["gap_irrigation"])
+        first = pl.step(ctx.prev_crops[0], ctx.prev_crops[1], False)["result"]
+        # when water is short for some crops, the farmer is asked to say whether the field is irrigated: the answer changes the advice
+        gaps.append(t["gap_irrigation_set"] if first.get("water_short") else t["gap_irrigation"])
     if fi.get("has_livestock") is None:
         gaps.append(t["gap_livestock"])
-    gaps += [t["gap_slope"], t["gap_income"]]
+    gaps += ([] if ctx.slope_source == "nasadem" else [t["gap_slope"]]) + [t["gap_income"]]
     if stress is None or stress.reason == "no ndvi data":
         gaps.append(t["gap_stress"])
     if pl.cover_blocked:

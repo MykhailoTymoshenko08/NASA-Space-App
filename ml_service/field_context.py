@@ -82,6 +82,7 @@ def load_field_context(field_id: str, a: Assets, target_year: int = 2026, data_d
         prev_crops=[crop_in(target_year - 1), crop_in(target_year - 2)],
         soil={c: (None if pd.isna(s[c]) else s[c]) for c in SOIL_COLS},
         slope_pct=None if pd.isna(s["slope_r"]) else float(s["slope_r"]),   # SSURGO slope until NASADEM arrives
+        slope_ssurgo=None if pd.isna(s["slope_r"]) else float(s["slope_r"]),
         climate_norm=climate_norm,
         climate_lag1={c: (float(lag[c]) if lag is not None else np.nan) for c in CLIMATE_COLS},
         winter_tmin_c=winter, history=history, history_rich=history_rich, target_year=target_year,

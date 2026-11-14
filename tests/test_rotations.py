@@ -331,3 +331,64 @@ def test_stress_multipliers_and_plan():
 def test_stress_file_is_optional():
     from ml_service.stress import load_ndvi_monthly
     assert load_ndvi_monthly("/nonexistent") is None
+
+
+# ---------------------------------------------------------------- water balance in the ranking (fit_score and the advice)
+
+def dry_ctx(factor=0.5, **kw):
+    """the Iowa-like normal with the rain cut: the crops' need (Kc x ET0) is no longer covered"""
+    pm = [p * factor for p in P]
+    return ctx(precip_monthly=pm, precip_annual=float(sum(pm)), **kw)
+
+
+def test_water_balance_is_a_trapezoid_on_supply_over_demand():
+    from ml_service.ranking import water_balance
+    f_wet, r_wet = water_balance(ctx(), "corn", A)
+    f_dry, r_dry = water_balance(dry_ctx(0.5), "corn", A)
+    f_dryer, r_dryer = water_balance(dry_ctx(0.3), "corn", A)
+    assert f_wet == 1.0 and r_wet >= 0.9                                                # a usual Corn Belt year: no penalty
+    assert r_dryer < r_dry < r_wet and 0.1 <= f_dryer <= f_dry < f_wet
+    assert f_dryer == pytest.approx(A.water["min_factor"])                              # the floor is never 0: irrigation can fix it
+    assert water_balance(ctx(), "cereal_rye", A) is None                                # a cover crop is not judged by this
+    assert water_balance(ctx(et0_monthly=None), "corn", A) is None                      # no climate data: no penalty, no guess
+    # a deeper-rooted crop reaches more soil water
+    assert water_balance(dry_ctx(0.5), "sorghum", A)[1] > water_balance(dry_ctx(0.5, ), "oats", A)[1] * 0.9
+
+
+def test_irrigated_true_none_false():
+    from ml_service.ranking import rank_crops
+    by = {i: next(c for c in rank_crops(dry_ctx(0.5), A, lang="en", irrigated=i, fit=True)["crops"] if c["crop"] == "corn") for i in (True, None, False)}
+    full = by[False]["parts"]["water"]
+    assert by[True]["parts"]["water"] == 1.0                                            # irrigated: no penalty
+    assert by[None]["parts"]["water"] == pytest.approx((1 + full) / 2, abs=2e-3)        # unknown: half of the penalty (parts are rounded)
+    assert full < 0.7
+    assert by[True]["fit_score"] > by[None]["fit_score"] > by[False]["fit_score"]       # fit follows the water
+    assert by[True]["score"] > by[None]["score"] > by[False]["score"]                   # so does the advice for next year
+    assert any("Short of water" in a["text"] for a in by[False]["adjustments"])
+    assert any("half penalty" in a["text"] for a in by[None]["adjustments"])
+
+
+def test_data_gap_asks_for_irrigation_only_when_it_matters():
+    ask = "If the field is irrigated, set irrigated=true — the recommendation will change"
+    short = plan_rotations(dry_ctx(0.5), A, lang="en")["strategies"][0]["data_gaps"]
+    assert ask in short and "No field-level irrigation data" not in short
+    usual = plan_rotations(ctx(), A, lang="en")["strategies"][0]["data_gaps"]
+    assert ask not in usual and "No field-level irrigation data" in usual                # no water problem: the old, milder note
+    assert ask not in plan_rotations(dry_ctx(0.5), A, lang="en", farmer_input={"irrigated": True})["strategies"][0]["data_gaps"]
+    assert ask not in plan_rotations(dry_ctx(0.5), A, lang="en", farmer_input={"irrigated": False})["strategies"][0]["data_gaps"]
+    uk = plan_rotations(dry_ctx(0.5), A, lang="uk")["strategies"][0]["data_gaps"]
+    assert "Якщо поле зрошується, вкажіть irrigated=true: рекомендація зміниться" in uk
+
+
+def test_ranking_data_gaps_and_planner_agree_on_dry_fields():
+    """the crop ranking and the planner warn about the same thing"""
+    from ml_service.ranking import rank_crops
+    r = rank_crops(dry_ctx(0.5), A, lang="en")
+    assert r["water_short"] and any("irrigated=true" in g for g in r["data_gaps"])
+    plan = plan_rotations(dry_ctx(0.5), A, lang="en")
+    assert any("irrigated=true" in g for g in plan["strategies"][0]["data_gaps"])
+    assert not rank_crops(ctx(), A)["water_short"]
+    # the water penalty reaches the planner's own choices: a wetter year gives corn-heavy chains more fit
+    wet_fit = plan_rotations(ctx(), A)["details"]["current"]["fit"]
+    dry_fit = plan_rotations(dry_ctx(0.5), A)["details"]["current"]["fit"]
+    assert dry_fit <= wet_fit

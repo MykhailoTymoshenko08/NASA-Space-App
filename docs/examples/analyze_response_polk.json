@@ -2,7 +2,7 @@
   "request_id": "demo-polk-1",
   "field_id": "191825000314326",
   "model_version": "0.2.0",
-  "generated_at": "2026-11-14T21:18:24Z",
+  "generated_at": "2026-11-14T21:30:52Z",
   "status": "partial",
   "detected_rotation": {
     "sequence": [
@@ -614,6 +614,7 @@
     "No Landsat NDVI: bare soil in the timeline comes from the crop calendar and the last-season stress rule is off",
     "No SMAP data: soil-moisture rules were not evaluated",
     "No TWI: low-lying wetness rules were not evaluated",
+    "No NASADEM DEM: slope comes from SSURGO",
     "Field features come from precomputed data"
   ],
   "disclaimer": "Decision-support only. Validate with local agronomic expertise before changing your rotation.",

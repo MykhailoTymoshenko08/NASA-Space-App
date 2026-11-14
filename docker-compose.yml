@@ -1,0 +1,17 @@
+# local run:  python scripts/11_prepare_deploy.py && docker compose up --build
+# then:       curl localhost:8001/ml/health
+services:
+  ml:
+    build: .
+    image: fieldshift-ml:0.2.0
+    environment:
+      PORT: ${PORT:-8001}
+      ML_MODE: ${ML_MODE:-real}          # real (default) or mock
+    ports:
+      - "${PORT:-8001}:${PORT:-8001}"
+    volumes:
+      - ssurgo_cache:/app/data/features/ssurgo_cache   # SDA answers survive a restart
+    restart: unless-stopped
+
+volumes:
+  ssurgo_cache:

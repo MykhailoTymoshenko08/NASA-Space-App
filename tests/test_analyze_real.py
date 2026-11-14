@@ -204,6 +204,41 @@ def test_farmer_input():
     assert all(c["rank"] > cs["corn"]["rank"] for c in (cs["sorghum"], cs["alfalfa"]))
 
 
+def test_water_shortage_is_explained_and_irrigation_removes_it():
+    """a very dry normal: the top crop says it is short of water; irrigated=true removes the penalty and the gap"""
+    dry = body(**{"scenario": {"temp_delta_c": 4.0, "precip_change_pct": -40}})
+    j = post(dry).json()
+    top = j["crop_suitability"][0]
+    assert top["parts"]["water"] < 1.0                                                       # penalised, though this synthetic place is wet
+    assert any("irrigated=true" in g for g in j["strategies"][0]["data_gaps"])
+    irr = post(body(**{"scenario": {"temp_delta_c": 4.0, "precip_change_pct": -40}, "farmer_input": {"irrigated": True}})).json()
+    assert irr["crop_suitability"][0]["parts"]["water"] == 1.0 and "Short of water" not in irr["crop_suitability"][0]["explanation"]
+    assert irr["crop_suitability"][0]["fit_score"] > top["fit_score"]
+    assert not any("irrigated=true" in g for g in irr["strategies"][0]["data_gaps"])
+
+
+def test_strong_water_penalty_is_said_out_loud():
+    from ml_service.real import build_suitability
+    def rank():
+        crop = lambda slug, water: {"crop": slug, "name": slug, "group": "cereal", "status": "ok", "score": 1.0 if slug == "corn" else 0.2,
+                                    "fit_score": 12.0, "blocked_reasons": [], "main_factors": [], "model_class": True, "fit_prob": 0.3,
+                                    "transition_reason": None, "parts": {"water": water, "water_ratio": 0.53}}
+        return {"top3": [], "crops": [crop("corn", 0.15), crop("sorghum", 0.9)]}
+    roles = {"corn": None, "sorghum": None}
+    rows = {r["crop"]: r for r in build_suitability(rank(), roles, "Winter wheat", "en", None)}
+    assert "Short of water: rain and soil moisture cover only 53%" in rows["corn"]["explanation"] and "irrigated=true" in rows["corn"]["explanation"]
+    assert "poorly" in rows["corn"]["explanation"]                                          # the top crop with a low fit is not called "suits the field"
+    assert "Short of water" not in rows["sorghum"]["explanation"]                           # a mild penalty is not shouted
+    assert "Short of water" not in {r["crop"]: r for r in build_suitability(rank(), roles, "Winter wheat", "en", True)}["corn"]["explanation"]
+
+
+def test_month_ranges_in_the_headline():
+    from ml_service.real import _months_text
+    assert _months_text([7, 8], "en") == "Jul–Aug" and _months_text([7], "en") == "Jul"
+    assert _months_text([2, 3, 4, 7, 8, 9], "en") == "Feb–Apr and Jul–Sep"          # not "Feb–Sep"
+    assert _months_text([2, 3, 4, 7, 8, 9], "uk") == "лют–кві та лип–вер"
+
+
 def test_ukrainian_texts():
     j = post(body(**{"options": {"n_strategies": 3, "language": "uk"}})).json()
     assert j["strategies"][0]["name"].startswith("Поточна: Кукурудза") and j["summary"]["headline"].startswith("Поле голе")
@@ -222,9 +257,9 @@ def test_high_fit_but_not_on_top_is_explained(monkeypatch):
     monkeypatch.undo()
     monkeypatch.setenv("ML_MODE", "real")
     precomputed.clear_cache()
-    idx = precomputed._index(str(precomputed.directory()))
-    rec = next(r for r in idx.values() if r["hist_2025"] == 5 and r["hist_2024"] == 1 and r["hist_2023"] == 5 and r["state"] == "IA" and r["om_pct"] < 8)
-    b = {"field": {"field_id": rec["field_id"], "centroid": {"lat": rec["lat"], "lon": rec["lon"]}, "admin": {"state": "IA"}}}
+    df = precomputed.frame()
+    row = df[(df.hist_2025 == 5) & (df.hist_2024 == 1) & (df.hist_2023 == 5) & (df.state == "IA") & (df.om_pct < 8)].iloc[0]
+    b = {"field": {"field_id": row.name, "centroid": {"lat": row["lat"], "lon": row["lon"]}, "admin": {"state": "IA"}}}
     for lang, word in (("en", "last year was already"), ("uk", "торік уже була")):
         b["options"] = {"language": lang}
         cs = {c["crop"]: c for c in TestClient(app).post("/ml/v1/analyze", json=b).json()["crop_suitability"]}
@@ -341,8 +376,8 @@ def test_precomputed_field_answers_in_under_two_seconds(monkeypatch):
     monkeypatch.undo()
     monkeypatch.setenv("ML_MODE", "real")
     precomputed.clear_cache()
-    rec = next(iter(precomputed._index(str(precomputed.directory())).values()))
-    b = {"field": {"field_id": rec["field_id"], "centroid": {"lat": rec["lat"], "lon": rec["lon"]}, "admin": {"state": rec["state"]}}}
+    row = precomputed.frame().iloc[0]
+    b = {"field": {"field_id": row.name, "centroid": {"lat": row["lat"], "lon": row["lon"]}, "admin": {"state": row["state"]}}}
     with TestClient(app) as c:
         times = []
         for _ in range(3):

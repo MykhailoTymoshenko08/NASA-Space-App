@@ -43,6 +43,7 @@ RT = {
         "u_days": "дн.", "u_mm": "мм",
         "w_ndvi": "Немає NDVI від Landsat: голий ґрунт у таймлайні взято з календаря культур, правило стресу минулого сезону вимкнене",
         "w_smap": "Немає даних SMAP: правила про вологу ґрунту не перевірені", "w_twi": "Немає TWI: правила про вологі пониження не перевірені",
+        "w_dem": "Немає DEM NASADEM: ухил береться зі SSURGO",
         "w_organic": "organic soil (органіка понад 20%): оцінки для торфових ґрунтів ненадійні",
         "w_rotation": "Чіткого повторюваного циклу в історії культур не знайдено, поточна сівозміна визначена приблизно",
         "w_few": "Можливо лише {have} із {want} запитаних альтернатив",
@@ -53,10 +54,13 @@ RT = {
         "x_cover": "Покривна культура: не пропонується як основна, її місце в сівозміні дивіться в стратегіях.",
         "x_rules_only": "Модель цю культуру не оцінює (у регіоні замало прикладів); ураховано лише правила (придатність {fit}).",
         "x_top": "Найкращий вибір на наступний рік: підходить полю (придатність {fit}) і добре йде після «{prev}» ({share}% рекомендацій).",
+        "x_top_weak": "Найчастіший вибір у регіоні після «{prev}» ({share}% рекомендацій), але полю він підходить слабко (придатність {fit}).",
+        "x_water": " Води бракує: опади й запас ґрунту покривають лише {pct}% потреби культури. Якщо поле зрошується, вкажіть irrigated=true: рекомендація зміниться.",
         "x_same_crop": "Підходить полю (придатність {fit}), але торік уже була {prev}: повтор тієї ж культури знижує шанс до {share}%.",
         "x_same_family": "Підходить полю (придатність {fit}), але торік була {prev} тієї ж родини: спільні хвороби та шкідники, тож лише {share}%.",
         "x_other_prev": "Підходить полю (придатність {fit}), але після «{prev}» вдаліша {top} ({top_share}% проти {share}%).",
         "x_low_fit": "Слабко підходить цьому полю (придатність {fit}): у регіоні таке поле засівають нею рідко.",
+        "x_prev_helps": "Полю підходить помірно (придатність {fit}), але після «{prev}» її в регіоні часто сіють ({share}% рекомендацій).",
     },
     "en": {
         "headline": "Field is bare ~{bare} days/year{water}.", "water_short": " and short on moisture in {months} (evaporation exceeds rain)",
@@ -65,6 +69,7 @@ RT = {
         "u_days": "days", "u_mm": "mm",
         "w_ndvi": "No Landsat NDVI: bare soil in the timeline comes from the crop calendar and the last-season stress rule is off",
         "w_smap": "No SMAP data: soil-moisture rules were not evaluated", "w_twi": "No TWI: low-lying wetness rules were not evaluated",
+        "w_dem": "No NASADEM DEM: slope comes from SSURGO",
         "w_organic": "organic soil (organic matter over 20%): estimates for peat / muck soils are unreliable",
         "w_rotation": "No stable repeating cycle in the crop history; the current rotation is approximate",
         "w_few": "Only {have} of {want} requested alternatives are possible",
@@ -75,10 +80,13 @@ RT = {
         "x_cover": "A cover crop: not offered as a main crop, see the strategies for where it fits in the rotation.",
         "x_rules_only": "The model does not score this crop (too few examples in the region); only the rules count (fit {fit}).",
         "x_top": "Best choice for next year: it suits the field (fit {fit}) and follows '{prev}' well ({share}% of the advice).",
+        "x_top_weak": "The most usual choice in the region after '{prev}' ({share}% of the advice), but it suits this field poorly (fit {fit}).",
+        "x_water": " Short of water: rain and soil moisture cover only {pct}% of the crop's need. If the field is irrigated, set irrigated=true — the recommendation will change.",
         "x_same_crop": "Suits the field (fit {fit}), but last year was already {prev}: repeating the same crop cuts its chance to {share}%.",
         "x_same_family": "Suits the field (fit {fit}), but last year was {prev} of the same plant family: shared diseases and pests, so only {share}%.",
         "x_other_prev": "Suits the field (fit {fit}), but after '{prev}' {top} works better ({top_share}% vs {share}%).",
         "x_low_fit": "Suits this field poorly (fit {fit}): fields like this are rarely sown with it in the region.",
+        "x_prev_helps": "Suits the field only moderately (fit {fit}), but after '{prev}' it is often sown in the region ({share}% of the advice).",
     },
 }
 
@@ -121,9 +129,15 @@ def ndvi_monthly() -> pd.DataFrame | None:
     return _read_ndvi(str(p), p.stat().st_mtime) if p.exists() else None
 
 
-def _neighbor_tables(a: Assets):
-    """crop of every field and year + the state of every field, from the sample and the precomputed counties"""
-    slug = {c["cdl_code"]: s for s, c in a.candidates.items()}
+def _files_key() -> tuple:
+    """changes when the sample tables or a county file changes, so the cached neighbour tables are rebuilt"""
+    files = [features.DATA_DIR / "fields" / "crop_history.parquet", *sorted(precomputed.directory().glob("*.parquet"))]
+    return tuple((str(f), f.stat().st_mtime) for f in files if f.exists())
+
+
+@lru_cache(maxsize=2)
+def _neighbor_cached(key: tuple, cdl_to_slug: tuple):
+    slug = dict(cdl_to_slug)
     parts_c, parts_s = [], []
     h = features.DATA_DIR / "fields" / "crop_history.parquet"
     if h.exists():
@@ -131,12 +145,20 @@ def _neighbor_tables(a: Assets):
         parts_c.append(hist.assign(crop=hist["cdl_code"].map(slug).fillna("other"))[["field_id", "year", "crop"]])
         f = pd.read_parquet(features.DATA_DIR / "fields" / "fields.parquet", columns=["field_id", "state_fips"])
         parts_s.append(f.assign(state=f["state_fips"].map(precomputed.FIPS_STATE)).set_index("field_id")["state"])
-    for rec in precomputed._index(str(precomputed.directory())).values():
-        parts_s.append(pd.Series({str(rec["field_id"]): rec["state"]}))
-        for y in precomputed.HIST_YEARS:
-            if rec.get(f"hist_{y}") is not None and pd.notna(rec.get(f"hist_{y}")):
-                parts_c.append(pd.DataFrame([{"field_id": str(rec["field_id"]), "year": y, "crop": slug.get(int(rec[f"hist_{y}"]), "other")}]))
+    df = precomputed.frame()
+    if len(df):
+        parts_s.append(df["state"])
+        hist_cols = [f"hist_{y}" for y in precomputed.HIST_YEARS]
+        long = df[hist_cols].reset_index().melt(id_vars="field_id", var_name="col", value_name="cdl").dropna()
+        long["year"] = long["col"].str[5:].astype(int)
+        long["crop"] = long["cdl"].astype(int).map(slug).fillna("other")
+        parts_c.append(long[["field_id", "year", "crop"]])
     return pd.concat(parts_c, ignore_index=True), pd.concat(parts_s)
+
+
+def _neighbor_tables(a: Assets):
+    """crop of every field and year + the state of every field, from the sample and the precomputed counties (cached)"""
+    return _neighbor_cached(_files_key(), tuple((c["cdl_code"], s) for s, c in a.candidates.items()))
 
 
 def bare_from_ndvi(ndvi: pd.DataFrame, field_id: str) -> dict[int, float]:
@@ -181,8 +203,15 @@ def build_timeline(ctx, calendar_bare: list[float], ndvi_bare: dict[int, float],
 
 
 def _months_text(months: list[int], lang: str) -> str:
+    """12-month numbers -> "Jul–Aug", or "Feb–Apr and Jul–Sep" when the months are not one run"""
     names = MONTHS[lang]
-    return names[months[0] - 1] if len(months) == 1 else f"{names[months[0] - 1]}–{names[months[-1] - 1]}"
+    runs, start = [], months[0]
+    for prev, cur in zip(months, months[1:] + [None]):
+        if cur != prev + 1:
+            runs.append((start, prev))
+            start = cur
+    text = [names[a - 1] if a == b else f"{names[a - 1]}–{names[b - 1]}" for a, b in runs]
+    return (" та " if lang == "uk" else " and ").join(text)
 
 
 def risk_level(bare_days: float, peak_deficit: float, heat_days: float, peak_extreme: float) -> str:
@@ -218,7 +247,7 @@ def build_summary(ctx, timeline: list[dict], lang: str) -> dict:
 HIGH_FIT = 30.0     # DRAFT: a fit_score from here up means "suits the field"
 
 
-def build_suitability(rank: dict, a_roles: dict, prev_name: str, lang: str) -> list[dict]:
+def build_suitability(rank: dict, a_roles: dict, prev_name: str, lang: str, irrigated=None) -> list[dict]:
     """two clear numbers per crop:
     fit_score       0-100, how well the FIELD suits the crop, without last year's crop (absolute scale)
     next_year_share %, advice for next year with the real previous crop and the transition matrix; adds up to 100
@@ -261,7 +290,7 @@ def build_suitability(rank: dict, a_roles: dict, prev_name: str, lang: str) -> l
         elif not r["model_class"]:
             r["explanation"] = t["x_rules_only"].format(fit=fit)
         elif best is not None and r["crop"] == best["crop"]:
-            r["explanation"] = t["x_top"].format(fit=fit, share=share, prev=prev_name)
+            r["explanation"] = (t["x_top"] if r["fit_score"] >= HIGH_FIT else t["x_top_weak"]).format(fit=fit, share=share, prev=prev_name)
         elif r["fit_score"] >= HIGH_FIT and reason == "same_crop":
             r["explanation"] = t["x_same_crop"].format(fit=fit, share=share, prev=prev_name)
         elif r["fit_score"] >= HIGH_FIT and reason == "same_family":
@@ -269,8 +298,13 @@ def build_suitability(rank: dict, a_roles: dict, prev_name: str, lang: str) -> l
         elif r["fit_score"] >= HIGH_FIT and best is not None:
             r["explanation"] = t["x_other_prev"].format(fit=fit, share=share, prev=prev_name, top=best["name"],
                                                         top_share=f"{best['next_year_share']:.0f}")
+        elif r["next_year_share"] >= 10:
+            r["explanation"] = t["x_prev_helps"].format(fit=fit, share=share, prev=prev_name)
         else:
             r["explanation"] = t["x_low_fit"].format(fit=fit)
+        ratio = r["parts"].get("water_ratio")
+        if irrigated is not True and not r["blocked"] and r["role"] != "cover" and r["parts"].get("water", 1.0) < 0.7 and ratio is not None:
+            r["explanation"] += t["x_water"].format(pct=f"{100 * ratio:.0f}")      # a strong water penalty is always said out loud
     return rows
 
 
@@ -317,7 +351,7 @@ def analyze_real(req) -> dict:
     summary = build_summary(ctx, timeline, lang)
     last = (ctx.history_rich or ctx.history).get(ctx.target_year - 1)
     suitability = build_suitability(rank, {k: v.get("role") for k, v in a.candidates.items()},
-                                    crop_name(last, lang) if last else crop_name("other", lang), lang)
+                                    crop_name(last, lang) if last else crop_name("other", lang), lang, fi.irrigated)
 
     # ---- warnings and status
     warnings = list(ctx.notes)
@@ -327,6 +361,8 @@ def analyze_real(req) -> dict:
         warnings.append(t["w_smap"])
     if ctx.twi is None:
         warnings.append(t["w_twi"])
+    if ctx.slope_source != "nasadem":
+        warnings.append(t["w_dem"])
     om = ctx.soil.get("om_pct")
     if om is not None and om > 20:
         warnings.append(t["w_organic"])
@@ -347,6 +383,10 @@ def analyze_real(req) -> dict:
             used.update(e["source_ids"])
     if ndvi is not None and (stress and stress.active or ndvi_bare):
         used.add("landsat_ndvi")
+    if ctx.slope_source == "nasadem" or ctx.twi is not None:
+        used.add("nasadem")
+    if ctx.smap_deficit_share is not None:
+        used.add("smap")
     sources = [{"id": s[0], "name": s[1], "variable": s[2], "resolution": s[3], "period": s[4]} for s in SOURCES[lang] if s[0] in used]
 
     return {

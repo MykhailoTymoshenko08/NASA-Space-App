@@ -15,7 +15,7 @@ from functools import lru_cache
 import numpy as np
 import pandas as pd
 
-from . import power_client, precomputed, season_climate, soil_sda
+from . import lina, power_client, precomputed, season_climate, soil_sda
 from .cdl import history_token
 from .errors import invalid_input, out_of_coverage
 from .field_context import _tables, load_field_context
@@ -111,7 +111,7 @@ def on_the_fly(req, a: Assets, target_year: int) -> FieldContext:
                "extreme_rain_days": climate["extreme_rain_days_monthly"]}
     ctx = FieldContext(
         field_id=f.field_id, state=f.admin.state, lat=lat, lon=lon, prev_crops=["unknown", "unknown"],
-        soil={c: soil.get(c) for c in precomputed.SOIL_COLS}, slope_pct=soil.get("slope_r"),
+        soil={c: soil.get(c) for c in precomputed.SOIL_COLS}, slope_pct=soil.get("slope_r"), slope_ssurgo=soil.get("slope_r"),
         climate_norm=climate["climate_norm"], climate_lag1=climate["climate_lag1"], winter_tmin_c=climate["winter_tmin_c"],
         target_year=target_year, et0_monthly=climate["et0_monthly"], precip_monthly=climate["precip_monthly"],
         precip_annual=climate["precip_annual"], monthly=monthly, provenance="on_the_fly", cell=cell,
@@ -175,5 +175,6 @@ def get_context(req, a: Assets, scenario: tuple[float, float], target_year: int 
     if ctx is None:
         ctx = on_the_fly(req, a, target_year)
     ctx = apply_request(ctx, req, a, target_year)       # what the request states wins over what is stored
+    ctx = lina.apply(ctx)                                 # NASADEM slope, TWI and SMAP, when Lina's files are installed
     ctx = apply_scenario(ctx, scenario)
     return fill_soil_defaults(ctx)

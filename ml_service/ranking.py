@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from . import agro
 from . import rules as rules_mod
 from .feature_text import GROUP_LABEL, crop_name, feature_group, feature_plain
 
@@ -59,6 +60,9 @@ T = {
         "irrigated_note": "поле зрошується: опади та вологість ґрунту (SMAP) не враховано",
         "nothing_fits": "жодна культура не пройшла жорсткі фільтри для цього поля (див. причини виключення)",
         "excluded": "Культуру виключив фермер (farmer_input.excluded_crops)",
+        "adj_water": "Води бракує: опади й запас ґрунту покривають {ratio:.0%} потреби культури (×{f:.2f}){half}",
+        "half_penalty": ", половинний штраф, бо невідомо, чи поле зрошується",
+        "gap_irrigation_set": "Якщо поле зрошується, вкажіть irrigated=true: рекомендація зміниться",
         "weak": "слабка альтернатива", "range_to": "до {hi}", "range_from": "від {lo}",
         "role_best": "найвищий бал", "role_other_group": "найкраща з іншої групи ({group})",
         "role_resilient": "найстійкіша до спеки й посухи", "role_fill": "наступна за балом",
@@ -77,6 +81,9 @@ T = {
         "irrigated_note": "field is irrigated: rainfall and soil moisture (SMAP) are not counted",
         "nothing_fits": "no crop passes the hard filters for this field (see the reasons for exclusion)",
         "excluded": "Excluded by the farmer (farmer_input.excluded_crops)",
+        "adj_water": "Short of water: rain and soil moisture cover {ratio:.0%} of the crop's need (x{f:.2f}){half}",
+        "half_penalty": ", half penalty because it is not known whether the field is irrigated",
+        "gap_irrigation_set": "If the field is irrigated, set irrigated=true — the recommendation will change",
         "weak": "weak alternative", "range_to": "up to {hi}", "range_from": "from {lo}",
         "role_best": "highest score", "role_other_group": "best of another group ({group})",
         "role_resilient": "most heat- and drought-tolerant", "role_fill": "next by score",
@@ -114,6 +121,8 @@ class FieldContext:
     monthly: dict = field(default_factory=dict)     # et0, precip, tmean, heat_days_32, frost_days, extreme_rain_days: 12 values each
     provenance: str = "tables"                      # precomputed | tables | on_the_fly
     cell: str | None = None                         # POWER cell key (the daily data behind the climate)
+    slope_ssurgo: float | None = None               # SSURGO slope: the model was trained on it, so it keeps reading it
+    slope_source: str = "ssurgo"                    # "ssurgo" or "nasadem" (slope_pct below)
     area_ha: float | None = None
     notes: list = field(default_factory=list)       # things the response should warn about
 
@@ -130,6 +139,7 @@ class Assets:
     suitability: dict
     transition: dict
     pred_mix: dict = field(default_factory=dict)     # which previous crops usually precede each crop (scripts/05b)
+    water: dict = field(default_factory=dict)        # config/water_balance.yaml
     root: Path = field(default=ROOT)
 
 
@@ -144,6 +154,7 @@ def load_assets(root: Path = ROOT) -> Assets:
         candidates=load_yaml("candidate_crops.yaml")["crops"], rules=load_yaml("crop_rules.yaml"),
         suitability=load_yaml("suitability.yaml")["crops"], transition=load_yaml("transition_matrix.yaml"),
         pred_mix=json.loads((model_dir / "predecessor_mix.json").read_text()) if (model_dir / "predecessor_mix.json").exists() else {},
+        water=load_yaml("water_balance.yaml") if (root / "config" / "water_balance.yaml").exists() else {},
         root=root,
     )
 
@@ -158,7 +169,7 @@ def build_feature_row(ctx: FieldContext, a: Assets) -> pd.DataFrame:
     row = {"lat": ctx.lat, "lon": ctx.lon, "state_fips": FIPS[ctx.state],
            "prev_crop_1": model_crop(ctx.prev_crops[0]) if ctx.prev_crops[0] != "unknown" else None,
            "prev_crop_2": model_crop(ctx.prev_crops[1]) if ctx.prev_crops[1] != "unknown" else None,
-           "slope_pct": ctx.slope_pct, "twi": ctx.twi, **ctx.soil}
+           "slope_pct": ctx.slope_ssurgo if ctx.slope_ssurgo is not None else ctx.slope_pct, "twi": ctx.twi, **ctx.soil}
     row.update({f"norm_{k}": v for k, v in ctx.climate_norm.items()})
     row.update({f"lag1_{k}": v for k, v in ctx.climate_lag1.items()})
     x = pd.DataFrame([{f: row.get(f, np.nan) for f in a.features}])
@@ -283,6 +294,23 @@ def replace_prev(ctx: FieldContext, p1: str | None, p2: str | None) -> FieldCont
     return dataclasses.replace(ctx, prev_crops=[p1 or "unknown", p2 or "unknown"])
 
 
+def water_balance(ctx: FieldContext, slug: str, a: Assets) -> tuple[float, float] | None:
+    """(penalty factor 0.1..1, supply / demand) of a crop for the normal climate and soil of the field. None = no data."""
+    cfg = a.water
+    if not cfg or ctx.et0_monthly is None or ctx.precip_monthly is None or slug not in agro.CROPS or slug not in cfg["root_depth_cm"]:
+        return None
+    kc = np.array(agro.CROPS[slug].kc, dtype=float)
+    active = kc > 0
+    demand = float((kc * np.asarray(ctx.et0_monthly, dtype=float)).sum())
+    awc = ctx.soil.get("awc_cm_cm")
+    awc = 0.17 if awc is None or (isinstance(awc, float) and np.isnan(awc)) else float(awc)
+    supply = cfg["effective_rain"] * float(np.asarray(ctx.precip_monthly, dtype=float)[active].sum()) \
+        + awc * cfg["root_depth_cm"][slug] * 10.0 * cfg["available_storage"]
+    ratio = supply / max(demand, 1.0)
+    frac = float(np.clip((ratio - cfg["r_floor"]) / (cfg["r_full"] - cfg["r_floor"]), 0.0, 1.0))
+    return cfg["min_factor"] + (1.0 - cfg["min_factor"]) * frac, ratio
+
+
 def transition_multiplier(prev: str, crop: str, a: Assets) -> tuple[float, str | None]:
     """(effective multiplier, reason). effective = matrix value ** beta (the model already sees the previous crops)."""
     raw, why = _transition_raw(prev, crop, a)
@@ -374,6 +402,17 @@ def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool |
                         plain=plain, value=round(v, 2), rng=fmt_range(omin, omax, lang), f=f), "multiplier": f})
         suit = float(np.exp(np.mean(np.log(suit_factors)))) if suit_factors else 1.0
 
+        # water: the crop's need (Kc x ET0) against rain + soil moisture. irrigated: no penalty; unknown: half of it
+        water_mult, water_ratio = 1.0, None
+        wb = water_balance(ctx, slug, a)
+        if wb is not None:
+            full, water_ratio = wb
+            share = a.water["irrigated_unknown_share"]
+            water_mult = 1.0 if irrigated is True else (1.0 - share * (1.0 - full) if irrigated is None else full)
+            if water_mult < 0.98:
+                adjustments.append({"text": t["adj_water"].format(ratio=water_ratio, f=water_mult, half=t["half_penalty"] if irrigated is None else ""),
+                                    "multiplier": water_mult})
+
         # agronomic rules
         fired, unknown = rules_mod.evaluate_crop(slug, variables, a.rules, SKIP_RULES, skip_prefix)
         rules_mult = 1.0
@@ -395,11 +434,11 @@ def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool |
         field_blocked = bool(blocked)               # blocked by the field itself; the farmer's exclusion is separate
         if slug in excluded:
             blocked = blocked + [t["excluded"]]
-        score = 0.0 if blocked else prob * tm * suit * rules_mult * extra_mult
+        score = 0.0 if blocked else prob * tm * suit * rules_mult * extra_mult * water_mult
         # suitability of the FIELD, without last year's crop: hard filters x trapezoids x soft rules x averaged probability
         fit_score = 0.0
         if fit and not field_blocked:
-            fit_score = min(100.0, 100.0 * (fit_probs[slug] if in_model else fit_neutral) * suit * rules_mult)
+            fit_score = min(100.0, 100.0 * (fit_probs[slug] if in_model else fit_neutral) * suit * rules_mult * water_mult)
 
         # main factors: SHAP for model crops, the biggest adjustments for rules-only crops
         if in_model and not explain:
@@ -417,7 +456,8 @@ def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool |
             "fit_score": round(fit_score, 1), "fit_prob": round(fit_probs.get(slug, fit_neutral), 4) if fit else None,
             "transition_reason": why, "prev_crop": prev,
             "parts": {"model_prob": round(prob, 4), "model_prob_source": "model" if in_model else "neutral",
-                      "transition": tm, "suitability": round(suit, 3), "rules": round(rules_mult, 3)},
+                      "transition": tm, "suitability": round(suit, 3), "rules": round(rules_mult, 3),
+                      "water": round(water_mult, 3), "water_ratio": None if water_ratio is None else round(water_ratio, 2)},
             "blocked_reasons": blocked, "adjustments": adjustments, "main_factors": factors,
         })
 
@@ -441,7 +481,10 @@ def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool |
     top3 = pick_top3(crops_out, a, lang)
     if not top3:
         gaps.insert(0, t["nothing_fits"])
-    return {"field_id": ctx.field_id, "language": lang, "irrigated": irrigated, "model_probs": {k: round(float(v), 4) for k, v in model_probs.items()},
+    water_short = any(c["parts"]["water"] < 0.9 for c in crops_out if c["status"] == "ok")
+    if irrigated is None and water_short:
+        gaps.append(t["gap_irrigation_set"])
+    return {"field_id": ctx.field_id, "language": lang, "water_short": water_short, "irrigated": irrigated, "model_probs": {k: round(float(v), 4) for k, v in model_probs.items()},
             "neutral_model_prob": round(neutral, 4), "crops": crops_out, "top3": top3, "data_gaps": gaps}
 
 

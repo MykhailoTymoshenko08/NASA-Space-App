@@ -80,7 +80,7 @@ def test_ranking_structure_and_order():
     assert r["crops"][0]["crop"] == "corn" and r["crops"][0]["relative"] == 100.0   # corn after soybean in Iowa
     assert sum(r["model_probs"].values()) == pytest.approx(1.0, abs=1e-3)
     for c in r["crops"]:
-        assert set(c["parts"]) == {"model_prob", "model_prob_source", "transition", "suitability", "rules"}
+        assert set(c["parts"]) == {"model_prob", "model_prob_source", "transition", "suitability", "rules", "water", "water_ratio"}
         assert len(c["main_factors"]) <= 3
         assert c["model_class"] == (c["parts"]["model_prob_source"] == "model")
     for slug in ("oats", "barley", "cereal_rye"):                                   # rules-only: neutral, not the model
