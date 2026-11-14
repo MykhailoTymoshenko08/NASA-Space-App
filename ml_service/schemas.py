@@ -134,6 +134,7 @@ class DetectedRotation(BaseModel):
     confidence: float = Field(ge=0, le=1)
     years_used: list[int]
     source: Literal["csb", "farmer_input", "model_prior"]
+    cycle_years: int | None = None                  # added in the real mode: length of one cycle
 
 
 class KeyNumber(BaseModel):
@@ -161,6 +162,7 @@ class TimelineMonth(BaseModel):
     frost_risk: float = Field(ge=0, le=1)
     extreme_precip: float = Field(ge=0, le=1)
     flags: list[Flag]
+    bare_soil_source: Literal["crop_calendar", "landsat_ndvi"] | None = None     # added in the real mode
 
 
 class SequenceItem(BaseModel):
@@ -224,6 +226,24 @@ class Source(BaseModel):
     period: str
 
 
+class CropSuitability(BaseModel):
+    """one row of the crop ranking (added in the real mode)"""
+    crop: str
+    name: str
+    group: Literal["cereal", "legume", "other"]
+    fit_score: float = Field(ge=0, le=100)         # how well the FIELD suits the crop, without last year's crop (absolute)
+    next_year_share: float = Field(ge=0, le=100)   # advice for next year with the real previous crop; adds up to 100 over not blocked
+    rank: int = Field(ge=1)                        # by next_year_share
+    blocked: bool
+    block_reasons: list[str]
+    explanation: str                               # in plain words, e.g. why a crop that suits the field is not on top
+    top_factors: list[str]
+    top3_role: str | None = None
+    model_class: bool | None = None
+    role: str | None = None                        # "cover" for a cover crop (never offered as a main crop)
+    parts: dict[str, Any] | None = None
+
+
 class AnalyzeResponse(BaseModel):
     request_id: str
     field_id: str
@@ -237,6 +257,10 @@ class AnalyzeResponse(BaseModel):
     sources: list[Source]
     warnings: list[str]
     disclaimer: str
+    # added in the real mode, all optional so old clients keep working
+    crop_suitability: list[CropSuitability] | None = None
+    score_notes: dict[str, str] | None = None
+    feature_source: Literal["precomputed", "tables", "on_the_fly"] | None = None
 
 
 # ---------------------------------------------------------------- health / meta
@@ -250,6 +274,7 @@ class HealthResponse(BaseModel):
     status: str
     model_version: str
     coverage: Coverage
+    mode: str | None = None                         # "real" or "mock"
 
 
 class CropMeta(BaseModel):

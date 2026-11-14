@@ -1,5 +1,11 @@
-"""FastAPI app. run: uvicorn ml_service.main:app --reload --port 8001"""
+"""FastAPI app. run: uvicorn ml_service.main:app --reload --port 8001
+
+ML_MODE=real (default) answers with the real analysis; ML_MODE=mock keeps the contract-shaped mock.
+The mode is read on every request, so it can be switched without a restart in tests.
+"""
 import logging
+import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -15,8 +21,21 @@ from .schemas import AnalyzeRequest, AnalyzeResponse, CropsResponse, HealthRespo
 
 log = logging.getLogger("ml_service")
 
-app = FastAPI(title="FieldShift ML service", version=MODEL_VERSION,
-              description="Mock implementation of docs/api_contract.md (v1)")
+
+def mode() -> str:
+    return "mock" if os.environ.get("ML_MODE", "real").lower() == "mock" else "real"
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if mode() == "real":          # load the model and tables once, so the first request is as fast as the others
+        from . import real
+        real.warm_up()
+    yield
+
+
+app = FastAPI(title="FieldShift ML service", version="0.2.0", lifespan=lifespan,
+              description="docs/api_contract.md (v1). ML_MODE=real (default) or ML_MODE=mock")
 
 # the frontend never calls ML directly, but CORS stays open for local demos and swagger
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -51,20 +70,36 @@ async def _unhandled(_: Request, exc: Exception):
     return JSONResponse(error_payload("INTERNAL", "Internal error.", {}), status_code=500)
 
 
-@app.get("/ml/health", response_model=HealthResponse)
+@app.get("/ml/health", response_model=HealthResponse, response_model_exclude_unset=True)
 def health():
-    return {"status": "ok", "model_version": MODEL_VERSION,
+    version = MODEL_VERSION
+    if mode() == "real":
+        from .real import MODEL_VERSION_REAL
+        version = MODEL_VERSION_REAL
+    return {"status": "ok", "model_version": version, "mode": mode(),
             "coverage": {"states": list(COVERAGE_STATES), "years": list(COVERAGE_YEARS)}}
 
 
 @app.get("/ml/v1/meta/crops", response_model=CropsResponse)
 def crops():
+    if mode() == "mock":
+        return {"crops": [
+            {"crop": c.slug, "cdl_code": c.cdl_code, "name_en": c.name_en, "name_uk": c.name_uk, "type": c.type}
+            for c in crop_db.CATALOG.values()
+        ]}
+    from .feature_text import CROP_NAMES
+    from .real import assets
+    a = assets()
     return {"crops": [
-        {"crop": c.slug, "cdl_code": c.cdl_code, "name_en": c.name_en, "name_uk": c.name_uk, "type": c.type}
-        for c in crop_db.CATALOG.values()
+        {"crop": slug, "cdl_code": info["cdl_code"], "name_en": CROP_NAMES[slug][0], "name_uk": CROP_NAMES[slug][1],
+         "type": a.rules["crops"][slug]["type"]}
+        for slug, info in a.candidates.items()
     ]}
 
 
-@app.post("/ml/v1/analyze", response_model=AnalyzeResponse, responses=_ERRORS)
+@app.post("/ml/v1/analyze", response_model=AnalyzeResponse, response_model_exclude_unset=True, responses=_ERRORS)
 def analyze(req: AnalyzeRequest):
-    return run_analysis(req)
+    if mode() == "mock":
+        return run_analysis(req)
+    from .real import analyze_real
+    return analyze_real(req)

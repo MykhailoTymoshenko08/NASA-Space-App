@@ -94,6 +94,16 @@ def detect_rotation(history: dict, target_year: int, horizon: int, cfg: dict) ->
                     agreement=agree, years_used=[years[-w], years[-1]] if years else [], clean=clean)
 
 
+def forced_rotation(cycle: list[str], last_token: str | None, horizon: int) -> Detected:
+    """the farmer says what the rotation is: continue it from the crop after the one grown last year."""
+    cyc, p = list(cycle), len(cycle)
+    last = last_component(last_token) if last_token else None
+    idx = max((i for i, c in enumerate(cyc) if last_component(c) == last), default=None)
+    start = 0 if idx is None else (idx + 1) % p
+    steps = [cyc[(start + k) % p] for k in range(horizon)]
+    return Detected(steps=steps, cycle=cyc, confidence=0.95, window=0, period=p, agreement=1.0, years_used=[], clean=True)
+
+
 # --------------------------------------------------------------------------- the planner
 
 class Planner:
@@ -212,6 +222,7 @@ TX = {
             "switch": "Інший набір основних культур, який за вашими пріоритетами працює краще.",
         },
         "why_current": "Базова сівозміна визначена за історією CSB {y0}–{y1} (цикл {p} р., збіг {agree:.0%}), продовжена на {h} роки.",
+        "why_farmer": "Сівозміну вказав фермер; продовжена на {h} роки.",
         "why_current_weak": "Чіткого повторюваного циклу в історії {y0}–{y1} не знайдено; взято найближчий ({p} р.), довіра низька.",
         "why_numbers": "Голих днів {b0:.0f}→{b1:.0f} на рік, ерозія {e0:.1f}→{e1:.1f} т/га, азот {n0:+.0f}→{n1:+.0f} кг/га.",
         "ev_bare": "Голих днів ґрунту: {a:.0f} → {b:.0f} на рік (за календарем культур)",
@@ -253,6 +264,7 @@ TX = {
             "switch": "A different set of main crops that works better for your priorities.",
         },
         "why_current": "Baseline read from the CSB history {y0}-{y1} (cycle of {p} years, {agree:.0%} match), continued for {h} years.",
+        "why_farmer": "Rotation stated by the farmer; continued for {h} years.",
         "why_current_weak": "No stable repeating cycle in {y0}-{y1}; the closest one ({p} years) is used, low confidence.",
         "why_numbers": "Bare days {b0:.0f}->{b1:.0f} a year, erosion {e0:.1f}->{e1:.1f} t/ha, nitrogen {n0:+.0f}->{n1:+.0f} kg/ha.",
         "ev_bare": "Bare soil days: {a:.0f} -> {b:.0f} a year (from crop calendars)",
@@ -299,8 +311,10 @@ def _name(steps: list[str], covers: list[bool], lang: str) -> str:
 
 def plan_rotations(ctx: FieldContext, a: Assets, *, priorities: dict | None = None, farmer_input: dict | None = None,
                    lang: str = "uk", n_strategies: int | None = None, stress: StressSignal | None = None,
-                   settings: dict | None = None) -> dict:
-    """ctx already carries the scenario (temperature / rain shift) in its climate. returns strategies in the contract format."""
+                   settings: dict | None = None, forced_cycle: list[str] | None = None) -> dict:
+    """ctx already carries the scenario (temperature / rain shift) in its climate. returns strategies in the contract format.
+    farmer_input: irrigated, has_livestock, excluded_crops (never offered in an alternative). forced_cycle: the rotation
+    the farmer states, it replaces the detection."""
     cfg = settings or load_settings()
     t = TX[lang]
     fi = farmer_input or {}
@@ -308,7 +322,12 @@ def plan_rotations(ctx: FieldContext, a: Assets, *, priorities: dict | None = No
     n_alt = n_strategies or cfg["n_strategies"]
     h = cfg["horizon_years"]
 
-    det = detect_rotation(ctx.history_rich or ctx.history, ctx.target_year, h, cfg["rotation_detection"])
+    if forced_cycle:
+        last = (ctx.history_rich or ctx.history).get(ctx.target_year - 1)
+        det = forced_rotation(forced_cycle, last, h)
+    else:
+        det = detect_rotation(ctx.history_rich or ctx.history, ctx.target_year, h, cfg["rotation_detection"])
+    excluded = set(fi.get("excluded_crops") or [])
     pl = Planner(ctx, a, cfg, irrigated=fi.get("irrigated"), has_livestock=fi.get("has_livestock"), lang=lang, stress=stress)
 
     pl.cover_slots(det.steps)    # also records why a cover crop is not allowed here, if so
@@ -321,12 +340,12 @@ def plan_rotations(ctx: FieldContext, a: Assets, *, priorities: dict | None = No
 
     # all chains x (no cover / cover wherever it fits)
     variants = []
-    for steps in itertools.product(pl.main, repeat=h):
+    for steps in itertools.product([c for c in pl.main if c not in excluded], repeat=h):
         steps = list(steps)
         score, _ = pl.chain(steps)
         if score <= 0:
             continue
-        slots = pl.cover_slots(steps)
+        slots = pl.cover_slots(steps) if cfg["cover"]["crop"] not in excluded else [False] * h
         for covers in ([False] * h, slots) if any(slots) else ([False] * h,):
             v = pl.variant(steps, covers, weights)
             v["tag"] = logic_tag(steps, covers, det.steps, a)
@@ -346,8 +365,11 @@ def plan_rotations(ctx: FieldContext, a: Assets, *, priorities: dict | None = No
         c0, r0 = current["agro"], current["agro"]
         evidence, benefits, risks = [], [], []
         if is_current:
-            why = (t["why_current"].format(y0=det.years_used[0], y1=det.years_used[1], p=det.period, agree=det.agreement, h=h)
-                   if det.clean else t["why_current_weak"].format(y0=det.years_used[0], y1=det.years_used[1], p=det.period))
+            if det.window == 0:
+                why = t["why_farmer"].format(h=h)
+            else:
+                why = (t["why_current"].format(y0=det.years_used[0], y1=det.years_used[1], p=det.period, agree=det.agreement, h=h)
+                       if det.clean else t["why_current_weak"].format(y0=det.years_used[0], y1=det.years_used[1], p=det.period))
             benefits = [t["ben_none"]]
             if r.pest_pairs:
                 risks.append(t["risk_repeat"])
@@ -402,7 +424,7 @@ def plan_rotations(ctx: FieldContext, a: Assets, *, priorities: dict | None = No
                 seq.append({"year": i, "season": "main", "crop": part})
             if cov:
                 seq.append({"year": i, "season": "cover", "crop": cfg["cover"]["crop"]})
-        details[sid] = {"logic": v["tag"], "fit": round(v["fit"], 1), "chain_score": v["chain_score"], "n_balance_kg_ha_yr": round(r.n_net, 1),
+        details[sid] = {"steps": list(v["steps"]), "covers": list(v["covers"]), "logic": v["tag"], "fit": round(v["fit"], 1), "chain_score": v["chain_score"], "n_balance_kg_ha_yr": round(r.n_net, 1),
                         "pest_cycle_break": r.pest_break, "repeated_pairs": r.pest_pairs, "water_ratio": round(r.water_ratio, 2),
                         "r_factor": round(r.r_factor), "cover_after_years": [i + 1 for i, c in enumerate(v["covers"]) if c]}
         return {
@@ -424,7 +446,7 @@ def plan_rotations(ctx: FieldContext, a: Assets, *, priorities: dict | None = No
     return {
         "field_id": ctx.field_id, "language": lang,
         "current_rotation": {"sequence": det.cycle, "label": _label(det.cycle, lang),
-                             "confidence": round(det.confidence, 2), "years_used": det.years_used, "source": "csb",
+                             "confidence": round(det.confidence, 2), "years_used": det.years_used, "source": "farmer_input" if det.window == 0 else "csb",
                              "agreement": round(det.agreement, 2), "window_years": det.window, "cycle_years": det.period, "clean": det.clean},
         "strategies": strategies, "details": details,
         "stress": None if stress is None else {"active": stress.active, "reason": stress.reason, "z": stress.z, "pct_below": stress.pct_below,
@@ -432,7 +454,7 @@ def plan_rotations(ctx: FieldContext, a: Assets, *, priorities: dict | None = No
         "scenario": {"temp_delta_c": ctx.scenario[0], "precip_change_pct": ctx.scenario[1]},
         "score_notes": {"income": "income_index: a relative 0-100 index of margin, not money"},
         "sources": [{"id": s[0], "name": s[1], "variable": s[2], "resolution": s[3], "period": s[4]} for s in SOURCES[lang]],
-        "candidates_evaluated": len(variants),
+        "candidates_evaluated": len(variants), "alternatives_requested": n_alt,
     }
 
 

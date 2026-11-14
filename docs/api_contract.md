@@ -18,9 +18,13 @@ ML service is stateless: field + priorities in, analysis out. No users, sessions
 | text language | `options.language`: `en` (default) or `uk` |
 | field_id | CSB `CSBID` string |
 
+> **v1.1 (additive).** The real service adds optional fields to `/ml/v1/analyze`; every v1 field is unchanged, so old clients keep working:
+> `crop_suitability`, `score_notes`, `feature_source`, `detected_rotation.cycle_years`, `vulnerability_timeline[].bare_soil_source`, `/ml/health.mode`.
+> `ML_MODE=mock` keeps the old contract-shaped mock (without the new fields); `ML_MODE=real` is the default.
+
 ## GET /ml/health
 ```json
-{ "status": "ok", "model_version": "0.1.0", "coverage": { "states": ["IA", "IL", "NE", "KS"], "years": [2018, 2025] } }
+{ "status": "ok", "model_version": "0.2.0", "mode": "real", "coverage": { "states": ["IA", "IL", "NE", "KS"], "years": [2018, 2025] } }
 ```
 
 ## GET /ml/v1/meta/crops
@@ -73,7 +77,7 @@ rules:
   "model_version": "0.1.0",
   "generated_at": "2026-11-14T15:02:11Z",
   "status": "ok",
-  "detected_rotation": { "sequence": ["corn", "soybean"], "label": "Corn – Soybean (2-year)", "confidence": 0.88, "years_used": [2018, 2025], "source": "csb" },
+  "detected_rotation": { "sequence": ["corn", "soybean"], "label": "Corn – Soybean (2-year)", "confidence": 0.88, "years_used": [2018, 2025], "source": "csb", "cycle_years": 2 },
   "summary": {
     "headline": "Field is bare ~150 days/year and short on moisture in July–August.",
     "overall_risk": "medium",
@@ -84,7 +88,8 @@ rules:
     ]
   },
   "vulnerability_timeline": [
-    { "month": 1, "bare_soil": 0.95, "moisture_deficit": 0.05, "heat_stress": 0.0, "frost_risk": 0.9, "extreme_precip": 0.05, "flags": ["bare", "frost"] }
+    { "month": 1, "bare_soil": 0.95, "moisture_deficit": 0.05, "heat_stress": 0.0, "frost_risk": 0.9, "extreme_precip": 0.05, "flags": ["bare", "frost"],
+      "bare_soil_source": "crop_calendar" }
   ],
   "strategies": [
     {
@@ -110,6 +115,21 @@ rules:
       "confidence": 0.71
     }
   ],
+  "crop_suitability": [
+    { "crop": "corn", "name": "Corn", "group": "cereal", "fit_score": 69.8, "next_year_share": 96.3, "rank": 1, "blocked": false,
+      "block_reasons": [], "explanation": "Best choice for next year: it suits the field (fit 70) and follows 'Soybean' well (96% of the advice).",
+      "top_factors": ["Last year's crop: Soybean - raises the chance", "Crop two years ago: Corn - raises the chance", "Typical climate of the place: day of last spring frost = 114.4 - raises the chance"],
+      "top3_role": "highest score", "model_class": true, "role": null,
+      "parts": { "model_prob": 0.958, "model_prob_source": "model", "transition": 1.22, "suitability": 0.97, "rules": 1.0, "score_raw": 1.13 } },
+    { "crop": "soybean", "name": "Soybean", "group": "legume", "fit_score": 81.2, "next_year_share": 2.6, "rank": 2, "blocked": false,
+      "block_reasons": [], "explanation": "Suits the field (fit 81), but last year was already Soybean: repeating the same crop cuts its chance to 3%.",
+      "top_factors": [], "top3_role": "best of another group (legumes)", "model_class": true, "role": null, "parts": {} },
+    { "crop": "alfalfa", "name": "Alfalfa", "group": "other", "fit_score": 0.0, "next_year_share": 0.0, "rank": 8, "blocked": true,
+      "block_reasons": ["soil pH = 5.2: outside the allowed range (5.5–8.5) for this crop"], "explanation": "Excluded: soil pH = 5.2: outside the allowed range (5.5–8.5) for this crop",
+      "top_factors": [], "top3_role": null, "model_class": true, "role": null, "parts": {} }
+  ],
+  "score_notes": { "income": "income_index: a relative 0-100 index of margin, not money" },
+  "feature_source": "precomputed",
   "sources": [
     { "id": "landsat_ndvi", "name": "Landsat 8/9 Collection 2 L2 NDVI", "variable": "NDVI", "resolution": "30 m, 8-16 days", "period": "2018–2025" },
     { "id": "smap", "name": "SMAP L4 Global Soil Moisture (SPL4SMGP)", "variable": "root-zone soil moisture", "resolution": "9 km, 3-hourly", "period": "2015–2025" },
@@ -128,8 +148,20 @@ guarantees:
 - `scores` always has all 6 keys
 - every `source_ids` value references an `id` in `sources`
 - `flags` values: `bare`, `drought`, `heat`, `frost`, `extreme_rain`, `waterlogging`
+- `scores.income` is a **relative 0-100 index** of margin (`score_notes.income`), never money
+- `crop_suitability` (new): one row per candidate crop, sorted by `rank` (blocked crops last). Two numbers, not one:
+  `fit_score` (0-100, absolute) says how well the **field** suits the crop **without** last year's crop: hard filters x suitability trapezoids x soft rules x the calibrated
+  model probability averaged over the previous crops that usually precede this crop in the state. A crop that suits the field (soybean on a good field) is high here.
+  `next_year_share` (%) is the advice for **next year** with the real previous crop and the transition matrix; it adds up to 100 over the crops that are not blocked
+  (a cover crop is not a main crop and gets 0). `rank` follows `next_year_share`. `explanation` says in plain words why a crop with a high `fit_score` may not be
+  on top ("suits the field, but last year was already soybean"). `block_reasons` explains why a crop is out (agronomic rules, hard limits of soil and climate, or the farmer's `excluded_crops`).
+  `top_factors` are the main reasons for the crop (SHAP groups for crops of the model, the biggest adjustments for rules-only crops: oats, barley, cereal_rye).
+  `top3_role` is set for the three crops offered as a main crop (highest score / best of another group / most heat- and drought-tolerant)
+- `vulnerability_timeline[].bare_soil_source`: `crop_calendar` (modelled from the crops of the current rotation) or `landsat_ndvi` (when NDVI exists)
+- `feature_source`: `precomputed` (county file or the 2000-field sample) or `on_the_fly` (history from the request, soil from USDA SDA, climate from NASA POWER)
+- `sources` lists only the sources that were really used
 - `overall_risk`: `low` | `medium` | `high`
-- `status: "partial"` - analysis exists but some data was missing; reasons in `warnings`
+- `status: "partial"` - analysis exists but some data was missing (today: no Landsat NDVI, no SMAP, no TWI); reasons in `warnings`
 
 ### errors
 ```json
@@ -137,9 +169,9 @@ guarantees:
 ```
 | HTTP | code | when |
 |---|---|---|
-| 422 | INVALID_INPUT | bad geometry, priorities out of range, etc. |
+| 422 | INVALID_INPUT | bad geometry, priorities out of range, etc. In the real mode also: the field is not precomputed and `field.crop_history` is missing; unknown crop in `farmer_input.current_rotation` |
 | 404 | OUT_OF_COVERAGE | field outside the region we have data for |
-| 503 | DATA_UNAVAILABLE | data source down / not precomputed |
+| 503 | DATA_UNAVAILABLE | data source down / not precomputed. In the real mode: the POWER cell of a field outside the precomputed region could not be downloaded in time (it keeps downloading, retry in a minute), or USDA SDA is not reachable |
 | 500 | INTERNAL | everything else |
 
 ## plan B if analysis gets slow (> 10 s)

@@ -8,6 +8,12 @@ from ml_service import analyze as analyze_mod
 from ml_service.errors import data_unavailable
 from ml_service.main import app
 
+@pytest.fixture(autouse=True)
+def _mock_mode(monkeypatch):
+    """these tests describe the mock service (ML_MODE=mock); the real mode has its own tests in test_analyze_real.py"""
+    monkeypatch.setenv("ML_MODE", "mock")
+
+
 client = TestClient(app)
 # unhandled exceptions must come back as the contract 500 json, not be re-raised into the test
 client_500 = TestClient(app, raise_server_exceptions=False)

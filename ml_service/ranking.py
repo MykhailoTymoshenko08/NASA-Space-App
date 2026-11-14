@@ -58,6 +58,7 @@ T = {
         "gap_imerg": "IMERG ще немає: опади взяті з NASA POWER",
         "irrigated_note": "поле зрошується: опади та вологість ґрунту (SMAP) не враховано",
         "nothing_fits": "жодна культура не пройшла жорсткі фільтри для цього поля (див. причини виключення)",
+        "excluded": "Культуру виключив фермер (farmer_input.excluded_crops)",
         "weak": "слабка альтернатива", "range_to": "до {hi}", "range_from": "від {lo}",
         "role_best": "найвищий бал", "role_other_group": "найкраща з іншої групи ({group})",
         "role_resilient": "найстійкіша до спеки й посухи", "role_fill": "наступна за балом",
@@ -75,6 +76,7 @@ T = {
         "gap_imerg": "IMERG is not available yet: rainfall taken from NASA POWER",
         "irrigated_note": "field is irrigated: rainfall and soil moisture (SMAP) are not counted",
         "nothing_fits": "no crop passes the hard filters for this field (see the reasons for exclusion)",
+        "excluded": "Excluded by the farmer (farmer_input.excluded_crops)",
         "weak": "weak alternative", "range_to": "up to {hi}", "range_from": "from {lo}",
         "role_best": "highest score", "role_other_group": "best of another group ({group})",
         "role_resilient": "most heat- and drought-tolerant", "role_fill": "next by score",
@@ -109,6 +111,11 @@ class FieldContext:
     precip_monthly: list | None = None              # 12 values, mm
     precip_annual: float | None = None              # mm
     scenario: tuple = (0.0, 0.0)                    # (temp_delta_c, precip_change_pct) already applied to the climate
+    monthly: dict = field(default_factory=dict)     # et0, precip, tmean, heat_days_32, frost_days, extreme_rain_days: 12 values each
+    provenance: str = "tables"                      # precomputed | tables | on_the_fly
+    cell: str | None = None                         # POWER cell key (the daily data behind the climate)
+    area_ha: float | None = None
+    notes: list = field(default_factory=list)       # things the response should warn about
 
 
 @dataclass
@@ -122,6 +129,7 @@ class Assets:
     rules: dict
     suitability: dict
     transition: dict
+    pred_mix: dict = field(default_factory=dict)     # which previous crops usually precede each crop (scripts/05b)
     root: Path = field(default=ROOT)
 
 
@@ -134,7 +142,9 @@ def load_assets(root: Path = ROOT) -> Assets:
         classes=fl["classes"], features=fl["features"], levels=fl["category_levels"],
         calibrator=json.loads((model_dir / "calibrator.json").read_text()),
         candidates=load_yaml("candidate_crops.yaml")["crops"], rules=load_yaml("crop_rules.yaml"),
-        suitability=load_yaml("suitability.yaml")["crops"], transition=load_yaml("transition_matrix.yaml"), root=root,
+        suitability=load_yaml("suitability.yaml")["crops"], transition=load_yaml("transition_matrix.yaml"),
+        pred_mix=json.loads((model_dir / "predecessor_mix.json").read_text()) if (model_dir / "predecessor_mix.json").exists() else {},
+        root=root,
     )
 
 
@@ -154,6 +164,8 @@ def build_feature_row(ctx: FieldContext, a: Assets) -> pd.DataFrame:
     x = pd.DataFrame([{f: row.get(f, np.nan) for f in a.features}])
     for c, lv in a.levels.items():
         x[c] = pd.Categorical(x[c], categories=lv)
+    for c in x.columns.difference(list(a.levels)):   # a missing soil value is None: LightGBM needs floats (NaN)
+        x[c] = pd.to_numeric(x[c], errors="coerce").astype(float)
     return x
 
 
@@ -237,6 +249,40 @@ def fmt_range(lo, hi, lang: str, digits: int = 2) -> str:
     return f"{r(lo)}–{r(hi)}"
 
 
+MIN_MIX_ROWS = 30
+
+
+def fit_probabilities(ctx: FieldContext, a: Assets) -> dict:
+    """calibrated probability of every model crop WITHOUT knowing last year: the model is run for the pairs of previous
+    crops that usually precede that crop in the state, and the answers are averaged with the pairs' weights.
+    last season's weather stays as it was. (no mix file: one run with an unknown predecessor)"""
+    mix = a.pred_mix
+    pairs, weights = [], {}
+    for crop in a.classes:
+        entry = mix.get(ctx.state, {}).get(crop)
+        if not entry or entry["n"] < MIN_MIX_ROWS:
+            entry = mix.get("ALL", {}).get(crop)
+        plist = entry["pairs"] if entry else [["other", None, 1.0]]
+        weights[crop] = []
+        for p1, p2, w in plist:
+            key = (p1, p2)
+            if key not in pairs:
+                pairs.append(key)
+            weights[crop].append((pairs.index(key), w))
+    rows = [build_feature_row(replace_prev(ctx, p1, p2), a) for p1, p2 in pairs]
+    probs = calibrate(np.asarray(a.booster.predict(pd.concat(rows, ignore_index=True))), a.calibrator)   # pairs x classes
+    out = {}
+    for crop in a.classes:
+        w = np.array([x[1] for x in weights[crop]])
+        out[crop] = float(sum(probs[i, a.classes.index(crop)] * wi for (i, _), wi in zip(weights[crop], w)) / w.sum())
+    return out
+
+
+def replace_prev(ctx: FieldContext, p1: str | None, p2: str | None) -> FieldContext:
+    import dataclasses
+    return dataclasses.replace(ctx, prev_crops=[p1 or "unknown", p2 or "unknown"])
+
+
 def transition_multiplier(prev: str, crop: str, a: Assets) -> tuple[float, str | None]:
     """(effective multiplier, reason). effective = matrix value ** beta (the model already sees the previous crops)."""
     raw, why = _transition_raw(prev, crop, a)
@@ -263,7 +309,7 @@ def _transition_raw(prev: str, crop: str, a: Assets) -> tuple[float, str | None]
 # --------------------------------------------------------------------------- the ranking
 
 def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool | None = None,
-               explain: bool = True, extra: dict | None = None) -> dict:
+               explain: bool = True, extra: dict | None = None, fit: bool = False, excluded: set | None = None) -> dict:
     """explain=False skips the SHAP reasons (faster, used when many hypothetical situations are scored).
     extra: {crop: [(multiplier, text), ...]} additional factors from outside, e.g. last season's NDVI stress."""
     t = T[lang]
@@ -271,6 +317,9 @@ def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool |
     li = 1 if lang == "uk" else 0
 
     x, probs, contrib = model_forecast(ctx, a, explain)
+    fit_probs = fit_probabilities(ctx, a) if fit else {}
+    fit_neutral = min(fit_probs.values()) if fit_probs else 0.0
+    excluded = excluded or set()
     model_probs = dict(zip(a.classes, probs))
     # a crop without a model forecast (rules-only) is treated as likely as the field's LEAST likely modelled crop:
     # the data says these crops are rare, so rules alone can lift them only when the modelled crops are out
@@ -343,7 +392,14 @@ def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool |
             extra_mult *= mult
             adjustments.append({"text": text, "multiplier": mult})
 
+        field_blocked = bool(blocked)               # blocked by the field itself; the farmer's exclusion is separate
+        if slug in excluded:
+            blocked = blocked + [t["excluded"]]
         score = 0.0 if blocked else prob * tm * suit * rules_mult * extra_mult
+        # suitability of the FIELD, without last year's crop: hard filters x trapezoids x soft rules x averaged probability
+        fit_score = 0.0
+        if fit and not field_blocked:
+            fit_score = min(100.0, 100.0 * (fit_probs[slug] if in_model else fit_neutral) * suit * rules_mult)
 
         # main factors: SHAP for model crops, the biggest adjustments for rules-only crops
         if in_model and not explain:
@@ -358,6 +414,8 @@ def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool |
         crops_out.append({
             "crop": slug, "name": crop_name(slug, lang), "group": a.candidates[slug]["group"],
             "model_class": in_model, "status": "blocked" if blocked else "ok", "score": score,
+            "fit_score": round(fit_score, 1), "fit_prob": round(fit_probs.get(slug, fit_neutral), 4) if fit else None,
+            "transition_reason": why, "prev_crop": prev,
             "parts": {"model_prob": round(prob, 4), "model_prob_source": "model" if in_model else "neutral",
                       "transition": tm, "suitability": round(suit, 3), "rules": round(rules_mult, 3)},
             "blocked_reasons": blocked, "adjustments": adjustments, "main_factors": factors,

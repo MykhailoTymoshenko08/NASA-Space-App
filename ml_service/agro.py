@@ -119,6 +119,21 @@ def _clip(x: float, lo: float = 0.0, hi: float = 100.0) -> float:
     return float(min(hi, max(lo, x)))
 
 
+def monthly_bare(steps: list[str], covers: list[bool], cover_crop: str = "cereal_rye") -> list[float]:
+    """share of every month the soil is bare, averaged over the years of the rotation (the crop calendar)."""
+    n = len(steps)
+    cov = COVER[cover_crop]
+    out = np.zeros(12)
+    for j, token in enumerate(steps):
+        c = profile(token)
+        ground = np.maximum(np.array(c.cover, dtype=float), c.residue)
+        for use, months in ((covers[(j - 1) % n], SPRING), (covers[j], FALL)):
+            if use:
+                ground[months] = 1 - (1 - ground[months]) * (1 - np.array(cov["cover"])[months])
+        out += np.clip(1 - 2 * ground, 0, 1)
+    return (out / n).tolist()
+
+
 # --------------------------------------------------------------------------- the calculator
 
 def evaluate(steps: list[str], covers: list[bool], prev_actual: str, *, et0_monthly, precip_annual: float, kw_factor: float,

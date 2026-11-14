@@ -32,10 +32,11 @@ def _tables(data_dir: str) -> dict:
     soil = pd.read_parquet(d / "features" / "soil.parquet").set_index("field_id")
     winter = pd.read_parquet(d / "features" / "winter_tmin.parquet").set_index("field_id")
     clim = pd.read_parquet(d / "features" / "climate_season.parquet")
-    monthly = pd.read_parquet(d / "features" / "climate_monthly.parquet", columns=["field_id", "month", "et0", "precip"])
+    monthly = pd.read_parquet(d / "features" / "climate_monthly.parquet",
+                              columns=["field_id", "month", "et0", "precip", "tmean", "heat_days_32", "frost_days", "extreme_rain_days"])
     return {
         "cells": pd.read_parquet(d / "features" / "field_cells.parquet").set_index("field_id"),
-        "monthly": monthly.groupby(["field_id", "month"])[["et0", "precip"]].mean(),
+        "monthly": monthly.groupby(["field_id", "month"])[["et0", "precip", "tmean", "heat_days_32", "frost_days", "extreme_rain_days"]].mean(),
         "fields": pd.read_parquet(d / "fields" / "fields.parquet", columns=["field_id", "state_fips", "lat", "lon"]).set_index("field_id"),
         "hist": pd.read_parquet(d / "fields" / "crop_history.parquet").pivot(index="field_id", columns="year", values="cdl_code"),
         "soil": soil, "winter": winter,
@@ -64,7 +65,8 @@ def load_field_context(field_id: str, a: Assets, target_year: int = 2026, data_d
     climate_norm = {c: float(t["clim_norm"].loc[field_id, c]) for c in CLIMATE_COLS}
     winter = float(t["winter"].loc[field_id, "winter_tmin_c"])
     m = t["monthly"].loc[field_id]
-    et0_monthly, precip_monthly = m["et0"].reindex(range(1, 13)).tolist(), m["precip"].reindex(range(1, 13)).tolist()
+    monthly_arrays = {k: m[k].reindex(range(1, 13)).tolist() for k in ("et0", "precip", "tmean", "heat_days_32", "frost_days", "extreme_rain_days")}
+    et0_monthly, precip_monthly = monthly_arrays["et0"], monthly_arrays["precip"]
     if tuple(scenario) != (0.0, 0.0):   # recompute everything from the shifted daily data
         cell = t["cells"].loc[field_id]
         daily = season_climate.shift(
@@ -73,6 +75,8 @@ def load_field_context(field_id: str, a: Assets, target_year: int = 2026, data_d
         n = season_climate.normals(daily)
         climate_norm, winter = n["climate_norm"], n["winter_tmin_c"]
         et0_monthly, precip_monthly = n["et0_monthly"], n["precip_monthly"]
+        monthly_arrays = {"et0": et0_monthly, "precip": precip_monthly, "tmean": n["tmean_monthly"], "heat_days_32": n["heat_days_monthly"],
+                          "frost_days": n["frost_days_monthly"], "extreme_rain_days": n["extreme_rain_days_monthly"]}
     return FieldContext(
         field_id=field_id, state=STATE_OF_FIPS[f["state_fips"]], lat=float(f["lat"]), lon=float(f["lon"]),
         prev_crops=[crop_in(target_year - 1), crop_in(target_year - 2)],
@@ -82,5 +86,6 @@ def load_field_context(field_id: str, a: Assets, target_year: int = 2026, data_d
         climate_lag1={c: (float(lag[c]) if lag is not None else np.nan) for c in CLIMATE_COLS},
         winter_tmin_c=winter, history=history, history_rich=history_rich, target_year=target_year,
         et0_monthly=et0_monthly, precip_monthly=precip_monthly, precip_annual=float(np.nansum(precip_monthly)),
-        scenario=tuple(scenario),
+        scenario=tuple(scenario), monthly=monthly_arrays, provenance="tables", cell=str(t["cells"].loc[field_id, "cell"]),
+        area_ha=None,
     )

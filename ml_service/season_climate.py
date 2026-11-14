@@ -120,11 +120,21 @@ def normals(daily: pd.DataFrame) -> dict:
     monthly = daily.groupby([daily.index.year, daily.index.month]).agg(et0=("et0", "sum"), precip=("precip", "sum"),
                                                                        tmean=("tmean", "mean"))
     m = monthly.groupby(level=1).mean()
+    counts = daily.assign(h32=daily["tmax"] > 32, fr=daily["tmin"] < 0, xr=daily["precip"] > 25).groupby(
+        [daily.index.year, daily.index.month])[["h32", "fr", "xr"]].sum().groupby(level=1).mean()
+    arr = lambda s: s.reindex(range(1, 13)).tolist()
     return {
         "climate_norm": {c: float(sf[c].mean()) for c in CLIMATE_COLS},
-        "et0_monthly": m["et0"].reindex(range(1, 13)).tolist(),
-        "precip_monthly": m["precip"].reindex(range(1, 13)).tolist(),
-        "tmean_monthly": m["tmean"].reindex(range(1, 13)).tolist(),
+        "et0_monthly": arr(m["et0"]), "precip_monthly": arr(m["precip"]), "tmean_monthly": arr(m["tmean"]),
+        "heat_days_monthly": arr(counts["h32"]), "frost_days_monthly": arr(counts["fr"]), "extreme_rain_days_monthly": arr(counts["xr"]),
         "precip_annual": float(m["precip"].sum()),
         "winter_tmin_c": winter_tmin(daily),
     }
+
+
+def field_climate(daily: pd.DataFrame, last_year: int) -> dict:
+    """everything the service needs from one cell's daily data: the normal (as normals()) and last season's 18 features."""
+    sf = season_features(daily).set_index("year")
+    out = normals(daily)
+    out["climate_lag1"] = {c: float(sf.loc[last_year, c]) for c in CLIMATE_COLS} if last_year in sf.index else {c: float("nan") for c in CLIMATE_COLS}
+    return out
