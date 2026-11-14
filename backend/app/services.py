@@ -61,6 +61,10 @@ class Services:
             source_timeout_s=settings.source_timeout_s, ttl_s=settings.snapshot_cache_ttl_s,
         )
 
+        from app.field_info.service import FieldInfoService
+
+        self.field_info = FieldInfoService(self.data_client, timeout_s=settings.source_timeout_s)
+
         from app.analyses.service import AnalysisService
         from app.analyses.store import InMemoryJobStore
         from app.analyses.stub import StubAnalysisEngine

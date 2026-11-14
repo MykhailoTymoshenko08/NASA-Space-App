@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Field Shift API
-  version: 0.3.0
+  version: 0.3.1
   description: |
     Contract between the frontend and backend of the Field Shift farmer map
     (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
@@ -225,6 +225,51 @@ paths:
                 $ref: '#/components/schemas/FieldSelection'
         '422':
           description: '`OUTSIDE_COVERAGE` or `VALIDATION_ERROR`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /fields/info:
+    post:
+      tags:
+      - fields
+      operationId: getFieldInfo
+      summary: Farmer-facing context for a selected map point
+      description: |
+        Accepts the same WGS84 point as `/fields/resolve`; pass `FieldSelection.anchor`
+        after selecting a field. Independent of snapshots and ML analyses.
+        Coverage is limited to rough state bounding boxes for Iowa, Illinois and Nebraska.
+        Samples and in-memory cache keys round coordinates to four decimal places (~11 m).
+        Sources run concurrently with a short per-source deadline. Missing values remain
+        null with `quality: unavailable` and `unavailable_reason`; even a total upstream
+        outage returns 200. Successful source results are cached for 24 hours.
+        Each recent climate metric covers its latest complete 12-month window, which may
+        differ between parameters due to publishing lag. Precipitation is a 12-month total;
+        temperature and solar radiation are day-weighted means. Long-term values use the
+        NASA-provided climatology baseline. NLCD uses the fixed 2024 annual product.
+        Authentication is not yet merged; the route has an explicit dependency hook.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [point]
+              additionalProperties: false
+              properties:
+                point:
+                  $ref: '#/components/schemas/LatLon'
+            example:
+              point: {lat: 41.98, lon: -93.7}
+      responses:
+        '200':
+          description: Available context, including null metrics for unavailable data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldInfo'
+        '422':
+          description: '`OUTSIDE_COVERAGE` (IA/IL/NE only) or `VALIDATION_ERROR`'
           content:
             application/json:
               schema:
@@ -678,6 +723,28 @@ components:
         properties:
           point:
             $ref: '#/components/schemas/LatLon'
+    FieldInfo:
+      type: object
+      required: [point, generated_at, cached, metrics]
+      properties:
+        point:
+          $ref: '#/components/schemas/LatLon'
+          description: Sampling coordinates, rounded to four decimal places.
+        generated_at:
+          type: string
+          format: date-time
+        cached:
+          type: boolean
+          description: True when every source result came from memory.
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/Metric'
+          description: |
+            Always includes temperature_12m, precipitation_12m, solar_radiation_12m,
+            temperature_normal, precipitation_normal, solar_radiation_normal,
+            dominant_soil, soil_texture, soil_drainage, soil_organic_matter, soil_ph,
+            elevation, slope, land_cover. Labels, units, source and notes are display-ready.
     FieldSelection:
       type: object
       description: Backend-resolved selection. This is the one object every page works with.

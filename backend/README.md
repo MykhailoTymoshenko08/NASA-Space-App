@@ -1,7 +1,7 @@
 # Field Shift backend
 
 FastAPI backend for Field Shift, a NASA Space Apps crop-rotation decision-support tool for US farmers.
-It implements `../contract/openapi.yaml` (v0.3.0). The contract is the source of truth; see
+It implements `../contract/openapi.yaml` (v0.3.1). The contract is the source of truth; see
 `../contract/CONTRACT_CHANGELOG.md` for changes.
 
 ## Setup
@@ -72,7 +72,7 @@ to create and drop a scratch database.
 
 - **Layout:** `app/api` (one router per tag), `app/core` (config, errors, request id, cache, rate limit),
   `app/geo` (boundaries, point resolution, link parsing, tiles), `app/data_sources` (one client per
-  upstream), `app/snapshots`, `app/analyses` (job store, engine protocol, stub).
+  upstream), `app/field_info` (farmer context), `app/snapshots`, `app/analyses` (job store, engine protocol, stub).
 - **Errors:** every error uses the `ErrorResponse` envelope with `ErrorCode`. Every response has
   `X-Request-Id` (the client's id is echoed if it is safe, otherwise a new one is generated).
 - **Selectable unit = estimated CSB field area** (contract 0.3). USDA Crop Sequence Boundaries
@@ -121,6 +121,80 @@ to create and drop a scratch database.
   in-memory store and are lost on restart. Identical requests within 10 min reuse the job.
   The ML model plugs in through `app/analyses/engine.py: AnalysisEngine`; set it in
   `app/services.py` in place of `StubAnalysisEngine`.
+
+## Field context after map selection
+
+`POST /v1/fields/info` accepts the existing map-click payload, `{ "point": { "lat": 41.98,
+"lon": -93.7 } }`. After resolving a field, pass `FieldSelection.anchor` as `point`.
+There is no frontend in this repository; its contract already sends points, so this endpoint
+does not add a polygon input. It does not resolve/snap the point again or call the ML pipeline.
+It works without prepared boundaries or PostGIS. Only rough bounding boxes for Iowa, Illinois
+and Nebraska are accepted; other points return 422 `OUTSIDE_COVERAGE`. Border false positives
+are possible with these approximate envelopes.
+
+All source calls run concurrently using async/httpx. The default overall deadline is 4 seconds
+per source (`SOURCE_TIMEOUT_S`); individual HTTP calls have a 3.5-second timeout and a 1.5-second
+connect timeout. Failed, empty or incomplete data yields `value: null`, `quality: unavailable`
+and a short `unavailable_reason`. Even an upstream outage returns 200 with all metric keys present.
+Successful sources are cached in memory for 24 hours at coordinates rounded to four decimals
+(about 11 m); the returned `point` is the actual rounded sample location. Incomplete sources are
+retried on the next request, while other successful sources stay cached. `cached` is true only
+when every source came from memory. Restarting the process clears this cache.
+
+Sources, in priority order:
+
+1. NASA POWER [monthly](https://power.larc.nasa.gov/docs/services/api/temporal/monthly/) and
+   [climatology](https://power.larc.nasa.gov/docs/services/api/temporal/climatology/) point APIs:
+   temperature, precipitation and solar radiation. Each recent value uses its latest complete
+   12-month window, allowing up to six months of publication lag. Each value includes its own
+   period; solar often lags meteorology. Means are day-weighted and rain rates become annual
+   totals. The climatology baseline comes from NASA's response (2001–2025 during the live check),
+   including leap-year weighting. Radiation units are checked and converted to MJ/m²/day.
+   These are regional estimates, not measurements of the selected field.
+2. NRCS [SSURGO / Soil Data Access](https://sdmdataaccess.sc.egov.usda.gov/WebServiceHelp.aspx):
+   the dominant component at the point, its soil name, drainage, and shallowest horizon's
+   texture, organic matter and pH. Missing attributes stay null independently. Reuses the
+   existing SDA service; no local soil database or credentials needed.
+3. USGS [3DEP EPQS](https://epqs.nationalmap.gov/v1/docs): point elevation plus a slope estimate
+   from samples 100 m north, east, south and west. Slope is percent rise, not degrees or a field
+   average. A failed neighbor does not discard the center elevation. Raw SRTM tiles are omitted
+   to avoid Earthdata credentials and tile processing. EPQS can exceed the deadline: both terrain
+   values were null in the live Ames check, while the other three datasets returned data.
+4. USGS/MRLC [Annual NLCD](https://www.mrlc.gov/data-services-page), fixed 2024 land-cover product:
+   a public WMS point query returns a readable class such as "Cultivated crops" at 30 m resolution.
+   Pinning the year keeps demos reproducible without downloading rasters.
+
+No SMAP, SoilGrids, or optional NASS QuickStats calls in this endpoint. They add latency or setup
+without improving this first context card. Auth has not been merged: the explicit `TODO(auth)`
+above the route in `app/api/fields.py` marks where to add `Depends(get_current_user)`.
+Reusable fetch functions live in `app/field_info/sources.py`; orchestration and caching live in
+`app/field_info/service.py`. Existing snapshots and analyses keep their current behavior.
+
+```sh
+curl -sS -X POST http://localhost:8000/v1/fields/info \
+  -H 'Content-Type: application/json' \
+  -d '{"point":{"lat":41.98,"lon":-93.7}}'
+```
+
+Example response excerpt from the live check (other metrics and metadata omitted):
+
+```json
+{
+  "point": {"lat": 41.98, "lon": -93.7},
+  "cached": false,
+  "metrics": [
+    {"key": "temperature_12m", "label": "Average temperature (latest 12 available months)", "value": 11.1, "unit": "degC", "period": {"start": "2025-10-01", "end": "2026-09-30"}},
+    {"key": "precipitation_12m", "label": "Annual precipitation (latest 12 available months)", "value": 1042.2, "unit": "mm"},
+    {"key": "dominant_soil", "label": "Dominant soil name", "value": "Webster", "unit": "none"},
+    {"key": "soil_ph", "label": "Surface soil pH", "value": 6.5, "unit": "pH"},
+    {"key": "elevation", "label": "Elevation above sea level", "value": null, "unit": "m", "unavailable_reason": "3DEP elevation did not return a value in time."},
+    {"key": "land_cover", "label": "Land cover (2024)", "value": "Cultivated crops", "unit": "class"}
+  ]
+}
+```
+
+The full response includes `generated_at` and 14 fixed metric keys; every metric includes a
+label, unit, source, resolution, quality and optional date/period/note for direct display.
 
 ## CSB data preparation
 
@@ -206,5 +280,6 @@ ETag.
 | Elevation | USGS 3DEP via [Elevation Point Query Service](https://epqs.nationalmap.gov/v1/docs) | 1-10 m (reported per query) | US Government work, public domain | Slow (6-13 s), so the first snapshot often shows it as unavailable |
 | Total nitrogen (estimated) | ISRIC [SoilGrids 2.0](https://rest.isric.org/soilgrids/v2.0/docs), `nitrogen` 0-5 cm mean | 250 m | CC BY 4.0 | Machine-learning estimate. Null in urban/water areas. The service is sometimes flaky. |
 
-Not included yet: SMAP soil moisture (needs Earthdata login; contract keys `soil_moisture_*` are
-reserved for it), slope, NLCD, annual precipitation normals.
+Not included in snapshots: SMAP soil moisture (needs Earthdata login; contract keys
+`soil_moisture_*` are reserved for it), slope, NLCD, annual precipitation normals. The separate
+field-context endpoint above includes slope, NLCD and annual climate context.

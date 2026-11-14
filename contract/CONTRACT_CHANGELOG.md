@@ -3,6 +3,14 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.3.1 (2026-11-14): farmer-facing field context
+
+Additive: `POST /fields/info` takes the existing `{point: {lat, lon}}` map payload and returns
+`FieldInfo` with labeled, unit-bearing metrics. Coverage is IA/IL/NE bounding boxes only (422 outside).
+NASA POWER monthly/climatology, SSURGO point soil, USGS 3DEP elevation/estimated slope, and 2024
+Annual NLCD are fetched concurrently with independent failure handling and an in-memory source cache.
+This endpoint is independent of the snapshots used by analyses. No existing response changes.
+
 ## 0.3.0 (2026-11-14): CSB field polygons for IA, IL, NE; PLSS removed
 
 Breaking. The selectable unit is again an **estimated field area** from USDA Crop Sequence Boundaries

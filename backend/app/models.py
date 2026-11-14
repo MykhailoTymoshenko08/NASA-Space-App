@@ -1,4 +1,4 @@
-"""Pydantic models mirroring `contract/openapi.yaml` (v0.3.0).
+"""Pydantic models mirroring `contract/openapi.yaml` (v0.3.1).
 
 Keep names and enums identical to the contract. The contract tests validate real responses
 against the YAML, so drift is caught there.
@@ -206,6 +206,13 @@ class Snapshot(BaseModel):
 
 class SnapshotRequest(BaseModel):
     selection: SelectionRef
+
+
+class FieldInfo(BaseModel):
+    point: LatLon
+    generated_at: datetime
+    cached: bool
+    metrics: list[Metric]
 
 
 # ---------- analysis ----------
