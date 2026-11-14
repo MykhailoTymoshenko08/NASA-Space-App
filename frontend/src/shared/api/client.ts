@@ -4,7 +4,8 @@ import { networkError, toApiError } from "./errors";
 import type { paths } from "./schema.gen";
 
 /** Typed client for our backend only. Never call third-party data APIs from the browser. */
-export const api = createClient<paths>({ baseUrl: env.apiBaseUrl });
+// fetch is looked up per call (not captured once), so test and mock interceptors always apply.
+export const api = createClient<paths>({ baseUrl: env.apiBaseUrl, fetch: (request) => globalThis.fetch(request) });
 
 type Result<T> = { data?: T; error?: unknown; response: Response };
 

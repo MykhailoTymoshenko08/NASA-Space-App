@@ -10,7 +10,7 @@ import "./styles/global.css";
 async function start() {
   if (env.useMocks) {
     // Loaded only in mock mode, so MSW never ships in a real build path.
-    const { startMockWorker } = await import("@/shared/mocks");
+    const { startMockWorker } = await import("./mocks/start-mock-worker");
     await startMockWorker();
   }
   createRoot(document.getElementById("root")!).render(
