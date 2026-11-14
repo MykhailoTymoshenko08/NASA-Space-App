@@ -44,7 +44,7 @@ crops:
   corn:
     cdl_code: 1
     type: cash
-    gdd_to_maturity: 1500      # deg C-days, ~110-day hybrid; TODO confirm
+    gdd_to_maturity: 1350      # deg C-days, short-season hybrid (northern Iowa grows corn at ~1500 regional gdd); TODO confirm
     min_ph: 5.5
     salinity_sensitivity: high
     clay_sensitivity: low
