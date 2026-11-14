@@ -1,11 +1,12 @@
 # Migration report: CSB field polygons for IA, IL, NE (contract 0.3.0)
 
-Branch: `migrate/csb-3-states`. Status: backend + contract done (2026-11-14); frontend not in this repo.
+Branch: `migrate/csb-3-states`. Status: backend + contract done (2026-11-14); frontend map work still open (see section 6).
 
 ## Scope actually done in this repo
 
-- This repo holds `/contract` and `/backend` only. There is no `/frontend` here, so section 5 of the
-  migration prompt (frontend PMTiles source, wording, MSW mocks, Playwright) is **not done here**. The
+- This migration covered `/contract` and `/backend`. When it was done, `/frontend` was not in the repo;
+  it arrived later with the merge of the old `origin/main` (`6dda317`). Section 5 of the migration
+  prompt (frontend PMTiles source, wording, MSW mocks, Playwright) is therefore **not done**. The
   frontend work needed is listed under "6. Open issues" below.
 - `BACKEND_PROMPT.md`, `FRONTEND_PROMPT.md`, `BACKEND_UPDATE_0.2.0.md` are not in the repo (they only
   exist outside it), so nothing was moved to `docs/archive/` or deleted. `FRONTEND_UPDATE_0.2.0.md`
@@ -115,7 +116,13 @@ replaces the mapped history in the analysis stub.
 
 ## 6. Open issues
 
-- **Frontend not done here** (not in this repo). Needed there:
+- **Frontend not done.** `frontend/` is now on `main`. State as of `6dda317`:
+  - It has no copy of the contract: `npm run gen:api` reads `../contract/openapi.yaml`, and
+    `src/shared/api/schema.gen.ts` already matches 0.4.1 (`pmtiles`, `estimated_csb`, no PLSS).
+  - It has no map library and no field-tile source yet, and no PLSS code. MSW mocks in
+    `src/shared/mocks/handlers.ts` already return `crop_class` and `crop_history`.
+
+  Still needed when the map is built:
   - Register `pmtiles` and add the `fields` source from `coverage.field_tiles.url_template` when
     `format === 'pmtiles'`.
   - Delete the XYZ field source and the `townships` layer.
@@ -123,16 +130,15 @@ replaces the mapped history in the analysis stub.
   - Outside the 3 states: show a notice and still allow a point selection.
   - Say "estimated field area". Show `crop_class` and `crop_history`, and prefill the "what did you
     grow" form from it.
-  - Remove all PLSS wording, fixtures and mocks. Add a small `.pmtiles` fixture for MSW mode.
-  - Regenerate API types; run the build and the Playwright test.
+  - Add a small `.pmtiles` fixture for MSW mode.
+  - Run the build and the Playwright test.
 - **Hosting (changed after the migration, contract 0.4.1, prepared as 0.3.2):** the backend serves the file itself at
   `/v1/tiles/fields.pmtiles` (Range, ETag, CORS). R2/S3 and the dev tile server were dropped, but
   `FIELDS_PMTILES_URL` still allows external hosting later. The file is shared via Git LFS and mounted
   read-only into the compose `api` service. Verified with the real 540 MB file: 206 + `Content-Range`,
   CORS preflight, 416 for a bad range; the PMTiles client read IA/IL/NE z11 tiles in 13 requests.
-- **Concurrent uncommitted work in this checkout**: another agent added contract 0.3.1
-  (`POST /fields/info`, `app/field_info/`, edits to `models.py`, `services.py`, `api/fields.py`, README,
-  changelog). It is not part of these commits and was left untouched.
+- **Contract 0.3.1 and 0.4.0 came from other branches**: `POST /fields/info` (0.3.1) and email +
+  password auth (0.4.0) were developed in parallel and are now merged into `main`.
 - `.claude/worktrees/auth` (branch `feat/auth`) branched from `36b2ca3`, mid-migration. It still has
   the PLSS README and real-data tests. Rebase it onto this branch.
 - The 190 MultiPolygons are returned as one Polygon (the part under the click, else the largest), since
