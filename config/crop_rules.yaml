@@ -17,6 +17,10 @@
 #                affects: water | soil_health | nitrogen | erosion | income | overall
 #                ("overall" is applied after the priority weighting, so a farmer priority of 0
 #                 cannot switch the rule off).
+#                optional `ramp: {var, zero_at, full_at}` on a penalty/bonus: instead of a step, points scale
+#                linearly from 0 (var at zero_at) to `points` (var at full_at), clipped outside; works in
+#                either direction (zero_at > full_at means "the lower the var, the bigger the effect").
+#                a rule with a ramp may have an empty `when`.
 #   explanation: text shown in `why` / `risks` of the strategy card (en + uk)
 #
 # variables available to `when` (who provides them):
@@ -38,6 +42,11 @@
 version: 1
 status: draft
 gdd_base_c: 10   # gdd_to_maturity below uses this base, same as gdd_grow
+
+# organic (peat / muck) soils are outside what the model can learn: such fields are dropped from
+# training (scripts/04_build_dataset.py) and the service answers status "partial" + warning "organic soil"
+dataset_exclusions:
+  organic_soil_om_pct_above: 20
 
 # tags used by rules: row_crop, cereal, legume, winter_annual, drought_tolerant, salt_tolerant, root_crop
 # sensitivities: low | medium | high
@@ -164,15 +173,19 @@ rules:
     source: TODO
     status: draft
 
+  # smooth instead of a step: a hard 1.5% threshold hit 60% of the sampled fields (median soc 1.2%)
   - id: low_soc_legume_bonus
-    description: low organic carbon, legumes help rebuild it
+    description: low organic carbon, legumes help rebuild it (bonus grows as soc falls)
     applies_to: {tags: [legume]}
-    when:
-      - {var: soil.soc_pct, op: "<", value: 1.5}
-    action: {type: bonus, points: 5, affects: [soil_health, nitrogen]}
+    when: []   # no hard condition, the ramp below decides
+    action:
+      type: bonus
+      points: 5                                              # maximum, reached at soc_pct <= full_at
+      affects: [soil_health, nitrogen]
+      ramp: {var: soil.soc_pct, zero_at: 2.0, full_at: 0.8}  # linear in between; DRAFT thresholds
     explanation:
-      en: "Soil organic carbon is low (below 1.5%); legumes add nitrogen and organic matter."
-      uk: "Вміст органічного вуглецю низький (менше 1.5%); бобові додають азот і органіку."
+      en: "Soil organic carbon is low; legumes add nitrogen and organic matter, the lower the carbon the more they help."
+      uk: "Вміст органічного вуглецю низький; бобові додають азот і органіку, і чим він нижчий, тим більше вони допомагають."
     source: TODO
     status: draft
 

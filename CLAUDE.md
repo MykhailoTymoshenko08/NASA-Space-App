@@ -52,18 +52,20 @@ Full API contract: `docs/api_contract.md`. Endpoints: `GET /ml/health`, `GET /ml
 - satellite (Lina, via GEE): Landsat 8/9 NDVI, SMAP L4 root-zone soil moisture (9 km — regional context only)
 - time step: monthly; spatial: mean of pixels inside the field polygon (coarse products → the pixel containing the field)
 - years: 2018-2025 (training seasons need the previous crop, so effectively 2019-2025)
+- organic soils (om_pct > 20, peat / muck) are excluded from training; the service answers `status: partial` + warning "organic soil"
 
 ## expected files from Lina (CSV)
 - `ndvi_monthly.csv`: field_id, year, month, ndvi_mean, n_obs
 - `ndvi_season.csv`: field_id, year, ndvi_peak, ndvi_peak_doy
 - `smap_monthly.csv`: field_id, year, month, smap_rootzone
 - `terrain.csv`: field_id, slope_pct, twi (NASADEM; slope in percent everywhere, 5° ≈ 8.7%)
+  until it arrives, `slope_pct` falls back to SSURGO `slope_r` (and `twi` stays empty)
 put them into `data/lina/`
 
 ## pipeline
 - `scripts/01_sample_csb.py` — sample fields from CSB → `data/fields/` (fields.parquet, crop_history.parquet, fields_for_gee.zip) ✅ written, tested on synthetic data
 - `scripts/02_power_climate.py` — POWER climate features → `data/features/` (climate_season.parquet, climate_monthly.parquet) ✅ written, tested with mocked api
-- `scripts/03_soil_ssurgo.py` — next (must also output clay %, SOC, pH, EC for the rules)
+- `scripts/03_soil_ssurgo.py` — SSURGO topsoil (0-30 cm) via SDA REST → `data/features/soil.parquet` (clay, sand, om, soc, pH, EC, awc, kw, hydgrp, drainage, texture, slope_r) ✅ run on real api, 2000/2000 fields
 - `config/crop_rules.yaml` — agronomic rules + crop parameters from Lina, draft, no loader yet
 - `scripts/04_build_dataset.py`, `scripts/05_train.py` — after Lina's NDVI arrives (can start on synthetic target)
 - `ml_service/` — FastAPI, mock first

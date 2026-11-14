@@ -15,6 +15,7 @@ from .texts import DISCLAIMER, MONTHS, SOURCES, T
 
 SOIL_DEFAULTS = {"om_pct": 3.0, "awc": 0.17, "slope_pct": 2.0, "drainage": "somewhat poorly drained"}
 DEFAULT_MAINS = ["corn", "soybean"]
+ORGANIC_SOIL_OM_PCT = 20.0  # same value as dataset_exclusions.organic_soil_om_pct_above in crop_rules.yaml
 
 
 def _unit(field_id: str, salt: str) -> float:
@@ -67,6 +68,9 @@ def _resolve_soil(req: AnalyzeRequest, warnings: list[str], gaps: list[str], lan
     }
     if any(v is None for v in values.values()):
         gaps.append(T[lang]["gap_soil"])
+    # peat / muck is outside what the model learns from (see dataset_exclusions in config/crop_rules.yaml)
+    if s.organic_matter_pct is not None and s.organic_matter_pct > ORGANIC_SOIL_OM_PCT:
+        warnings.append(T[lang]["warn_organic"])
     return {k: (v if v is not None else SOIL_DEFAULTS[k]) for k, v in values.items()}
 
 

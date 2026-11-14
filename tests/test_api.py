@@ -176,6 +176,20 @@ def test_missing_history_and_soil_gives_partial():
     assert len(out["strategies"]) == 4
 
 
+def test_organic_soil_is_partial_with_warning():
+    out = post(make(**{"field.soil.organic_matter_pct": 35})).json()
+    assert out["status"] == "partial"
+    assert any("organic soil" in w for w in out["warnings"])
+    assert len(out["strategies"]) == 4  # still a full analysis
+    uk = post(make(**{"field.soil.organic_matter_pct": 35, "options.language": "uk"})).json()
+    assert any("органічний ґрунт" in w for w in uk["warnings"])
+
+
+def test_om_at_threshold_is_not_organic():
+    out = post(make(**{"field.soil.organic_matter_pct": 20})).json()
+    assert out["status"] == "ok" and not out["warnings"]
+
+
 def test_farmer_rotation_overrides_detection():
     out = post(make(**{"farmer_input.current_rotation": ["corn", "corn", "soybean"]})).json()
     assert out["detected_rotation"]["source"] == "farmer_input"
