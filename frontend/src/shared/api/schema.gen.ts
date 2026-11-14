@@ -409,6 +409,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the signed-in user's password
+         * @description Requires the current password. On success, all access tokens, refresh tokens and reset links
+         *     for this user are revoked, including this session. Clear the local session and sign in again.
+         */
+        post: operations["changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a password reset email
+         * @description Returns the same empty 202 for known and unknown email addresses. Delivery runs after the
+         *     response through Brevo SMTP. Reset links expire after one hour and are single use. At most
+         *     one email per account per minute. A new link invalidates the previous link. The response never
+         *     contains a token. 502 means SMTP is not configured, regardless of whether the account exists.
+         */
+        post: operations["forgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password using an emailed reset token
+         * @description A missing, invalid, expired or used token is 422 VALIDATION_ERROR. On success all access tokens,
+         *     refresh tokens and reset links for the account are revoked; sign in again with the new password.
+         */
+        post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -520,6 +585,21 @@ export interface components {
             /** Format: email */
             email: string;
             password: string;
+        };
+        ChangePasswordRequest: {
+            current_password: string;
+            /** @description At least one letter and one digit, as for registration. */
+            new_password: string;
+        };
+        ForgotPasswordRequest: {
+            /** Format: email */
+            email: string;
+        };
+        ResetPasswordRequest: {
+            /** @description Opaque token from the emailed link. */
+            token: string;
+            /** @description At least one letter and one digit, as for registration. */
+            new_password: string;
         };
         User: {
             /** Format: uuid */
@@ -1143,7 +1223,8 @@ export interface components {
     responses: {
         /**
          * @description `UNAUTHORIZED`. `details.reason` is one of `missing_token`, `token_expired`, `invalid_token`,
-         *     `unknown_user`, `invalid_credentials`, `missing_refresh_token`, `invalid_refresh_token`.
+         *     `unknown_user`, `invalid_credentials`, `missing_refresh_token`, `invalid_refresh_token`,
+         *     `session_revoked`.
          */
         Unauthorized: {
             headers: {
@@ -1758,6 +1839,88 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed; refresh cookie cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    forgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Request accepted; check email if the account exists */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+            /** @description `UPSTREAM_DATA_UNAVAILABLE`. Password reset email is not configured. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password reset; refresh cookie cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
         };
     };
     getMe: {

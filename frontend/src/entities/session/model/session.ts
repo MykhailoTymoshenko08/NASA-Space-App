@@ -74,6 +74,14 @@ function clear() {
   setState({ status: "anonymous", user: null });
 }
 
+/** Password updates revoke this session along with every other session for the account. */
+export const clearSession = () => clear();
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  await authApi.changePassword(currentPassword, newPassword);
+  clear();
+}
+
 async function refreshSession(): Promise<boolean> {
   try {
     accept(await authApi.refresh());

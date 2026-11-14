@@ -42,7 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         lifespan=lifespan,
         title="Field Shift API",
-        version="0.4.1",
+        version="0.7.0",
         docs_url=f"{API_PREFIX}/docs",
         openapi_url=f"{API_PREFIX}/openapi-generated.json",
     )
@@ -51,6 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         name: RateLimiter(settings.rate_limit_requests, settings.rate_limit_window_s)
         for name in ("analyses", "locations", "auth")
     }
+    app.state.limiters["password"] = RateLimiter(5, 60)
 
     install_error_handlers(app)
     app.add_middleware(

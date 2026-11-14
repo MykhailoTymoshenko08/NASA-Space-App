@@ -38,7 +38,7 @@ def get_current_user(
     if creds is None or creds.scheme.lower() != "bearer" or not creds.credentials:
         raise unauthorized("Not signed in.", "missing_token")
     try:
-        user_id = decode_access_token(creds.credentials, svc.jwt_secret)
+        user_id, version = decode_access_token(creds.credentials, svc.jwt_secret)
     except TokenExpired:
         raise unauthorized("Session expired. Refresh the access token.", "token_expired") from None
     except TokenInvalid:
@@ -46,4 +46,6 @@ def get_current_user(
     user = store.get_by_id(user_id)
     if user is None:
         raise unauthorized("Invalid access token.", "unknown_user")
+    if user.auth_version != version:
+        raise unauthorized("Password changed. Sign in again.", "session_revoked")
     return user

@@ -44,14 +44,15 @@ class TokenInvalid(Exception):
     pass
 
 
-def create_access_token(user_id: UUID, secret: str, ttl: timedelta) -> str:
+def create_access_token(user_id: UUID, secret: str, ttl: timedelta, auth_version: int = 0) -> str:
     now = datetime.now(UTC)
-    claims = {"sub": str(user_id), "type": ACCESS_TYPE, "iat": now, "exp": now + ttl}
+    claims = {"sub": str(user_id), "type": ACCESS_TYPE, "iat": now, "exp": now + ttl,
+              "ver": auth_version}
     return jwt.encode(claims, secret, algorithm=ALGORITHM)
 
 
-def decode_access_token(token: str, secret: str) -> UUID:
-    """User id from a valid access token. Raises TokenExpired or TokenInvalid."""
+def decode_access_token(token: str, secret: str) -> tuple[UUID, int]:
+    """User id and session version from a valid access token. Raises TokenExpired or TokenInvalid."""
     try:
         claims = jwt.decode(
             token, secret, algorithms=[ALGORITHM], options={"require": ["sub", "exp", "type"]}
@@ -62,7 +63,10 @@ def decode_access_token(token: str, secret: str) -> UUID:
         raise TokenInvalid from e
     if claims.get("type") != ACCESS_TYPE:
         raise TokenInvalid
+    version = claims.get("ver", 0)  # Tokens issued before password recovery shipped have version zero.
+    if type(version) is not int or version < 0:
+        raise TokenInvalid
     try:
-        return UUID(claims["sub"])
+        return UUID(claims["sub"]), version
     except (ValueError, TypeError) as e:
         raise TokenInvalid from e

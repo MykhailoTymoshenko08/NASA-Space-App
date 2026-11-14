@@ -444,6 +444,12 @@ def _normalize_email(v: Any) -> Any:
 Email = Annotated[EmailStr, BeforeValidator(_normalize_email), Field(max_length=254)]
 
 
+def _strong_password(v: str) -> str:
+    if not any(ch.isalpha() for ch in v) or not any(ch.isdigit() for ch in v):
+        raise ValueError("Password must contain at least one letter and one digit")
+    return v
+
+
 class RegisterRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     email: Email
@@ -452,9 +458,7 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def _password_rules(cls, v: str) -> str:
-        if not any(ch.isalpha() for ch in v) or not any(ch.isdigit() for ch in v):
-            raise ValueError("Password must contain at least one letter and one digit")
-        return v
+        return _strong_password(v)
 
 
 class LoginRequest(BaseModel):
@@ -462,6 +466,29 @@ class LoginRequest(BaseModel):
     email: Email
     # No strength rules on login: a wrong password just fails with 401.
     password: str = Field(min_length=1, max_length=PASSWORD_MAX)
+
+
+class NewPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    new_password: str = Field(min_length=PASSWORD_MIN, max_length=PASSWORD_MAX)
+
+    @field_validator("new_password")
+    @classmethod
+    def _password_rules(cls, v: str) -> str:
+        return _strong_password(v)
+
+
+class ChangePasswordRequest(NewPasswordRequest):
+    current_password: str = Field(min_length=1, max_length=PASSWORD_MAX)
+
+
+class ForgotPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: Email
+
+
+class ResetPasswordRequest(NewPasswordRequest):
+    token: str = Field(min_length=1, max_length=256)
 
 
 class UserOut(BaseModel):

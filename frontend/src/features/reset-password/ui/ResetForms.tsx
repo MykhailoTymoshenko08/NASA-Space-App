@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { emailError, passwordOk } from "@/entities/session";
+import { clearSession, emailError, passwordOk } from "@/entities/session";
+import { ApiError, friendlyMessage } from "@/shared/api";
 import { Button } from "@/shared/ui/button";
 import { Message } from "@/shared/ui/feedback";
 import { PasswordField, TextField } from "@/shared/ui/form";
@@ -7,7 +8,8 @@ import { Icon } from "@/shared/ui/icon";
 import { passwordResetApi } from "../api/password-reset-api";
 import s from "./reset.module.css";
 
-const messageOf = (err: unknown) => (err instanceof Error ? err.message : "Something went wrong. Try again.");
+const messageOf = (err: unknown) =>
+  err instanceof ApiError ? friendlyMessage(err) : "Something went wrong. Try again.";
 
 /** Step 1: email in, "Send reset link". */
 export function RequestResetForm({ initialEmail = "", onSent }: { initialEmail?: string; onSent: (email: string) => void }) {
@@ -43,6 +45,7 @@ export function RequestResetForm({ initialEmail = "", onSent }: { initialEmail?:
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         error={emailErr}
+        maxLength={254}
       />
       {error && (
         <Message tone="error" role="alert">
@@ -77,6 +80,7 @@ export function NewPasswordForm({ token, onSaved }: { token: string; onSaved: ()
     setPending(true);
     try {
       await passwordResetApi.setNewPassword(token, pw);
+      clearSession();
       onSaved();
     } catch (err) {
       setError(messageOf(err));

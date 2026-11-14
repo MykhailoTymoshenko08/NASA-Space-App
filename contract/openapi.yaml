@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Field Shift API
-  version: 0.6.1
+  version: 0.7.0
   description: |
     Contract between the frontend and backend of the Field Shift farmer map
     (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
@@ -607,6 +607,81 @@ paths:
       responses:
         '204':
           description: Signed out
+  /auth/change-password:
+    post:
+      tags: [auth]
+      operationId: changePassword
+      summary: Change the signed-in user's password
+      description: |
+        Requires the current password. On success, all access tokens, refresh tokens and reset links
+        for this user are revoked, including this session. Clear the local session and sign in again.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password changed; refresh cookie cleared
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/forgot-password:
+    post:
+      tags: [auth]
+      operationId: forgotPassword
+      summary: Request a password reset email
+      description: |
+        Returns the same empty 202 for known and unknown email addresses. Delivery runs after the
+        response through Brevo SMTP. Reset links expire after one hour and are single use. At most
+        one email per account per minute. A new link invalidates the previous link. The response never
+        contains a token. 502 means SMTP is not configured, regardless of whether the account exists.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '202':
+          description: Request accepted; check email if the account exists
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          description: '`UPSTREAM_DATA_UNAVAILABLE`. Password reset email is not configured.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/reset-password:
+    post:
+      tags: [auth]
+      operationId: resetPassword
+      summary: Set a new password using an emailed reset token
+      description: |
+        A missing, invalid, expired or used token is 422 VALIDATION_ERROR. On success all access tokens,
+        refresh tokens and reset links for the account are revoked; sign in again with the new password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Password reset; refresh cookie cleared
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /me:
     get:
       tags:
@@ -842,7 +917,8 @@ components:
     Unauthorized:
       description: |
         `UNAUTHORIZED`. `details.reason` is one of `missing_token`, `token_expired`, `invalid_token`,
-        `unknown_user`, `invalid_credentials`, `missing_refresh_token`, `invalid_refresh_token`.
+        `unknown_user`, `invalid_credentials`, `missing_refresh_token`, `invalid_refresh_token`,
+        `session_revoked`.
       headers:
         WWW-Authenticate:
           schema:
@@ -912,6 +988,44 @@ components:
           type: string
           minLength: 1
           maxLength: 128
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          minLength: 1
+          maxLength: 128
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: At least one letter and one digit, as for registration.
+    ForgotPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [token, new_password]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: Opaque token from the emailed link.
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: At least one letter and one digit, as for registration.
     User:
       type: object
       additionalProperties: false

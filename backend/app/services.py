@@ -98,6 +98,10 @@ class Services:
             log.warning("JWT_SECRET not set: using a random per-process secret (tokens die on restart)")
             self.jwt_secret = secrets.token_urlsafe(48)
 
+        from app.auth.mail import PasswordResetMailer
+
+        self.password_reset_mailer = PasswordResetMailer(settings)
+
     @staticmethod
     def _tiles(path: Path) -> TileSource | None:
         if not path.exists():

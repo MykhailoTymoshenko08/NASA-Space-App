@@ -3,6 +3,17 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.7.0 (2026-11-14): password change and recovery
+
+- `POST /auth/change-password`: bearer auth plus current password; returns 204.
+- `POST /auth/forgot-password`: generic 202 for known and unknown accounts; sends a one-hour,
+  single-use reset link through Brevo SMTP, limited to one email per account per minute.
+- `POST /auth/reset-password`: token and new password; returns 204, or 422 for an invalid/expired token.
+- Password changes and resets revoke all access tokens, refresh tokens and outstanding reset links.
+  The client must sign in again. Existing JWTs without a session version remain valid until the first
+  password update (or their normal expiry). New unauthorized reason: `session_revoked`.
+- New request schemas: `ChangePasswordRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`.
+
 ## 0.6.1 (2026-11-14): sourced profitability baseline
 
 No schema change.

@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -58,8 +58,28 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = False
     auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
+    # Brevo transactional SMTP. Password reset is unavailable until all three credentials are set.
+    smtp_host: str = "smtp-relay.brevo.com"
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from_email: EmailStr | None = None
+    smtp_from_name: str = Field(default="Field Shift", pattern=r"^[^\r\n]+$", max_length=100)
+
     # Saved fields (per user, in the `database_url` database).
     saved_fields_max_per_user: int = Field(default=50, ge=1)
+
+    @field_validator("smtp_from_email", mode="before")
+    @classmethod
+    def _empty_sender(cls, v):
+        return None if v == "" else v
+
+    @field_validator("smtp_port")
+    @classmethod
+    def _smtp_port_supported(cls, v: int) -> int:
+        if v not in {587, 465, 2525}:
+            raise ValueError("SMTP port must be 587, 465 or 2525")
+        return v
 
     @field_validator("jwt_secret")
     @classmethod

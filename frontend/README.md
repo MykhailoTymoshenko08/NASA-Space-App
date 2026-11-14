@@ -53,19 +53,25 @@ change the contract first (and add an entry to `CONTRACT_CHANGELOG.md`), then ru
 | Analysis setup | `/analysis?field_id=..` | `POST /snapshots` (cached), `POST /analyses` (202) |
 | Analysis | `/analysis/:jobId?field_id=..&p=..&h=..` | `GET /analyses/{job_id}`, every 2 s, every 5 s after 30 s |
 | Sign in, create account | `/sign-in`, `/sign-up` | `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh` (on start), `POST /auth/logout` |
-| Reset password | `/reset-password` | Stub (no contract route yet) |
+| Reset password | `/reset-password` | `POST /auth/forgot-password`, `POST /auth/reset-password` |
 | My fields, compare | `/my-fields` | `GET`/`POST /me/fields`, `DELETE /me/fields/{id}` (Save field button too). Compare: `POST /snapshots` per field |
 
 Auth: the access token is kept in memory only; the refresh token is the backend's httpOnly cookie
 (`credentials: "include"` on `/auth/*`). "Keep me signed in" off ends the session with the browser tab.
 
-### Stubs (the design needs them, the contract does not have them)
+Password recovery sends email through the backend's Brevo SMTP configuration (see `backend/README.md`).
+The email link opens `/reset-password?token=...`; the page captures the token in memory, removes it
+from the URL, and sends it only in the reset request body. Links expire after one hour and work once.
+The page uses a generic confirmation for known and unknown accounts. A successful reset clears the
+local session; the user signs in again. Referrers are disabled to keep reset links out of external requests.
 
-Each sits behind one interface, so the real endpoint replaces one object:
+Authenticated password change is available to UI callers through
+`entities/session.changePassword(currentPassword, newPassword)`, which calls
+`POST /auth/change-password` and clears the local session on success. No settings screen is included.
 
-- **Password reset** (`features/reset-password/api/password-reset-api.ts`, `PasswordResetApi`):
-  request link, set new password. Works in mock mode; against a real backend it says reset is not available.
-- **PDF export**: prints the result page (browser "Save as PDF"). No server endpoint.
+### PDF export
+
+Prints the result page (browser "Save as PDF"). No server endpoint.
 
 ### Mock scenarios
 
@@ -80,6 +86,8 @@ Each sits behind one interface, so the real endpoint replaces one object:
 Mock mode serves no map tiles, so the maps show no outlines; everything else works.
 Demo accounts and saved fields are kept in `localStorage`. Saving outside Iowa, Illinois or Nebraska
 returns `422 OUTSIDE_COVERAGE`, as the real API does.
+In mock mode, password recovery uses the explicit "Demo: open the link from the email" button
+instead of sending mail. Reset an existing demo account; the new password replaces its old password.
 
 ## Structure (FSD)
 

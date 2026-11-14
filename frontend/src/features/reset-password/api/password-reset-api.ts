@@ -1,9 +1,9 @@
+import { api, unwrap } from "@/shared/api";
 import { env } from "@/shared/config";
 
 /**
- * STUB. The contract has no password reset routes yet (design README, open question 2).
- * The screens call only this interface. In demo mode (VITE_USE_MOCKS=1) it pretends to succeed so
- * every state can be reviewed; against a real backend it reports that reset is not available.
+ * Password recovery through our backend. Both real and demo modes use the typed API client;
+ * the backend sends reset links through Brevo SMTP without exposing account existence.
  */
 export interface PasswordResetApi {
   /** Ask for a reset link by email. Must not reveal whether the account exists. */
@@ -12,24 +12,10 @@ export interface PasswordResetApi {
   setNewPassword(token: string, password: string): Promise<void>;
 }
 
-export class ResetUnavailableError extends Error {
-  constructor() {
-    super("Password reset is not available yet. Please contact us to reset your password.");
-    this.name = "ResetUnavailableError";
-  }
-}
-
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 export const passwordResetApi: PasswordResetApi = {
-  async requestLink() {
-    if (!env.useMocks) throw new ResetUnavailableError();
-    await wait(400);
-  },
-  async setNewPassword() {
-    if (!env.useMocks) throw new ResetUnavailableError();
-    await wait(400);
-  },
+  requestLink: (email) => unwrap(api.POST("/auth/forgot-password", { body: { email } })),
+  setNewPassword: (token, password) =>
+    unwrap(api.POST("/auth/reset-password", { body: { token, new_password: password }, credentials: "include" })),
 };
 
 /** Demo mode shows a button that stands in for clicking the emailed link. */

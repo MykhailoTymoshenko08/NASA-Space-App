@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { canSimulateEmailLink, NewPasswordForm, RequestResetForm } from "@/features/reset-password";
 import { ROUTES } from "@/shared/config";
@@ -23,15 +23,23 @@ const COPY: Record<Step, { title: string; lead: string }> = {
 
 /**
  * Request link, sent, new password, done. The emailed link opens this page with ?token=..
- * The API calls are a stub until the contract has reset routes (see features/reset-password).
+ * The backend delivers the link through Brevo SMTP; the raw token stays only in this form's memory.
  */
 export function ResetPasswordPage() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const urlToken = params.get("token");
   const [step, setStep] = useState<Step>(urlToken ? "new" : "request");
   const [email, setEmail] = useState("");
   const [token, setToken] = useState(urlToken ?? "");
   useDocumentTitle(COPY[step].title);
+
+  // Remove the bearer secret from browser history and later navigation once captured in memory.
+  useEffect(() => {
+    if (!params.has("token")) return;
+    const next = new URLSearchParams(params);
+    next.delete("token");
+    setParams(next, { replace: true });
+  }, [params, setParams]);
 
   return (
     <FormCard title={COPY[step].title} lead={COPY[step].lead}>
@@ -55,7 +63,7 @@ export function ResetPasswordPage() {
         <>
           <Message tone="success" role="status">
             <span>
-              Link sent to <strong>{email}</strong>
+              If an account exists, we will email a reset link to <strong>{email}</strong>.
             </span>
           </Message>
           <p className={s.muted}>Nothing there after a few minutes? Look in your spam folder, or send it again.</p>

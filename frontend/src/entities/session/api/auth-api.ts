@@ -10,5 +10,9 @@ export const authApi = {
     unwrap<AuthTokens>(api.POST("/auth/register", { body: { email, password }, ...withCookie })),
   refresh: () => unwrap<AuthTokens>(api.POST("/auth/refresh", withCookie)),
   logout: () => unwrap(api.POST("/auth/logout", withCookie)),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    unwrap(api.POST("/auth/change-password", {
+      body: { current_password: currentPassword, new_password: newPassword }, ...withCookie,
+    })),
   me: () => unwrap<User>(api.GET("/me")),
 };

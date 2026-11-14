@@ -110,7 +110,7 @@ function jobView(id: string, job: Job): S["AnalysisJob"] {
 
 /* ---------- auth ---------- */
 
-type Account = { id: string; email: string; password: string; created_at: string };
+type Account = { id: string; email: string; password: string; created_at: string; auth_version?: number };
 const ACCOUNTS_KEY = "fieldline.mock.accounts";
 const SESSION_KEY = "fieldline.mock.refresh";
 const memory = new Map<string, string>();
@@ -136,8 +136,20 @@ const accounts = (): Account[] => JSON.parse(store.get(ACCOUNTS_KEY) ?? "[]") as
 const userOf = (a: Account): S["User"] => ({ id: a.id, email: a.email, created_at: a.created_at });
 const tokensFor = (a: Account): S["AuthTokens"] => {
   store.set(SESSION_KEY, a.id);
-  return { access_token: `mock.${a.id}`, token_type: "bearer", expires_in: 900, user: userOf(a) };
+  return { access_token: `mock.${a.id}.${a.auth_version ?? 0}`, token_type: "bearer", expires_in: 900, user: userOf(a) };
 };
+
+// Demo mode substitutes its explicit "open email" button for an SMTP inbox.
+let demoReset: { userId: string; expiresAt: number } | null = null;
+const validNewPassword = (password: string) =>
+  password.length >= 8 && password.length <= 128 && /\d/.test(password) && /\p{L}/u.test(password);
+
+function replacePassword(account: Account, password: string) {
+  const changed = { ...account, password, auth_version: (account.auth_version ?? 0) + 1 };
+  store.set(ACCOUNTS_KEY, JSON.stringify(accounts().map((a) => a.id === account.id ? changed : a)));
+  if (store.get(SESSION_KEY) === account.id) store.set(SESSION_KEY, null);
+  if (demoReset?.userId === account.id) demoReset = null;
+}
 
 /* ---------- saved fields ---------- */
 
@@ -148,10 +160,10 @@ const savedRows = (): SavedRow[] => JSON.parse(store.get(FIELDS_KEY) ?? "[]") as
 const writeRows = (rows: SavedRow[]) => store.set(FIELDS_KEY, JSON.stringify(rows));
 const publicRow = ({ owner: _owner, ...row }: SavedRow): S["SavedField"] => row;
 
-/** The account behind "Authorization: Bearer mock.<id>", or null. */
+/** The account behind "Authorization: Bearer mock.<id>.<version>", or null. */
 function bearerAccount(request: Request): Account | null {
-  const id = request.headers.get("Authorization")?.replace(/^Bearer mock\./, "");
-  return accounts().find((x) => x.id === id) ?? null;
+  const match = /^Bearer mock\.([^.]+)\.(\d+)$/.exec(request.headers.get("Authorization") ?? "");
+  return match ? accounts().find((a) => a.id === match[1] && (a.auth_version ?? 0) === Number(match[2])) ?? null : null;
 }
 const unauthorized = () => errorResponse(401, "UNAUTHORIZED", "Sign in first.", { "WWW-Authenticate": "Bearer" });
 
@@ -382,9 +394,43 @@ export const handlers: AnyHandler[] = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  http.post<never, S["ForgotPasswordRequest"]>(url("/auth/forgot-password"), async ({ request }) => {
+    const { email } = await request.json();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email?.trim() ?? "")) {
+      return errorResponse(422, "VALIDATION_ERROR", "Enter a valid email address.");
+    }
+    const account = accounts().find((a) => a.email === email.trim().toLowerCase());
+    demoReset = account ? { userId: account.id, expiresAt: Date.now() + 3_600_000 } : null;
+    return new HttpResponse(null, { status: 202 });
+  }),
+
+  http.post<never, S["ResetPasswordRequest"]>(url("/auth/reset-password"), async ({ request }) => {
+    const { token, new_password } = await request.json();
+    const account = demoReset && accounts().find((a) => a.id === demoReset!.userId);
+    if (token !== "demo-token" || !demoReset || demoReset.expiresAt <= Date.now() || !account) {
+      return errorResponse(422, "VALIDATION_ERROR", "This reset link is invalid or expired. Request a new password reset email.");
+    }
+    if (!validNewPassword(new_password)) {
+      return errorResponse(422, "VALIDATION_ERROR", "Use at least 8 characters with one letter and one number.");
+    }
+    replacePassword(account, new_password);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post<never, S["ChangePasswordRequest"]>(url("/auth/change-password"), async ({ request }) => {
+    const account = bearerAccount(request);
+    if (!account) return unauthorized();
+    const { current_password, new_password } = await request.json();
+    if (account.password !== current_password) return errorResponse(401, "UNAUTHORIZED", "Current password is incorrect.");
+    if (!validNewPassword(new_password)) {
+      return errorResponse(422, "VALIDATION_ERROR", "Use at least 8 characters with one letter and one number.");
+    }
+    replacePassword(account, new_password);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   http.get(url("/me"), ({ request }) => {
-    const token = request.headers.get("Authorization")?.replace(/^Bearer mock\./, "");
-    const a = accounts().find((x) => x.id === token);
+    const a = bearerAccount(request);
     return a ? HttpResponse.json(userOf(a)) : errorResponse(401, "UNAUTHORIZED", "Sign in first.");
   }),
 ];

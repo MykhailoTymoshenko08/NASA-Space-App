@@ -1,7 +1,7 @@
 # Field Shift backend
 
 FastAPI backend for Field Shift, a NASA Space Apps crop-rotation decision-support tool for US farmers.
-It implements `../contract/openapi.yaml` (v0.4.2). The contract is the source of truth; see
+It implements `../contract/openapi.yaml` (v0.7.0). The contract is the source of truth; see
 `../contract/CONTRACT_CHANGELOG.md` for changes.
 
 ## Setup
@@ -249,6 +249,50 @@ startup if missing). Passwords are hashed with argon2id.
   in-memory store and are lost on restart. Identical requests within 10 min reuse the job.
   The ML model plugs in through `app/analyses/engine.py: AnalysisEngine`; set it in
   `app/services.py` in place of `StubAnalysisEngine`.
+
+## Password change and recovery (Brevo SMTP)
+
+The existing `/reset-password` frontend now calls the real API. All new passwords use the same rules
+as registration: 8–128 characters, at least one letter and one digit.
+
+| Endpoint | Request body | Success |
+|---|---|---|
+| `POST /v1/auth/change-password` | `{"current_password":"old-password1","new_password":"new-password2"}` plus bearer token | 204; sign in again |
+| `POST /v1/auth/forgot-password` | `{"email":"farmer@example.com"}` | Empty 202 for both known and unknown accounts |
+| `POST /v1/auth/reset-password` | `{"token":"token-from-email","new_password":"new-password2"}` | 204; sign in again |
+
+Copy `.env.example` to `.env` if needed, then set `SMTP_USERNAME`, `SMTP_PASSWORD` and
+`SMTP_FROM_EMAIL`. Never commit real credentials. In
+[Brevo's SMTP settings](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP),
+use the displayed SMTP login, an **SMTP key**, and an authenticated sender address. The default relay
+is `smtp-relay.brevo.com:587`, with mandatory STARTTLS and certificate validation. Port 465 uses
+implicit TLS; 2525 uses STARTTLS. `SMTP_FROM_NAME` defaults to `Field Shift`.
+
+Set `FRONTEND_ORIGIN` to the frontend origin that recipients can open (HTTPS in production). Reset
+links use this configured origin, never the request's Host header. Restart the API after changing
+configuration. Docker Compose passes these SMTP settings from `backend/.env` into the API container.
+Without all three required values, forgot-password returns 502 for every email address. Local tests
+replace SMTP with a capture or mock; they never send real emails.
+
+Reset links expire in one hour, are stored only as SHA-256 hashes, and work once. A new request after
+the one-minute per-account cooldown replaces the previous link. Password endpoints share a limit of
+five requests per IP per minute. Delivery uses an in-process background task after the generic 202;
+a process crash can lose pending mail. SMTP failures log only their exception class and remove the
+failed link so the request can be retried. The accepted response does not promise inbox delivery.
+
+A successful change or reset atomically updates the Argon2id hash, increments `users.auth_version`,
+and deletes every refresh token and reset link for the account. Previously issued access JWTs fail
+immediately. The client clears its local session and signs in again. No password-change settings
+page is added; `entities/session.changePassword(currentPassword, newPassword)` exposes the API to UI
+callers and clears the local session on success.
+
+Schema expansion runs idempotently at startup: a default-zero `users.auth_version` column and a
+`password_reset_tokens` table are added. Existing users, refresh tokens and saved fields are
+preserved. JWTs issued before this release use version zero until a password update. Deploy by
+restarting all API workers together: older workers do not enforce password-update revocation.
+For a code rollback, leave the additive schema in place, rotate `JWT_SECRET`, and revoke refresh
+tokens before running old workers; otherwise old code would accept sessions revoked by this release.
+No schema removal is needed or performed.
 
 ## Field context after map selection
 
