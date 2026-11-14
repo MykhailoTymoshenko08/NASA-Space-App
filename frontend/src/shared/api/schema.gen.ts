@@ -318,7 +318,10 @@ export interface paths {
          *     default. Costs are the baseline for the crop and state; `land_rent_per_acre` replaces the
          *     baseline rent and `total_cost_per_acre` replaces all costs. Corn after soybeans gets a nitrogen
          *     credit on fertilizer. `assumptions` explains each number in plain English for the UI.
-         *     While `baseline.is_placeholder` is true the tables hold rough placeholder values, not USDA data.
+         *     Baseline prices are per crop and state (NASS marketing-year averages: base = last 3 years,
+         *     low / high = 10th / 90th percentile of the last 10); yields are NASS 5-year state means; costs come
+         *     from 2026 extension budgets. `baseline.is_placeholder` is true when any baseline number this
+         *     estimate used is still a placeholder (for example Iowa winter wheat, or land rent).
          */
         post: operations["estimateProfitability"];
         delete?: never;
@@ -1117,7 +1120,7 @@ export interface components {
             assumptions: string[];
             baseline: {
                 version: string;
-                /** @description True while the tables hold placeholder values. The UI should label the numbers as illustrative. */
+                /** @description True when any baseline number used in this estimate is a placeholder, not sourced data. The UI should then label the numbers as illustrative. */
                 is_placeholder: boolean;
             };
         };
