@@ -1,7 +1,7 @@
 # Field Shift backend
 
 FastAPI backend for Field Shift, a NASA Space Apps crop-rotation decision-support tool for US farmers.
-It implements `../contract/openapi.yaml` (v0.3.1). The contract is the source of truth; see
+It implements `../contract/openapi.yaml` (v0.4.1). The contract is the source of truth; see
 `../contract/CONTRACT_CHANGELOG.md` for changes.
 
 ## Setup
@@ -10,6 +10,8 @@ Requirements:
 
 - [uv](https://docs.astral.sh/uv/) (installs Python 3.12 and all dependencies).
 - Docker (for PostGIS, `docker-compose.yml`), or any PostgreSQL 16 + PostGIS 3 reachable via `DATABASE_URL`.
+- [Git LFS](https://git-lfs.com) (`git lfs install` once): `data/csb_ia_il_ne.pmtiles` (540 MB) is stored
+  in LFS, so a clone gets it without rebuilding.
 - [tippecanoe](https://github.com/felt/tippecanoe) 2.x, only needed to build vector tiles (`make data`).
   - Arch: `yay -S tippecanoe` (AUR)
   - macOS: `brew install tippecanoe`
@@ -23,10 +25,11 @@ From a fresh clone:
 ```sh
 cd backend
 cp .env.example .env      # optional, defaults work
+git lfs pull              # data/csb_ia_il_ne.pmtiles, if the clone did not fetch it
 make db                   # PostGIS on localhost:5433 (docker compose)
-make data                 # boundaries + CSB import into PostGIS + field PMTiles (idempotent)
-make serve-tiles          # field PMTiles on http://localhost:8787 (Range + CORS), separate terminal
+make data-boundaries data-csb   # boundaries + CSB import into PostGIS (~15 min, 3.8 GB download once)
 make dev                  # http://localhost:8000/v1/health, docs at /v1/docs
+# or run the API in docker too: make up  (PostGIS + API, the PMTiles mounted read-only)
 ```
 
 | Command | What it does |
@@ -38,15 +41,15 @@ make dev                  # http://localhost:8000/v1/health, docs at /v1/docs
 | `make test` | full test suite: no network, no `make data` needed (synthetic fixtures in a scratch PostGIS database; needs `make db`) |
 | `make contract-check` | contract tests (real responses validated against the YAML) + `openapi.json` sync check |
 | `make contract-json` | regenerate `../contract/openapi.json` from the YAML |
-| `make data` / `data-boundaries` / `data-csb` / `data-tiles` | build boundaries, import CSB into PostGIS, build `data/csb_ia_il_ne.pmtiles`; add `FORCE=1` to rebuild (downloads stay cached) |
-| `make serve-tiles` | local static server for the field PMTiles (Range + CORS for `FRONTEND_ORIGIN`) |
+| `make up` | PostGIS + API in docker compose; `data/csb_ia_il_ne.pmtiles` is a read-only volume |
+| `make data` / `data-boundaries` / `data-csb` / `data-tiles` | build boundaries, import CSB into PostGIS, build `data/csb_ia_il_ne.pmtiles` (only needed after a data change; commit the new file, it is in LFS); add `FORCE=1` to rebuild (downloads stay cached) |
 | `make lint` | ruff |
 | `make docker` | build image `field-shift-backend` with the boundary data baked in |
 
-Docker: `make docker`, then
-`docker run --rm -p 8000:8000 -e FRONTEND_ORIGIN=<frontend url> -e DATABASE_URL=<postgis url> -e FIELDS_PMTILES_URL=<https url> field-shift-backend`.
-The image holds only the boundary data (~10 MB). Field polygons live in PostGIS and the field tiles on
-static hosting, so neither is in the image.
+Docker: `make up` (compose: PostGIS + API), or `make docker` and then
+`docker run --rm -p 8000:8000 -e FRONTEND_ORIGIN=<frontend url> -e DATABASE_URL=<postgis url> -v "$PWD/data/csb_ia_il_ne.pmtiles:/app/data/csb_ia_il_ne.pmtiles:ro" field-shift-backend`.
+The image holds only the boundary data (~10 MB). Field polygons live in PostGIS and the field PMTiles
+is mounted as a volume, so neither is in the image.
 
 CI (`.github/workflows/backend.yml`) runs lint, `make contract-check` and `make test` with a PostGIS
 service container.
@@ -59,7 +62,8 @@ service container.
 | `DATA_DIR` | `backend/data` | prepared data (see `data/README.md`) |
 | `CACHE_DIR` | `backend/.cache` | disk cache (diskcache) |
 | `DATABASE_URL` | `postgresql://fieldshift:fieldshift@localhost:5433/fieldshift` | PostGIS with the CSB fields; empty or unreachable = every point is a buffered point (logged at startup) |
-| `FIELDS_PMTILES_URL` | `http://localhost:8787/csb_ia_il_ne.pmtiles` | public URL of the field PMTiles, sent as `coverage.field_tiles.url_template` |
+| `FIELDS_PMTILES_FILE` | `csb_ia_il_ne.pmtiles` | field PMTiles in `DATA_DIR`, served at `/v1/tiles/fields.pmtiles` |
+| `FIELDS_PMTILES_URL` | empty | optional absolute URL of the same file on external hosting; empty = `coverage.field_tiles.url_template` is the backend's own `/v1/tiles/fields.pmtiles` |
 | `LOG_LEVEL` | `INFO` | every log line carries the request id |
 | `STUB_DURATION_S` | `6` | analysis stub run time |
 | `STUB_FAIL_RATE` | `0` | 0..1, share of analysis jobs that fail on purpose |
@@ -116,9 +120,9 @@ startup if missing). Passwords are hashed with argon2id.
   - Distances, buffers and areas are computed in EPSG:5070. The rare MultiPolygon (from
     `ST_MakeValid`) is returned as its part containing the point, else its largest part.
 - **Tiles:**
-  - Field polygons: one static PMTiles file, `data/csb_ia_il_ne.pmtiles`, layer `fields` (`field_id`,
-    `crop_class`, `area_ha`), hosted outside the backend (see "Hosting the field tiles"). The backend
-    only reports its URL and zooms in `/v1/meta/coverage`.
+  - Field polygons: one PMTiles file, `data/csb_ia_il_ne.pmtiles`, layer `fields` (`field_id`,
+    `crop_class`, `area_ha`), served whole at `/v1/tiles/fields.pmtiles` with HTTP Range support (see
+    "Serving the field tiles"). `/v1/meta/coverage` reports its absolute URL and zooms.
   - Boundaries: `/v1/tiles/boundaries/{z}/{x}/{y}.mvt` (`states`, `counties` from z5), gzip-encoded,
     204 for empty tiles.
 - **Map links** (`POST /locations/resolve`): full Google/Apple URLs are parsed locally and never
@@ -252,44 +256,28 @@ Result (2026-11-14, one laptop, PostGIS in Docker):
 | `csb_ia_il_ne.pmtiles` | 540 MB (539,948,783 bytes), z11-14, layer `fields`, every field present at z11 |
 | Tile build time | 386 s (export + tippecanoe at the first try, min zoom 11) |
 
-## Hosting the field tiles
+## Serving the field tiles
 
-PMTiles clients read the file with HTTP Range requests. The host must support `Range` and CORS.
-Static page hosts without Range support (GitHub Pages, most "static site" hosts) do not work.
+The frontend reads `data/csb_ia_il_ne.pmtiles` with the PMTiles client, which sends HTTP Range
+requests. The backend serves the file at `GET`/`HEAD /v1/tiles/fields.pmtiles`:
+- Starlette `FileResponse` answers a `Range` with 206 and `Content-Range`, and sets `ETag`.
+- CORS allows `HEAD` and exposes `ETag`, `Content-Range` and `Content-Length`.
+- `coverage.field_tiles.url_template` is the absolute URL of this route. It is built from the request,
+  so with `--proxy-headers` it follows the public host behind a reverse proxy.
 
-Development: `make serve-tiles` serves `data/*.pmtiles` on `http://localhost:8787` with Range, ETag
-and CORS for `FRONTEND_ORIGIN` only (add more with `--origin`). Keep `FIELDS_PMTILES_URL` at its
-default.
+Sharing: the file is tracked with Git LFS (`.gitattributes`). After `make data-tiles FORCE=1`, commit
+the new file so teammates get it with `git lfs pull`. GitHub's free LFS quota is 1 GB storage and
+1 GB/month download, so each pull of the 540 MB file counts. Buy a data pack if the team pulls often.
 
-Production (Cloudflare R2; any S3-compatible store works the same way):
+Docker: `docker-compose.yml` mounts the file read-only into the `api` container
+(`./data/csb_ia_il_ne.pmtiles:/app/data/csb_ia_il_ne.pmtiles:ro`); it is not copied into the image.
 
-1. Create a bucket, e.g. `field-shift-tiles`, and give it a public custom domain (R2 > bucket >
-   Settings > Custom Domains) or the `r2.dev` URL.
-2. Upload (multipart is required for files over 5 GB, and both tools do it):
-   - `rclone copyto data/csb_ia_il_ne.pmtiles r2:field-shift-tiles/csb_ia_il_ne.pmtiles`, or
-   - `aws s3 cp data/csb_ia_il_ne.pmtiles s3://field-shift-tiles/ --endpoint-url https://<account>.r2.cloudflarestorage.com`
-3. CORS policy on the bucket (only the frontend origins; GET and HEAD; header `Range`; expose `ETag`):
+Check: `curl -s -D - -o /dev/null -H "Origin: http://localhost:5173" -H "Range: bytes=0-16383" http://localhost:8000/v1/tiles/fields.pmtiles`
+must return `206`, `Content-Range` and `Access-Control-Allow-Origin`.
 
-   ```json
-   [{
-     "AllowedOrigins": ["https://<frontend origin>", "http://localhost:5173"],
-     "AllowedMethods": ["GET", "HEAD"],
-     "AllowedHeaders": ["Range"],
-     "ExposeHeaders": ["ETag"],
-     "MaxAgeSeconds": 86400
-   }]
-   ```
-
-   Apply with the R2 dashboard (Settings > CORS policy) or
-   `aws s3api put-bucket-cors --bucket field-shift-tiles --cors-configuration file://cors.json --endpoint-url ...`
-   (wrap the list as `{"CORSRules": [...]}` for the S3 API).
-4. Set `FIELDS_PMTILES_URL=https://<domain>/csb_ia_il_ne.pmtiles` on the backend.
-5. Check from the frontend origin:
-   `curl -sI -H "Origin: https://<frontend origin>" -H "Range: bytes=0-16383" $FIELDS_PMTILES_URL`
-   must return `206`, `Content-Range`, `Access-Control-Allow-Origin` and `Access-Control-Expose-Headers: ETag`.
-
-Upload a rebuilt file under a new name (or purge the CDN cache): PMTiles clients cache the header by
-ETag.
+Every map pan sends a few Range requests through uvicorn. That is fine for the MVP. For heavy traffic,
+put a CDN in front of the route, or upload the file to R2/S3 (Range + CORS) and set
+`FIELDS_PMTILES_URL`. The frontend needs no change.
 
 ## Data sources
 

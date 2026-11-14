@@ -81,7 +81,8 @@ def test_coverage(client):
     ft = c["field_tiles"]
     assert ft["format"] == "pmtiles"
     assert ft["unit"] == "estimated_csb"
-    assert ft["url_template"] == "http://tiles.test/csb_ia_il_ne.pmtiles"
+    # Served by this backend; absolute so a frontend on another origin can use it.
+    assert ft["url_template"] == "http://localhost:8000/v1/tiles/fields.pmtiles"
     assert ft["min_zoom"] == 12 and ft["max_zoom"] == 14
     assert ft["regions"] == [{"name": "Iowa", "bbox": [-93.8, 41.5, -93.4, 42.2]}]
     assert c["field_data_version"] == "test-1"
@@ -90,6 +91,13 @@ def test_coverage(client):
     assert src["boundary_type"] == "estimated_csb"
     assert src["edition"] == "2018-2025"
     assert "Crop Sequence Boundaries" in src["attribution"]
+
+
+def test_coverage_external_pmtiles_override(make_client, data_dir):
+    c = make_client(data_dir, fields_pmtiles_url="https://tiles.example.org/csb_ia_il_ne.pmtiles")
+    r = c.get("/v1/meta/coverage")
+    assert_matches_contract(r)
+    assert r.json()["field_tiles"]["url_template"] == "https://tiles.example.org/csb_ia_il_ne.pmtiles"
 
 
 def test_coverage_without_field_db(make_client, data_dir):
@@ -238,10 +246,53 @@ def test_crs_roundtrip():
 
 
 # ---------- tiles ----------
-def test_field_tile_endpoint_removed(client):
-    # Field tiles are a static PMTiles file since v0.3; the backend no longer serves them.
+def test_xyz_field_tile_endpoint_removed(client):
+    # Field polygons are one PMTiles file (below); there is no XYZ field tile endpoint since v0.3.
     z, x, y = tile_for(*F1_POINT, 14)
     assert client.get(f"/v1/tiles/fields/{z}/{x}/{y}.mvt").status_code == 404
+
+
+PMTILES = "/v1/tiles/fields.pmtiles"
+ORIGIN = {"Origin": "http://localhost:5173"}
+
+
+def test_fields_pmtiles_range_request(client, data_dir):
+    size = (data_dir / "csb_ia_il_ne.pmtiles").stat().st_size
+    r = client.get(PMTILES, headers={**ORIGIN, "Range": "bytes=0-126"})
+    assert r.status_code == 206
+    assert_matches_contract(r)
+    assert r.headers["content-range"] == f"bytes 0-126/{size}"
+    assert r.content[:7] == b"PMTiles" and len(r.content) == 127
+    assert r.headers["etag"]
+    assert r.headers["access-control-allow-origin"] == ORIGIN["Origin"]
+    exposed = {h.strip().lower() for h in r.headers["access-control-expose-headers"].split(",")}
+    assert {"etag", "content-range", "content-length"} <= exposed
+
+
+def test_fields_pmtiles_full_and_head(client, data_dir):
+    raw = (data_dir / "csb_ia_il_ne.pmtiles").read_bytes()
+    r = client.get(PMTILES)
+    assert r.status_code == 200 and r.content == raw
+    assert r.headers["accept-ranges"] == "bytes"
+    assert_matches_contract(r)
+    h = client.head(PMTILES)
+    assert h.status_code == 200 and int(h.headers["content-length"]) == len(raw)
+
+
+def test_fields_pmtiles_preflight_allows_range(client):
+    r = client.options(PMTILES, headers={
+        **ORIGIN, "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "range",
+    })
+    assert r.status_code == 200
+    assert "range" in r.headers["access-control-allow-headers"].lower()
+
+
+def test_fields_pmtiles_missing_is_404(make_client, data_dir):
+    c = make_client(data_dir, fields_pmtiles_file="missing.pmtiles")
+    r = c.get(PMTILES)
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "NOT_FOUND"
+    assert_matches_contract(r)
 
 
 def test_boundary_tile(client):

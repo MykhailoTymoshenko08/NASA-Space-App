@@ -1,4 +1,4 @@
-.PHONY: install dev test contract-check contract-json lint db data data-boundaries data-csb data-tiles serve-tiles demo docker
+.PHONY: install dev test contract-check contract-json lint db up data data-boundaries data-csb data-tiles demo docker
 
 UV ?= uv
 HOST ?= 127.0.0.1
@@ -41,24 +41,25 @@ data-boundaries:
 data-csb: db
 	$(UV) run python scripts/prepare_csb.py import $(FORCE_FLAG)
 
-# data/csb_ia_il_ne.pmtiles from PostGIS (tippecanoe). Host it outside the backend (README).
+# data/csb_ia_il_ne.pmtiles from PostGIS (tippecanoe). Served by the backend at /v1/tiles/fields.pmtiles
+# and tracked with Git LFS: commit the rebuilt file so teammates get it.
 data-tiles: db
 	$(UV) run python scripts/prepare_csb.py tiles $(FORCE_FLAG)
 
 data: data-boundaries data-csb data-tiles
-
-# Local static server for the field PMTiles with Range + CORS (dev stand-in for R2/S3).
-TILES_PORT ?= 8787
-serve-tiles:
-	$(UV) run python scripts/serve_tiles.py --port $(TILES_PORT)
 
 # Boot everything for a demo: install deps, build data if missing, run the API.
 demo: install
 	@test -f data/boundaries.pmtiles -a -f data/csb_ia_il_ne.pmtiles || $(MAKE) data
 	$(UV) run uvicorn app.main:app --host $(HOST) --port $(PORT)
 
+# PostGIS + API in docker compose; data/csb_ia_il_ne.pmtiles is mounted read-only into the api container.
+up:
+	@test -s data/csb_ia_il_ne.pmtiles || { echo "data/csb_ia_il_ne.pmtiles missing: git lfs pull (or make data-tiles)"; exit 1; }
+	$(COMPOSE) up -d --build --wait
+
 # Image with the boundary data baked in. Field polygons live in PostGIS (DATABASE_URL) and the field
-# PMTiles on static hosting (FIELDS_PMTILES_URL), so neither is in the image.
+# PMTiles is mounted as a volume (docker-compose.yml), so neither is in the image.
 IMAGE ?= field-shift-backend
 docker:
 	@test -f data/boundaries.pmtiles || $(MAKE) data-boundaries

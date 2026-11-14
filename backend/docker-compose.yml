@@ -1,6 +1,21 @@
-# PostGIS for the CSB field polygons. Start with `make db` (or `docker compose up -d db`).
-# Host port 5433 so it does not clash with a local PostgreSQL on 5432.
+# PostGIS for the CSB field polygons, and the API.
+#   make db   PostGIS only (for `make dev`, tests and the data import), host port 5433
+#   make up   PostGIS + API on http://localhost:8000
 services:
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://fieldshift:fieldshift@db:5432/fieldshift
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Field PMTiles (Git LFS, ~540 MB): mounted read-only, not baked into the image.
+      - ./data/csb_ia_il_ne.pmtiles:/app/data/csb_ia_il_ne.pmtiles:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
   db:
     image: postgis/postgis:16-3.5
     environment:

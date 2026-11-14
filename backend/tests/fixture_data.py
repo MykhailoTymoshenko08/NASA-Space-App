@@ -120,6 +120,8 @@ def build(d: Path) -> Path:
         geometry=[r[4] for r in county_rows], crs=4326,
     ).to_parquet(d / "counties.parquet")
     _write_pmtiles(d / "boundaries.pmtiles", range(0, 11), IOWA.bounds)
+    # Stand-in for csb_ia_il_ne.pmtiles (served whole by /v1/tiles/fields.pmtiles).
+    _write_pmtiles(d / "csb_ia_il_ne.pmtiles", range(12, 15), F1.union(F2).bounds)
     return d
 
 

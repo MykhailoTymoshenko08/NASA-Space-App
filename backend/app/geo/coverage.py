@@ -23,7 +23,7 @@ def _union(bboxes: list[list[float]]) -> list[float]:
     ]
 
 
-def build_coverage(svc: Services) -> Coverage:
+def build_coverage(svc: Services, pmtiles_url: str) -> Coverage:
     meta = svc.field_meta
     tiles = meta.get("tiles", {})
     states = svc.boundaries.field_states
@@ -39,7 +39,7 @@ def build_coverage(svc: Services) -> Coverage:
         field_tiles=FieldTilesInfo(
             min_zoom=tiles.get("min_zoom", DEFAULT_MIN_ZOOM),
             max_zoom=tiles.get("max_zoom", DEFAULT_MAX_ZOOM),
-            url_template=svc.settings.fields_pmtiles_url,
+            url_template=pmtiles_url,
             regions=[{"name": s.name, "bbox": s.bbox} for s in states],
         ),
     )

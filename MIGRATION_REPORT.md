@@ -125,9 +125,11 @@ replaces the mapped history in the analysis stub.
     grow" form from it.
   - Remove all PLSS wording, fixtures and mocks. Add a small `.pmtiles` fixture for MSW mode.
   - Regenerate API types; run the build and the Playwright test.
-- **Production hosting not done**: no R2/S3 credentials or upload tools here. Steps and the CORS policy
-  are in `backend/README.md` > "Hosting the field tiles". Range + CORS were verified against the local
-  server only; repeat the `curl` check from the README against the R2 URL.
+- **Hosting (changed after the migration, contract 0.4.1, prepared as 0.3.2):** the backend serves the file itself at
+  `/v1/tiles/fields.pmtiles` (Range, ETag, CORS). R2/S3 and the dev tile server were dropped, but
+  `FIELDS_PMTILES_URL` still allows external hosting later. The file is shared via Git LFS and mounted
+  read-only into the compose `api` service. Verified with the real 540 MB file: 206 + `Content-Range`,
+  CORS preflight, 416 for a bad range; the PMTiles client read IA/IL/NE z11 tiles in 13 requests.
 - **Concurrent uncommitted work in this checkout**: another agent added contract 0.3.1
   (`POST /fields/info`, `app/field_info/`, edits to `models.py`, `services.py`, `api/fields.py`, README,
   changelog). It is not part of these commits and was left untouched.

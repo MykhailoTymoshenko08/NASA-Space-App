@@ -31,7 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         lifespan=lifespan,
         title="Field Shift API",
-        version="0.4.0",
+        version="0.4.1",
         docs_url=f"{API_PREFIX}/docs",
         openapi_url=f"{API_PREFIX}/openapi-generated.json",
     )
@@ -48,9 +48,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # The refresh token is a cookie: the frontend calls /v1/auth/* with `credentials: "include"`.
         # Credentials require an explicit origin (never "*"), which FRONTEND_ORIGIN is.
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "HEAD", "POST", "OPTIONS"],
         allow_headers=["*"],
-        expose_headers=["X-Request-Id", "Location", "Retry-After"],
+        # ETag, Content-Range, Content-Length: needed by the PMTiles client reading fields.pmtiles.
+        expose_headers=[
+            "X-Request-Id", "Location", "Retry-After", "ETag", "Content-Range", "Content-Length",
+        ],
     )
     # Added last so it is outermost: every response, including CORS preflight, gets an id.
     app.add_middleware(RequestIdMiddleware)

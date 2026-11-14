@@ -48,7 +48,6 @@ def make_settings(data_dir, tmp_path, **kw) -> Settings:
         stub_duration_s=0,
         log_level="WARNING",
         database_url="",
-        fields_pmtiles_url="http://tiles.test/csb_ia_il_ne.pmtiles",
     )
     return Settings(**{**base, **kw})
 

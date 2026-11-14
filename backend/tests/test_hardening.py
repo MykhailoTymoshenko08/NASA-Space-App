@@ -64,7 +64,7 @@ def test_malformed_json_is_validation_error(client):
 def test_unhandled_exception_is_internal_error(client, monkeypatch):
     from app.geo import coverage
 
-    def boom(svc):
+    def boom(svc, url):
         raise RuntimeError("secret detail")
 
     monkeypatch.setattr("app.api.meta.build_coverage", boom)

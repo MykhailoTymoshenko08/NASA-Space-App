@@ -9,5 +9,6 @@ tests
 scripts
 data/_*
 data/raw
+# Mounted as a volume (docker-compose.yml), not copied into the image.
 data/csb_*.pmtiles
 data/README.md
