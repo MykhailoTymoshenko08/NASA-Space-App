@@ -1,4 +1,5 @@
-# local run:  python scripts/11_prepare_deploy.py && docker compose up --build
+# from ml/:  docker compose up --build        from the repo root:  docker compose -f ml/docker-compose.yml up --build
+# (build: . is relative to this file; deploy/data is in git, no preparation needed)
 # then:       curl localhost:8001/ml/health
 services:
   ml:

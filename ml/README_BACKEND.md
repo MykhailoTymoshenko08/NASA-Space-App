@@ -1,7 +1,7 @@
 # ML-сервіс FieldShift: інструкція для бекенду
 
 Схема: **Frontend → Backend → ML-сервіс**. Фронт до ML напряму не ходить. ML-сервіс без стану: ви шлете поле, пріоритети й сценарій,
-отримуєте повний аналіз. Нічого не зберігає, ні користувачів, ні сесій. Повний контракт: [`docs/api_contract.md`](docs/api_contract.md).
+отримуєте повний аналіз. Нічого не зберігає, ні користувачів, ні сесій. Повний контракт: [`ml/docs/api_contract.md`](docs/api_contract.md).
 Живі приклади відповідей: [`docs/examples/`](docs/examples/) (Айова, Полк) та (Канзас, Reno).
 
 ## 1. Запуск
@@ -11,8 +11,9 @@
 Нічого готувати не треба: свіжий клон і одна команда.
 
 ```bash
-git clone <repo> && cd fieldshift-ml
+git clone https://github.com/MykhailoTymoshenko08/NASA-Space-App && cd NASA-Space-App/ml
 docker compose up --build               # PORT=9000 docker compose up --build  для іншого порту
+# або з кореня монорепо: docker compose -f ml/docker-compose.yml up --build
 curl localhost:8001/ml/health
 ```
 
@@ -36,7 +37,7 @@ docker run -d --name fieldshift-ml -p 8001:8001 -e PORT=8001 fieldshift-ml:0.2.0
 `ML_MODE=mock` не потребує даних і повертає правдоподібні вигадані числа у форматі контракту:
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -r requirements-service.txt
+cd ml && python -m venv .venv && .venv/bin/pip install -r requirements-service.txt
 ML_MODE=mock .venv/bin/uvicorn ml_service.main:app --port 8001
 ```
 
