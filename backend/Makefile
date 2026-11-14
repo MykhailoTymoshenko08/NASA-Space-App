@@ -1,4 +1,4 @@
-.PHONY: install dev test contract-check contract-json lint data data-boundaries data-fields demo docker
+.PHONY: install dev test contract-check contract-json lint data data-boundaries data-plss demo docker
 
 UV ?= uv
 HOST ?= 127.0.0.1
@@ -31,10 +31,11 @@ FORCE_FLAG = $(if $(FORCE),--force,)
 data-boundaries:
 	$(UV) run python scripts/prepare_boundaries.py $(FORCE_FLAG)
 
-data-fields:
-	$(UV) run python scripts/prepare_field_data.py $(FORCE_FLAG)
+# BLM PLSS sections + townships for PLSS_STATES; also rebuilds boundary tiles with townships.
+data-plss:
+	$(UV) run python scripts/prepare_plss.py $(FORCE_FLAG)
 
-data: data-boundaries data-fields
+data: data-boundaries data-plss
 
 # Boot everything for a demo: install deps, build data if missing, run the API.
 demo: install

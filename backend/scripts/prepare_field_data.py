@@ -1,4 +1,7 @@
-"""Cut USDA Crop Sequence Boundaries (CSB) to PILOT_REGION and build field data + vector tiles.
+"""UNUSED since contract 0.2.0 (PLSS sections replaced CSB fields). Kept for reference; not run by
+`make data`. Its outputs (fields.parquet, fields_meta.json) are no longer read by the app.
+
+Cut USDA Crop Sequence Boundaries (CSB) to PILOT_REGION and build field data + vector tiles.
 
 Source: CSB 2024 as GeoParquet, Source Cooperative mirror (fiboa/vecorel "harmonized field data"):
   https://source.coop/ftw/harmonized-field-data/us_usda_cropland

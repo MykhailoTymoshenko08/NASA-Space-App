@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     cache_dir: Path = BACKEND_DIR / ".cache"
     # Comma-separated 5-digit county FIPS codes where field polygons are prepared.
     pilot_region: str = DEFAULT_PILOT_REGION
+    # States whose BLM PLSS sections are prepared by scripts/prepare_plss.py.
+    plss_states: str = "IA"
     log_level: str = "INFO"
 
     contract_path: Path = REPO_DIR / "contract" / "openapi.yaml"
@@ -40,7 +42,7 @@ class Settings(BaseSettings):
 
     # Field resolution.
     field_tiles_min_zoom: int = 11
-    field_tiles_max_zoom: int = 16
+    field_tiles_max_zoom: int = 14
     buffer_radius_m: float = 500.0
 
     @field_validator("pilot_region")

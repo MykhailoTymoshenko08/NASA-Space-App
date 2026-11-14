@@ -8,7 +8,9 @@ clients (HTTP 403), so we query TIGERweb and generalise server-side with maxAllo
 Outputs (in DATA_DIR):
   states.json, counties.json   records served by /v1/geo/*
   counties.parquet             GeoParquet (EPSG:4326) for point-in-county lookups
-  boundaries.pmtiles           layers `states` (fips,name,postal) and `counties` (fips,name,state_fips)
+  boundaries.pmtiles           layers `states` (fips,name,postal), `counties` (fips,name,state_fips) and,
+                               when data/townships.parquet exists (scripts/prepare_plss.py), `townships`
+                               (township_id,label) for z8-10
 
 Idempotent: re-running skips steps whose outputs exist unless --force is given.
 """
@@ -28,8 +30,6 @@ from _common import (
     write_json,
 )
 from shapely.geometry import shape
-
-from app.core.config import get_settings
 
 TIGERWEB = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer"
 STATES_LAYER = 0  # "States", current vintage
@@ -80,12 +80,17 @@ def bbox_of(geom) -> list[float]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--tiles-only", action="store_true", help="only rebuild boundaries.pmtiles")
     args = ap.parse_args()
 
+    ap_tiles_only = args.tiles_only
     out = data_dir()
-    pilot = set(get_settings().pilot_counties)
     states_json, counties_json = out / "states.json", out / "counties.json"
     counties_pq, tiles = out / "counties.parquet", out / "boundaries.pmtiles"
+
+    if ap_tiles_only:
+        build_tiles(out, tiles)
+        return
 
     if args.force or not (states_json.exists() and counties_json.exists() and counties_pq.exists()):
         with http_client() as c:
@@ -106,9 +111,6 @@ def main() -> None:
             print(f"  {len(co)} counties")
 
         postal = dict(zip(st["GEOID"], st["STUSAB"], strict=True))
-        missing = pilot - set(co["GEOID"])
-        if missing:
-            sys.exit(f"PILOT_REGION counties not found in TIGERweb: {sorted(missing)}")
 
         states = sorted(
             (
@@ -133,7 +135,8 @@ def main() -> None:
                     "bbox": bbox_of(r.geometry),
                     # Census internal point: always inside the county (a centroid may not be).
                     "centroid": {"lat": float(r.INTPTLAT), "lon": float(r.INTPTLON)},
-                    "has_field_coverage": r.GEOID in pilot,
+                    # Recomputed by the app at startup from the section data actually present.
+                    "has_field_coverage": False,
                 }
                 for r in co.itertuples()
             ),
@@ -177,15 +180,29 @@ def build_tiles(out, tiles) -> None:
             f.write(json.dumps({"type": "Feature", "properties": props,
                                 "tippecanoe": {"minzoom": 5},
                                 "geometry": r.geometry.__geo_interface__}) + "\n")
+    layers = ["-L", f"states:{st_path}", "-L", f"counties:{co_path}"]
+    attribution = "US Census Bureau TIGERweb"
+    tw_pq = out / "townships.parquet"
+    if tw_pq.exists():
+        tw = gpd.read_parquet(tw_pq)
+        tw_path = tmp / "townships.geojsonl"
+        with tw_path.open("w") as f:
+            for r in tw.itertuples():
+                props = {"township_id": r.township_id, "label": r.label}
+                f.write(json.dumps({"type": "Feature", "properties": props,
+                                    "tippecanoe": {"minzoom": 8},
+                                    "geometry": r.geometry.__geo_interface__}) + "\n")
+        layers += ["-L", f"townships:{tw_path}"]
+        attribution += "; Bureau of Land Management"
+        print(f"including {len(tw)} townships")
     run_tippecanoe([
         "-o", str(tiles),
         "-Z0", "-z10",
         "--name", "Field Shift boundaries",
-        "--attribution", "US Census Bureau TIGERweb",
+        "--attribution", attribution,
         "--detect-shared-borders",
         "--no-tile-size-limit",
-        "-L", f"states:{st_path}",
-        "-L", f"counties:{co_path}",
+        *layers,
     ])
     for p in tmp.iterdir():
         p.unlink()
