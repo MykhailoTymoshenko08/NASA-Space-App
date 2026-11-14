@@ -3,6 +3,33 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.3.0 (2026-11-14): CSB field polygons for IA, IL, NE; PLSS removed
+
+Breaking. The selectable unit is again an **estimated field area** from USDA Crop Sequence Boundaries
+(CSB), now only for Iowa, Illinois and Nebraska. PLSS sections (0.2.0) are removed. Elsewhere in CONUS a
+point resolves to a buffered point, as before.
+
+- `FieldSelection`:
+  - `boundary_type` enum is `[estimated_csb, buffered_point]`. `plss_section` is removed.
+  - `plss` (`PlssRef`) and `label` are removed. `PlssRef` schema is removed.
+  - `crop_class` (latest CDL crop name) and `crop_history` (`[{year, crop}]`, newest first, up to 8 years)
+    are filled from CSB again. Empty for buffered points.
+- `FieldId` is `csb<edition>_<CSBID>` (e.g. `csb2025_190000123456`); the CSB id is only unique within
+  one edition.
+- `GET /tiles/fields/{z}/{x}/{y}.mvt` is removed. Field polygons are one static PMTiles file hosted
+  outside the backend.
+- `Coverage`:
+  - `bounds` is the bbox of the supported states; `supported_states` is `["IA","IL","NE"]`.
+  - `field_tiles.format` (new, required, `pmtiles`); `field_tiles.unit` enum is `[estimated_csb]`;
+    `url_template` is the absolute URL of the `.pmtiles` file (source layer `fields`, props `field_id`,
+    `crop_class`, `area_ha`); `regions` are the three states.
+  - `field_boundary_source.boundary_type` enum is `[estimated_csb]`.
+- `GET /geo/states` lists only the supported states. `GET /geo/states/{fips}/counties` returns
+  `404 NOT_FOUND` for any other state; listed counties all have `has_field_coverage: true`.
+- Boundary tiles lose the `townships` layer (`states`, `counties` only).
+- `AnalysisRequest.options.crop_history` stays: an optional farmer correction that replaces the mapped
+  history.
+
 ## 0.2.1 (2026-11-14)
 
 Additive only. These two items were in the backend's earlier 0.2.0 draft and were left out of the

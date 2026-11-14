@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Field Shift API
-  version: 0.2.1
+  version: 0.3.0
   description: |
     Contract between the frontend and backend of the Field Shift farmer map
     (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
@@ -15,12 +15,14 @@ info:
     - A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.
     - Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.
     - Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.
-    - Coverage v1: contiguous US (CONUS). Selectable land units exist only inside the regions listed by `GET /meta/coverage`.
-    - NAMING NOTE (v0.2): in API names, "field" means the *selectable land unit*. In v0.2 that unit is a
-      **PLSS survey section** (BLM Public Land Survey System, about 1 square mile / 640 acres), NOT a farm field.
-      Names like `field_id`, `/fields`, `FieldSelection` are kept to avoid breaking clients; the UI must say "survey section".
-      The PLSS exists only in the surveyed states; elsewhere the backend falls back to a buffered point.
-    - Units are NEVER sent as bulk GeoJSON. They are drawn from vector tiles; see `/tiles/fields/...`.
+    - Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by
+      `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a
+      buffered point (a circle around it), so analysis still works.
+    - The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).
+      CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be
+      split into several polygons or merged with a neighbour. The UI must say "estimated field area".
+    - Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one static PMTiles file hosted
+      outside the backend; its URL is `coverage.field_tiles.url_template`. The backend does not serve field tiles.
 servers:
 - url: http://localhost:8000/v1
   description: Local backend
@@ -71,10 +73,11 @@ paths:
       tags:
       - geo
       operationId: listStates
-      summary: List states (for the state/county picker)
+      summary: List the supported states (for the state/county picker)
+      description: Only states with field polygons (v0.3 IA, IL, NE). Other CONUS states are not listed.
       responses:
         '200':
-          description: States, sorted by name
+          description: Supported states, sorted by name
           content:
             application/json:
               schema:
@@ -91,7 +94,8 @@ paths:
       tags:
       - geo
       operationId: listCounties
-      summary: List counties of a state
+      summary: List counties of a supported state
+      description: '`404 NOT_FOUND` for a state that is not in `GET /geo/states`.'
       parameters:
       - name: state_fips
         in: path
@@ -253,10 +257,11 @@ paths:
       operationId: getBoundaryTile
       summary: State and county outlines (vector tile)
       description: |
-        Mapbox Vector Tile. Layers: `states` (props: `fips`, `name`, `postal`), `counties` (props: `fips`, `name`, `state_fips`),
-        `townships` (props: `township_id`, `label`; PLSS townships, about 6 x 6 miles, only where PLSS data exists).
-        Suggested use: `states` at zoom < 7, `counties` at zoom 7 to 10, `townships` additionally at zoom 9 to 10,
-        then the `fields` tiles (sections) from `coverage.field_tiles.min_zoom`.
+        Mapbox Vector Tile, all of CONUS. Layers: `states` (props: `fips`, `name`, `postal`),
+        `counties` (props: `fips`, `name`, `state_fips`).
+        Suggested use: `states` at zoom < 7, `counties` at zoom 7 to 10, then the field polygons from the
+        PMTiles file in `coverage.field_tiles` from `coverage.field_tiles.min_zoom`.
+        Field tiles are NOT served here (no `/tiles/fields/...` path since v0.3).
       parameters:
       - $ref: '#/components/parameters/Z'
       - $ref: '#/components/parameters/X'
@@ -266,27 +271,6 @@ paths:
           $ref: '#/components/responses/VectorTile'
         '204':
           description: Empty tile
-  /tiles/fields/{z}/{x}/{y}.mvt:
-    get:
-      tags:
-      - tiles
-      operationId: getFieldTile
-      summary: Selectable land units (vector tile; PLSS sections in v0.2)
-      description: |
-        Mapbox Vector Tile. Layer `fields`, props: `field_id` (string), `crop_class` (string, EMPTY in v0.2 because
-        PLSS has no crop data), `area_ha` (number), `label` (string, e.g. "Section 14, T8N R2E").
-        In v0.2 each feature is one PLSS section. Only served for z >= `coverage.field_tiles.min_zoom` inside covered regions;
-        elsewhere returns 204. The same data may be served as a static PMTiles file; the frontend must read
-        the tile URL template from `GET /meta/coverage` (`field_tiles.url_template`), not hardcode it.
-      parameters:
-      - $ref: '#/components/parameters/Z'
-      - $ref: '#/components/parameters/X'
-      - $ref: '#/components/parameters/Y'
-      responses:
-        '200':
-          $ref: '#/components/responses/VectorTile'
-        '204':
-          description: Empty tile or outside coverage
   /snapshots:
     post:
       tags:
@@ -513,10 +497,10 @@ components:
     FieldId:
       type: string
       description: |
-        Stable id of a selectable land unit. Opaque to the frontend. In v0.2 backend builds it from the BLM
-        section identifiers (`plss:` + First Division id, plus the duplicate suffix if the source has one),
-        so it only changes when the data version changes (see `Coverage.field_data_version`).
-      example: plss:IA050000N0240W0SN140
+        Stable id of an estimated field area. Opaque to the frontend. Built as `csb<edition>_<source id>`:
+        the CSB source id (`CSBID`) is unique only within one CSB edition, so the edition's last year is part
+        of the id. It changes when the data version changes (see `Coverage.field_data_version`).
+      example: csb2025_190000123456
     State:
       type: object
       required:
@@ -564,8 +548,9 @@ components:
           $ref: '#/components/schemas/LatLon'
         has_field_coverage:
           type: boolean
-          description: False means there are no selectable units (PLSS sections) in this county; the UI should offer point-based
-            analysis instead.
+          description: True when the county has CSB field polygons. Every county listed by
+            `/geo/states/{state_fips}/counties` is in a supported state, so it is true there. A county fetched
+            by fips outside the supported states is false; the UI should offer point-based analysis instead.
     Coverage:
       type: object
       required:
@@ -578,16 +563,21 @@ components:
         bounds:
           allOf:
           - $ref: '#/components/schemas/BBox'
-          description: Overall supported area (CONUS).
+          description: Bounding box of the supported states (IA, IL, NE). Fit the initial map to it.
         supported_states:
           type: array
+          description: Postal codes of the states with field polygons.
           items:
             type: string
             minLength: 2
             maxLength: 2
+          example:
+          - IA
+          - IL
+          - NE
         field_data_version:
           type: string
-          example: 2026-11-pilot-1
+          example: csb2018-2025-ia-il-ne
         field_boundary_source:
           type: object
           required:
@@ -597,44 +587,58 @@ components:
           properties:
             name:
               type: string
-              example: BLM National PLSS (CadNSDI)
+              example: USDA Crop Sequence Boundaries
             edition:
               type: string
-              example: 2026-11 download
+              description: Years covered by the CSB release.
+              example: 2018-2025
             boundary_type:
               type: string
-              example: plss_section
+              enum:
+              - estimated_csb
             attribution:
               type:
               - string
               - 'null'
         field_tiles:
           type: object
+          description: |
+            One static PMTiles archive (https://github.com/protomaps/PMTiles), read by the frontend with HTTP Range
+            requests. Source layer `fields`, one feature per CSB polygon, props: `field_id` (string, a `FieldId`),
+            `crop_class` (string, latest mapped crop, may be empty), `area_ha` (number).
           required:
+          - format
           - unit
           - min_zoom
           - max_zoom
           - url_template
           - regions
           properties:
+            format:
+              type: string
+              enum:
+              - pmtiles
             unit:
               type: string
               enum:
-              - plss_section
               - estimated_csb
-              description: What the features in the `fields` tiles are. `plss_section` in v0.2.
+              description: What the features in the `fields` layer are.
             min_zoom:
               type: integer
-              example: 11
+              description: Lowest zoom that has field polygons. No field is dropped at or above it.
+              example: 12
             max_zoom:
               type: integer
-              example: 16
+              description: Highest zoom stored; the map overzooms beyond it.
+              example: 14
             url_template:
               type: string
-              description: XYZ template, e.g. `/v1/tiles/fields/{z}/{x}/{y}.mvt` or a PMTiles URL.
+              description: Absolute HTTPS (or local dev HTTP) URL of the `.pmtiles` file. Use it with the
+                `pmtiles://` protocol; it is not an XYZ template.
+              example: https://tiles.example.org/csb_ia_il_ne.pmtiles
             regions:
               type: array
-              description: Areas where units exist (in v0.2, the states/areas that have PLSS data).
+              description: The supported states, one entry each.
               items:
                 type: object
                 required:
@@ -643,7 +647,7 @@ components:
                 properties:
                   name:
                     type: string
-                    example: Polk County, IA
+                    example: Iowa
                   bbox:
                     $ref: '#/components/schemas/BBox'
     SelectionSource:
@@ -715,26 +719,15 @@ components:
         boundary_type:
           type: string
           enum:
-          - plss_section
           - estimated_csb
           - buffered_point
           description: |
-            `plss_section`: a BLM PLSS survey section (about 1 sq mile). It is a survey grid cell, NOT the
-            farmer's field and not an ownership boundary; a real field may be a part of it or span several.
-            The UI must say "survey section" and tell the user their field lies somewhere inside it.
-            `estimated_csb`: reserved for a later USDA Crop Sequence Boundaries layer (not served in v0.2).
-            `buffered_point`: no unit here (outside the PLSS area), a circle around the point is used.
+            `estimated_csb`: a USDA Crop Sequence Boundaries polygon. It is an algorithmic estimate of a field
+            from satellite crop maps, not a surveyed or ownership boundary: a real field may be split into
+            several polygons or merged with a neighbour. The UI must say "estimated field area".
+            `buffered_point`: no polygon here (outside the supported states, or nothing within the snap
+            radius), a circle around the point is used.
             Enum is extensible.
-        plss:
-          description: PLSS identifiers. Present when `boundary_type = plss_section`, otherwise null.
-          anyOf:
-          - $ref: '#/components/schemas/PlssRef'
-          - type: 'null'
-        label:
-          type:
-          - string
-          - 'null'
-          description: Human-readable name of the unit for the UI (e.g. "Section 14, T8N R2E"); null for buffered points.
         snap_distance_m:
           type:
           - number
@@ -751,10 +744,12 @@ components:
           type:
           - string
           - 'null'
-          description: Latest mapped crop, if known. Always null in v0.2 (PLSS has no crop data).
+          description: Latest mapped crop (USDA Cropland Data Layer class name, e.g. "Corn"). Null for buffered
+            points or when the source has no crop for the latest year.
         crop_history:
           type: array
-          description: Mapped crop per year, newest first. Always empty in v0.2; never guessed.
+          description: Mapped crop per year from CSB, newest first, up to the CSB window length (8 years).
+            Empty for buffered points. Years without a mapped crop are left out; never guessed.
           items:
             type: object
             required:
@@ -781,7 +776,7 @@ components:
         source:
           $ref: '#/components/schemas/SelectionSource'
       example:
-        field_id: plss:IA050000N0240W0SN140
+        field_id: csb2025_190000123456
         anchor:
           lat: 41.5868
           lon: -93.625
@@ -799,50 +794,23 @@ components:
             - - -93.634
               - 41.578
         resolved_by: field_polygon
-        boundary_type: plss_section
-        plss:
-          township_id: IA050000N0240W0
-          section_id: IA050000N0240W0SN140
-          section_number: '14'
-          division_type: Section
-        label: Section 14, T80N R24W
+        boundary_type: estimated_csb
         snap_distance_m: 0
         buffer_m: null
-        area_ha: 259.0
-        crop_class: null
-        crop_history: []
+        area_ha: 32.4
+        crop_class: Corn
+        crop_history:
+        - year: 2025
+          crop: Corn
+        - year: 2024
+          crop: Soybeans
+        - year: 2023
+          crop: Corn
         county:
           fips: '19153'
           name: Polk
           state_postal: IA
         source: landing_map_click
-    PlssRef:
-      type: object
-      description: BLM PLSS identifiers (CadNSDI). Field names mirror BLM attributes.
-      required:
-      - township_id
-      - section_id
-      properties:
-        township_id:
-          type: string
-          description: BLM PLSSID (township identifier).
-          example: IA050000N0240W0
-        section_id:
-          type: string
-          description: BLM FRSTDIVID (first division identifier).
-          example: IA050000N0240W0SN140
-        section_number:
-          type:
-          - string
-          - 'null'
-          description: BLM FRSTDIVNO.
-          example: '14'
-        division_type:
-          type:
-          - string
-          - 'null'
-          description: BLM FRSTDIVTXT, e.g. Section.
-          example: Section
     ResolvedLocation:
       type: object
       required:
@@ -1024,8 +992,8 @@ components:
               description: Farmer priorities. Empty means balanced.
             crop_history:
               type: array
-              description: Optional. Newest first. In v0.2 there is no mapped crop data, so this is the only source of crop
-                history; the UI should let the farmer enter it.
+              description: Optional farmer correction, newest first. When given it replaces the mapped
+                `FieldSelection.crop_history`; the UI prefills it from that history and lets the farmer edit it.
               maxItems: 10
               items:
                 type: object
