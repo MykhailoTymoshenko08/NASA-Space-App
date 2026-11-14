@@ -1,6 +1,5 @@
 """Process-wide services, loaded once at startup and stored on `app.state.services`."""
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -30,28 +29,20 @@ class Services:
         d: Path = settings.data_dir
         self.cache = TwoLevelCache(settings.cache_dir)
 
-        # PLSS metadata written by scripts/prepare_plss.py (regions, edition, covered counties).
-        self.plss_meta: dict[str, Any] = {}
-        meta = d / "plss_meta.json"
-        if meta.exists():
-            self.plss_meta = json.loads(meta.read_text())
-
         self._boundaries: Boundaries | None = None
         try:
-            self._boundaries = Boundaries.load(
-                d, set(self.plss_meta.get("counties_with_sections", []))
-            )
+            self._boundaries = Boundaries.load(d)
         except DataMissing as e:
             log.warning("boundaries unavailable: %s", e)
 
-        # Imported here to keep geopandas-heavy modules out of import cycles.
-        from app.geo.fields_index import FieldIndex
+        from app.geo.field_store import FieldStore
 
-        self._fields: FieldIndex | None = None
-        if (d / "sections.parquet").exists():
-            self._fields = FieldIndex.load(d / "sections.parquet")
-        else:
-            log.warning("sections.parquet missing: point resolution falls back to buffered points")
+        self._fields: FieldStore | None = (
+            FieldStore.connect(settings.database_url) if settings.database_url else None
+        )
+        if self._fields is None:
+            log.warning("no field polygons: point resolution falls back to buffered points")
+        self.field_meta: dict[str, Any] = self._fields.meta() if self._fields else {}
 
         from app.geo.links import make_link_client, system_resolver
 
@@ -82,7 +73,6 @@ class Services:
             fail_rate=settings.stub_fail_rate,
         )
 
-        self.field_tiles = self._tiles(d / "fields.pmtiles")
         self.boundary_tiles = self._tiles(d / "boundaries.pmtiles")
 
     @staticmethod
@@ -100,16 +90,17 @@ class Services:
 
     @property
     def fields(self):
-        """FieldIndex over PLSS sections, or None when none were prepared (all buffered points)."""
+        """FieldStore over CSB polygons in PostGIS, or None when unavailable (all buffered points)."""
         return self._fields
 
     async def aclose(self) -> None:
         await self.link_client.aclose()
         await self.data_client.aclose()
         self.cache.close()
-        for t in (self.field_tiles, self.boundary_tiles):
-            if t:
-                t.close()
+        if self.boundary_tiles:
+            self.boundary_tiles.close()
+        if self._fields:
+            self._fields.close()
 
 
 def get_services(request: Request) -> Services:

@@ -4,7 +4,6 @@ PMTiles spec: https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md
 Python reader: https://github.com/protomaps/PMTiles/tree/main/python
 """
 
-import math
 import threading
 from functools import lru_cache
 from pathlib import Path
@@ -54,20 +53,3 @@ class TileSource:
 def valid_tile(z: int, x: int, y: int) -> bool:
     n = 1 << z
     return 0 <= x < n and 0 <= y < n
-
-
-def tile_bbox(z: int, x: int, y: int) -> tuple[float, float, float, float]:
-    """[west, south, east, north] of an XYZ (slippy map) tile in degrees."""
-    n = 1 << z
-
-    def lon(xx: int) -> float:
-        return xx / n * 360.0 - 180.0
-
-    def lat(yy: int) -> float:
-        return math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * yy / n))))
-
-    return lon(x), lat(y + 1), lon(x + 1), lat(y)
-
-
-def bbox_intersects(a, b) -> bool:
-    return a[0] <= b[2] and b[0] <= a[2] and a[1] <= b[3] and b[1] <= a[3]

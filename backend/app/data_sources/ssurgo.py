@@ -3,9 +3,9 @@
 Docs: https://sdmdataaccess.sc.egov.usda.gov/WebServiceHelp.aspx
 Spatial macros (~DeclareGeometry~, ~GetClippedMapunits~): https://sdmdataaccess.nrcs.usda.gov/documents/
 Table/column reference: https://www.nrcs.usda.gov/resources/data-and-reports/ssurgo/stats2go-metadata
-Checked live 2026-11-14 with POST /Tabular/post.rest, format JSON+COLUMNNAME (~2 s per section).
+Checked live 2026-11-14 with POST /Tabular/post.rest, format JSON+COLUMNNAME (~2 s per field area).
 
-For a PLSS section we clip the soil map units to the section polygon and area-weight the dominant
+For an estimated CSB field area we clip the soil map units to the polygon and area-weight the dominant
 major component of each map unit (surface horizon, hzdept_r = 0): organic matter and pH are
 area-weighted means, texture is the class covering the largest area. If that query fails or returns
 nothing (or the selection is a buffered point) we sample the map unit at the anchor point and say so
@@ -124,7 +124,7 @@ class SsurgoSource:
         rows: list[dict] = []
         mode = "point"
         fallback_reason = ""
-        if selection.boundary_type == BoundaryType.plss_section:
+        if selection.boundary_type == BoundaryType.estimated_csb:
             try:
                 poly = shapely.simplify(shape(selection.geometry.model_dump()), SIMPLIFY_DEG)
                 # WKT is built from our own polygon (numbers only): no injection surface.
@@ -132,7 +132,7 @@ class SsurgoSource:
                     wkt=shapely.to_wkt(poly, rounding_precision=6)))
                 mode = "area" if rows else "point"
                 if not rows:
-                    fallback_reason = "the section query returned no soil map units"
+                    fallback_reason = "the field-area query returned no soil map units"
             except Exception as e:  # noqa: BLE001 - fall back to the point query
                 log.info("SSURGO area query failed, using anchor point: %r", e)
                 fallback_reason = "the area-weighted query failed"
@@ -146,10 +146,10 @@ class SsurgoSource:
 
         s = summarise(rows)
         if mode == "area":
-            note = (f"Area-weighted over the survey section ({s['units']} soil map units; "
+            note = (f"Area-weighted over the estimated field area ({s['units']} soil map units; "
                     f"main soil {s['main_soil']}, about {s['main_share']}% of the area). {BASE_NOTE}")
         else:
-            where = "the section's anchor point" if selection.boundary_type == BoundaryType.plss_section \
+            where = "the field area's anchor point" if selection.boundary_type == BoundaryType.estimated_csb \
                 else "the selected point"
             why = f" because {fallback_reason}" if fallback_reason else ""
             note = f"Sampled at {where}{why} (soil: {s['main_soil']}). {BASE_NOTE}"

@@ -100,7 +100,7 @@ NO_HISTORY_GAP = "No crop history provided"
 
 
 def _history(selection: FieldSelection, options: AnalysisOptions) -> list[CropYear]:
-    # v0.2: PLSS has no crop data, so the farmer's own entry is the only history source.
+    # The farmer's correction (options) wins over the CSB-mapped history of the selection.
     hist = options.crop_history or selection.crop_history
     return sorted(hist, key=lambda h: h.year, reverse=True)
 
@@ -116,7 +116,7 @@ def _baseline(selection: FieldSelection, options: AnalysisOptions) -> tuple[str,
     else:
         cycle = ["Current crops (unknown)"]
         name = "Continue current practice (crops unknown)"
-        basis = "no crop history (none was entered, and survey sections carry no crop data)"
+        basis = "no crop history (none was mapped here and none was entered)"
     rotation = [RotationSeason(season_index=i, crop=c, role=role_for(c)) for i, c in enumerate(cycle)]
     return name, rotation, basis
 
@@ -169,9 +169,9 @@ def _gaps(selection: FieldSelection, options: AnalysisOptions, metrics: list[Met
     missing = [m.label for m in metrics if m.quality == Quality.unavailable]
     if missing:
         gaps.append("Data not available right now: " + ", ".join(missing) + ".")
-    if selection.boundary_type == BoundaryType.plss_section:
+    if selection.boundary_type == BoundaryType.estimated_csb:
         gaps.append(
-            "Data covers the whole survey section (about 1 square mile); your field is only part of it."
+            "The field area is a USDA estimate; your real field may be smaller, larger or split differently."
         )
     gaps.append("Markets, equipment, labour and farm program rules are not considered.")
     return gaps
@@ -247,7 +247,7 @@ class StubAnalysisEngine:
 
         warnings = [DEMO_WARNING]
         if selection.resolved_by == ResolvedBy.buffered_point:
-            warnings.append("No survey section here: results use a 500 m circle around your point.")
+            warnings.append("No estimated field area here: results use a 500 m circle around your point.")
         if any(m.resolution_m and m.resolution_m > 10_000 for m in _available(metrics)):
             warnings.append("Weather and soil wetness come from ~55 km grid cells, much larger than a field.")
 

@@ -1,4 +1,8 @@
-"""States and counties prepared by scripts/prepare_boundaries.py."""
+"""States and counties prepared by scripts/prepare_boundaries.py.
+
+All CONUS states and counties are loaded (county lookups for buffered points work everywhere), but the
+geo endpoints list only the states with field polygons (`FIELD_STATES`).
+"""
 
 import json
 from dataclasses import dataclass
@@ -9,6 +13,7 @@ import numpy as np
 import shapely
 from shapely import STRtree
 
+from app.core.config import FIELD_STATES
 from app.geo.crs import to_5070
 from app.models import County, CountyRef, State
 
@@ -35,14 +40,12 @@ class Boundaries:
     _state_tree: STRtree
 
     @classmethod
-    def load(cls, data_dir: Path, covered_counties: set[str]) -> "Boundaries":
-        """`covered_counties`: county FIPS that hold at least one PLSS section."""
+    def load(cls, data_dir: Path) -> "Boundaries":
         states = [State(**s) for s in _read_json(data_dir / "states.json")]
         counties = []
         for c in _read_json(data_dir / "counties.json"):
             rec = {k: v for k, v in c.items() if k in COUNTY_FIELDS}
-            # Coverage follows the section data actually present, not what was baked in at build time.
-            rec["has_field_coverage"] = rec["fips"] in covered_counties
+            rec["has_field_coverage"] = rec["state_fips"] in FIELD_STATES
             counties.append(County(**rec))
         pq = data_dir / "counties.parquet"
         if not pq.exists():
@@ -64,6 +67,11 @@ class Boundaries:
 
     def state(self, fips: str) -> State | None:
         return self._states_by_fips.get(fips)
+
+    @property
+    def field_states(self) -> list[State]:
+        """Supported states (with field polygons), sorted by name."""
+        return [s for s in self.states if s.fips in FIELD_STATES]
 
     def county(self, fips: str) -> County | None:
         return self._counties_by_fips.get(fips)

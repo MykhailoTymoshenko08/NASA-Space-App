@@ -1,4 +1,4 @@
-"""Pydantic models mirroring `contract/openapi.yaml` (v0.2.0).
+"""Pydantic models mirroring `contract/openapi.yaml` (v0.3.0).
 
 Keep names and enums identical to the contract. The contract tests validate real responses
 against the YAML, so drift is caught there.
@@ -47,7 +47,8 @@ class County(BaseModel):
 
 
 class FieldTilesInfo(BaseModel):
-    unit: Literal["plss_section", "estimated_csb"] = "plss_section"
+    format: Literal["pmtiles"] = "pmtiles"
+    unit: Literal["estimated_csb"] = "estimated_csb"
     min_zoom: int
     max_zoom: int
     url_template: str
@@ -57,7 +58,7 @@ class FieldTilesInfo(BaseModel):
 class FieldBoundarySource(BaseModel):
     name: str
     edition: str
-    boundary_type: str
+    boundary_type: Literal["estimated_csb"] = "estimated_csb"
     attribution: str | None = None
 
 
@@ -79,16 +80,8 @@ class SelectionSource(StrEnum):
 
 
 class BoundaryType(StrEnum):
-    plss_section = "plss_section"
-    estimated_csb = "estimated_csb"  # reserved, not served in v0.2
+    estimated_csb = "estimated_csb"
     buffered_point = "buffered_point"
-
-
-class PlssRef(BaseModel):
-    township_id: str
-    section_id: str
-    section_number: str | None = None
-    division_type: str | None = None
 
 
 class ResolvedBy(StrEnum):
@@ -128,12 +121,10 @@ class FieldSelection(BaseModel):
     bbox: list[float]
     resolved_by: ResolvedBy
     boundary_type: BoundaryType
-    plss: PlssRef | None = None
-    label: str | None = None
     snap_distance_m: float | None = None
     buffer_m: float | None = None
     area_ha: float | None
-    # PLSS has no crop data: always null / [] in v0.2. Never guessed.
+    # From CSB: latest mapped crop and per-year history (newest first). Null / [] for buffered points.
     crop_class: str | None = None
     county: CountyRef
     source: SelectionSource

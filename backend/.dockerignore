@@ -9,6 +9,5 @@ tests
 scripts
 data/_*
 data/raw
-data/fields.parquet
-data/fields_meta.json
+data/csb_*.pmtiles
 data/README.md

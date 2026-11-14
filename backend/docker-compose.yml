@@ -1,0 +1,24 @@
+# PostGIS for the CSB field polygons. Start with `make db` (or `docker compose up -d db`).
+# Host port 5433 so it does not clash with a local PostgreSQL on 5432.
+services:
+  db:
+    image: postgis/postgis:16-3.5
+    environment:
+      POSTGRES_USER: fieldshift
+      POSTGRES_PASSWORD: fieldshift
+      POSTGRES_DB: fieldshift
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Bulk import of ~3 million polygons: more memory for index builds and fewer checkpoints.
+    command: >
+      postgres -c maintenance_work_mem=1GB -c max_wal_size=8GB -c shared_buffers=512MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fieldshift -d fieldshift"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

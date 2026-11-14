@@ -21,11 +21,11 @@ ALL_KEYS = {
 ANCHOR = LatLon(lat=41.6, lon=-93.6)
 
 
-def selection(boundary: str = "plss_section") -> FieldSelection:
+def selection(boundary: str = "estimated_csb") -> FieldSelection:
     ring = [[-93.61, 41.59], [-93.59, 41.59], [-93.59, 41.61], [-93.61, 41.61], [-93.61, 41.59]]
-    sec = boundary == "plss_section"
+    sec = boundary == "estimated_csb"
     return FieldSelection(
-        field_id="plss:IA050790N0240W0SN140" if sec else None, anchor=ANCHOR,
+        field_id="csb2025_190000000001" if sec else None, anchor=ANCHOR,
         geometry={"type": "Polygon", "coordinates": [ring]}, bbox=[-93.61, 41.59, -93.59, 41.61],
         resolved_by="field_polygon" if sec else "buffered_point", boundary_type=boundary,
         area_ha=259.0, county={"fips": "19153", "name": "Polk", "state_postal": "IA"},
@@ -51,7 +51,7 @@ def power_payload(end: date, days: int = 45, lag: int = 2, overrides=None) -> di
     return {"header": {"fill_value": -999.0}, "properties": {"parameter": out}}
 
 
-# Area query: one row per soil map unit clipped to the section, dom = 'name|pct|om|ph|texture'.
+# Area query: one row per soil map unit clipped to the field area, dom = 'name|pct|om|ph|texture'.
 SSURGO_OK = {"Table": [
     ["mukey", "area", "dom"],
     ["1", "3.0E-05", "Clarion|85|3.0|6.0|Loam"],
@@ -135,7 +135,7 @@ async def test_ssurgo_no_data_is_unavailable():
 
 
 @respx.mock
-async def test_ssurgo_area_weighted_over_section():
+async def test_ssurgo_area_weighted_over_field_area():
     route = respx.post(ssurgo.URL).mock(return_value=httpx.Response(200, json=SSURGO_OK))
     async with httpx.AsyncClient() as c:
         ms = {m.key: m for m in await ssurgo.SsurgoSource().fetch(c, SEL)}
@@ -143,7 +143,7 @@ async def test_ssurgo_area_weighted_over_section():
     assert ms["soil_organic_matter_pct"].value == 3.5
     assert ms["soil_ph"].value == 6.2
     assert ms["soil_texture_class"].value == "Loam"
-    assert "Area-weighted over the survey section" in ms["soil_ph"].note
+    assert "Area-weighted over the estimated field area" in ms["soil_ph"].note
     body = route.calls.last.request.content.decode()
     assert "GetClippedMapunits" in body and "POLYGON ((-93.61 41.59" in body  # lon lat order
     assert route.call_count == 1
@@ -198,11 +198,11 @@ pytestmark = pytest.mark.contract
 def test_snapshot_all_sources(client):
     with respx.mock(assert_all_called=False) as router:
         mock_all(router)
-        r = client.post("/v1/snapshots", json={"selection": {"field_id": "plss:IA050790N0240W0SN140"}})
+        r = client.post("/v1/snapshots", json={"selection": {"field_id": "csb2025_190000000001"}})
     assert_matches_contract(r)
     s = r.json()
     assert s["cached"] is False
-    assert s["selection"]["field_id"] == "plss:IA050790N0240W0SN140"
+    assert s["selection"]["field_id"] == "csb2025_190000000001"
     m = by_key(s)
     assert set(m) == ALL_KEYS
     for metric in s["metrics"]:
@@ -217,8 +217,8 @@ def test_snapshot_all_sources(client):
 def test_snapshot_cached_second_time(client):
     with respx.mock(assert_all_called=False) as router:
         routes = mock_all(router)
-        client.post("/v1/snapshots", json={"selection": {"field_id": "plss:IA050790N0240W0SN140"}})
-        r = client.post("/v1/snapshots", json={"selection": {"field_id": "plss:IA050790N0240W0SN140"}})
+        client.post("/v1/snapshots", json={"selection": {"field_id": "csb2025_190000000001"}})
+        r = client.post("/v1/snapshots", json={"selection": {"field_id": "csb2025_190000000001"}})
         assert routes["power"].call_count == 1
     assert_matches_contract(r)
     assert r.json()["cached"] is True
@@ -249,7 +249,7 @@ def test_one_source_down_still_200(client, failing):
     (name,) = failing
     with respx.mock(assert_all_called=False) as router:
         mock_all(router, **failing)
-        r = client.post("/v1/snapshots", json={"selection": {"field_id": "plss:IA050790N0240W0SN140"}})
+        r = client.post("/v1/snapshots", json={"selection": {"field_id": "csb2025_190000000001"}})
     assert r.status_code == 200
     assert_matches_contract(r)
     metrics = r.json()["metrics"]
@@ -263,8 +263,8 @@ def test_all_sources_down_still_200(client):
     with respx.mock(assert_all_called=False) as router:
         mock_all(router, power=httpx.Response(500), ssurgo=httpx.Response(500),
                  elevation=httpx.Response(500), soilgrids=httpx.Response(500))
-        r = client.post("/v1/snapshots", json={"selection": {"field_id": "plss:IA050790N0240W0SN140"}})
-        r2 = client.post("/v1/snapshots", json={"selection": {"field_id": "plss:IA050790N0240W0SN140"}})
+        r = client.post("/v1/snapshots", json={"selection": {"field_id": "csb2025_190000000001"}})
+        r2 = client.post("/v1/snapshots", json={"selection": {"field_id": "csb2025_190000000001"}})
     assert r.status_code == 200
     assert_matches_contract(r)
     assert all(m["quality"] == "unavailable" for m in r.json()["metrics"])
@@ -280,13 +280,13 @@ def test_slow_source_times_out_then_served_from_cache(make_client, data_dir):
 
     with respx.mock(assert_all_called=False) as router:
         mock_all(router, soilgrids=slow)
-        r = c.post("/v1/snapshots", json={"selection": {"field_id": "plss:IA050790N0240W0SN140"}})
+        r = c.post("/v1/snapshots", json={"selection": {"field_id": "csb2025_190000000001"}})
         assert_matches_contract(r)
         n = by_key(r.json())["soil_nitrogen_total"]
         assert n["quality"] == "unavailable" and "in time" in n["unavailable_reason"]
         # Background fetch finishes and fills the per-source cache.
         c.portal.call(asyncio.sleep, 0.6)
-        r = c.post("/v1/snapshots", json={"selection": {"field_id": "plss:IA050790N0240W0SN140"}})
+        r = c.post("/v1/snapshots", json={"selection": {"field_id": "csb2025_190000000001"}})
     assert by_key(r.json())["soil_nitrogen_total"]["value"] == 2.91
 
 
@@ -308,7 +308,7 @@ def test_snapshot_outside_coverage(client):
     [
         {},
         {"selection": {}},
-        {"selection": {"field_id": "plss:IA050790N0240W0SN140", "point": {"lat": 41.6, "lon": -93.6}}},
+        {"selection": {"field_id": "csb2025_190000000001", "point": {"lat": 41.6, "lon": -93.6}}},
         {"selection": {"point": {"lat": 141.6, "lon": -93.6}}},
     ],
 )
@@ -326,4 +326,4 @@ def test_point_snapshot_inside_field_uses_field(client):
             "/v1/snapshots",
             json={"selection": {"point": {"lat": F1_POINT[0], "lon": F1_POINT[1]}}},
         )
-    assert r.json()["selection"]["field_id"] == "plss:IA050790N0240W0SN140"
+    assert r.json()["selection"]["field_id"] == "csb2025_190000000001"

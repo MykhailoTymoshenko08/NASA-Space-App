@@ -38,7 +38,7 @@ def test_analyses_rate_limited(make_client, data_dir):
     c = make_client(data_dir, rate_limit_requests=1)
     with respx.mock(assert_all_called=False) as router:
         mock_all(router)
-        body = {"selection": {"field_id": "plss:IA050790N0240W0SN140"}}
+        body = {"selection": {"field_id": "csb2025_190000000001"}}
         assert c.post("/v1/analyses", json=body).status_code == 202
         r = c.post("/v1/analyses", json=body)
     assert r.status_code == 429

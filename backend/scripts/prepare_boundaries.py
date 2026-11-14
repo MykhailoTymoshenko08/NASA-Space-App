@@ -8,9 +8,7 @@ clients (HTTP 403), so we query TIGERweb and generalise server-side with maxAllo
 Outputs (in DATA_DIR):
   states.json, counties.json   records served by /v1/geo/*
   counties.parquet             GeoParquet (EPSG:4326) for point-in-county lookups
-  boundaries.pmtiles           layers `states` (fips,name,postal), `counties` (fips,name,state_fips) and,
-                               when data/townships.parquet exists (scripts/prepare_plss.py), `townships`
-                               (township_id,label) for z8-10
+  boundaries.pmtiles           layers `states` (fips,name,postal), `counties` (fips,name,state_fips)
 
 Idempotent: re-running skips steps whose outputs exist unless --force is given.
 """
@@ -135,7 +133,7 @@ def main() -> None:
                     "bbox": bbox_of(r.geometry),
                     # Census internal point: always inside the county (a centroid may not be).
                     "centroid": {"lat": float(r.INTPTLAT), "lon": float(r.INTPTLON)},
-                    # Recomputed by the app at startup from the section data actually present.
+                    # Set by the app at startup: true for counties in the supported states.
                     "has_field_coverage": False,
                 }
                 for r in co.itertuples()
@@ -182,19 +180,6 @@ def build_tiles(out, tiles) -> None:
                                 "geometry": r.geometry.__geo_interface__}) + "\n")
     layers = ["-L", f"states:{st_path}", "-L", f"counties:{co_path}"]
     attribution = "US Census Bureau TIGERweb"
-    tw_pq = out / "townships.parquet"
-    if tw_pq.exists():
-        tw = gpd.read_parquet(tw_pq)
-        tw_path = tmp / "townships.geojsonl"
-        with tw_path.open("w") as f:
-            for r in tw.itertuples():
-                props = {"township_id": r.township_id, "label": r.label}
-                f.write(json.dumps({"type": "Feature", "properties": props,
-                                    "tippecanoe": {"minzoom": 8},
-                                    "geometry": r.geometry.__geo_interface__}) + "\n")
-        layers += ["-L", f"townships:{tw_path}"]
-        attribution += "; Bureau of Land Management"
-        print(f"including {len(tw)} townships")
     run_tippecanoe([
         "-o", str(tiles),
         "-Z0", "-z10",

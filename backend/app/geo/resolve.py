@@ -3,16 +3,16 @@
 import shapely
 
 from app.core.errors import ApiException, ErrorCode, not_found
-from app.geo.crs import in_conus_bbox, lonlat_to_5070, to_4326, xy_to_lonlat
-from app.geo.fields_index import FieldRecord
+from app.geo.crs import in_conus_bbox, lonlat_to_5070, to_4326, to_5070, xy_to_lonlat
+from app.geo.field_store import FieldRecord
 from app.models import (
     BoundaryType,
     CountyRef,
+    CropYear,
     FieldIdRef,
     FieldSelection,
     GeoJSONPolygon,
     LatLon,
-    PlssRef,
     PointRef,
     ResolvedBy,
     SelectionRef,
@@ -44,11 +44,26 @@ def _bbox(poly: shapely.Polygon) -> list[float]:
     return [round(w, 7), round(s, 7), round(e, 7), round(n, 7)]
 
 
-def _anchor(rec: FieldRecord) -> LatLon:
-    # Representative point is guaranteed inside the polygon (a centroid is not, for L shapes).
-    p = rec.geometry_5070.centroid
-    if not rec.geometry_5070.contains(p):
-        p = rec.geometry_5070.point_on_surface()
+def _main_polygon(geom, near: LatLon | None = None) -> shapely.Polygon:
+    """The contract allows one Polygon. A MultiPolygon (rare: ST_MakeValid output) is reduced to the
+    part containing `near`, else its largest part."""
+    if isinstance(geom, shapely.Polygon):
+        return geom
+    parts = list(geom.geoms)
+    if near is not None:
+        pt = shapely.Point(near.lon, near.lat)
+        for p in parts:
+            if p.covers(pt):
+                return p
+    return max(parts, key=lambda p: p.area)
+
+
+def _anchor(poly: shapely.Polygon) -> LatLon:
+    # Centroid in EPSG:5070; if it falls outside (L shapes), a point guaranteed inside the polygon.
+    p5070 = to_5070([poly])[0]
+    p = p5070.centroid
+    if not p5070.contains(p):
+        p = p5070.point_on_surface()
     lon, lat = xy_to_lonlat(p.x, p.y)
     return LatLon(lat=round(lat, 6), lon=round(lon, 6))
 
@@ -66,30 +81,24 @@ def selection_from_field(
     svc: Services, rec: FieldRecord, resolved_by: ResolvedBy, source: SelectionSource,
     snap_distance_m: float = 0.0, anchor: LatLon | None = None,
 ) -> FieldSelection:
-    """`anchor`: the clicked point when it lies inside the section; otherwise the section centroid."""
-    anchor = anchor or _anchor(rec)
+    """`anchor`: the clicked point when it lies inside the polygon; otherwise the polygon centroid."""
+    poly = _main_polygon(rec.geometry, anchor)
+    anchor = anchor or _anchor(poly)
     x, y = lonlat_to_5070(anchor.lon, anchor.lat)
     return FieldSelection(
         field_id=rec.field_id,
         anchor=anchor,
-        geometry=_polygon_json(rec.geometry),
-        bbox=_bbox(rec.geometry),
+        geometry=_polygon_json(poly),
+        bbox=_bbox(poly),
         resolved_by=resolved_by,
-        boundary_type=BoundaryType.plss_section,
-        plss=PlssRef(
-            township_id=rec.township_id,
-            section_id=rec.section_id,
-            section_number=rec.section_number,
-            division_type=rec.division_type,
-        ),
-        label=rec.label,
+        boundary_type=BoundaryType.estimated_csb,
         snap_distance_m=round(snap_distance_m, 1),
         buffer_m=None,
         area_ha=round(rec.area_ha, 2),
-        crop_class=None,  # PLSS has no crop data
+        crop_class=rec.crop_class,
         county=_county_ref(svc, x, y, rec.county_fips),
         source=source,
-        crop_history=[],
+        crop_history=[CropYear(year=y_, crop=c) for y_, c in rec.crop_history],
     )
 
 
@@ -106,16 +115,16 @@ def resolve_point(
     if not svc.boundaries.in_us(x, y):
         raise outside_coverage(lat, lon)
 
-    idx = svc.fields
-    if idx is not None:
-        rec = idx.containing(x, y)
+    store = svc.fields
+    if store is not None:
+        rec = store.containing(lon, lat)
         if rec is not None:
-            # Point lookups sample data at the clicked point, which lies inside the section.
+            # Point lookups sample data at the clicked point, which lies inside the polygon.
             return selection_from_field(svc, rec, ResolvedBy.field_polygon, source, 0.0, anchor=point)
-        hit = idx.nearest(x, y, snap_radius_m)
+        hit = store.nearest(lon, lat, snap_radius_m)
         if hit is not None:
             rec, dist = hit
-            # The clicked point is outside the section, so sample at the section centroid instead.
+            # The clicked point is outside the polygon, so sample at the polygon centroid instead.
             return selection_from_field(svc, rec, ResolvedBy.snapped_point, source, dist)
 
     # Fallback: a circle of buffer_m around the point, built in metres (EPSG:5070).
@@ -129,8 +138,6 @@ def resolve_point(
         bbox=_bbox(circle),
         resolved_by=ResolvedBy.buffered_point,
         boundary_type=BoundaryType.buffered_point,
-        plss=None,
-        label=None,
         snap_distance_m=None,
         buffer_m=r,
         area_ha=round(circle_5070.area / 10_000, 2),
