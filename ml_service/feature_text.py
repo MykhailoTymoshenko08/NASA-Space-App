@@ -4,7 +4,7 @@ CROP_NAMES = {  # slug -> (en, uk)
     "corn": ("Corn", "Кукурудза"), "soybean": ("Soybean", "Соя"), "winter_wheat": ("Winter wheat", "Озима пшениця"),
     "sorghum": ("Sorghum", "Сорго"), "alfalfa": ("Alfalfa", "Люцерна"), "oats": ("Oats", "Овес"),
     "barley": ("Barley", "Ячмінь"), "cereal_rye": ("Cereal rye (cover)", "Жито (покривне)"),
-    "other": ("other / fallow / unknown", "інше / пар / невідомо"),
+    "other": ("other / unknown", "інше / невідомо"), "fallow": ("Fallow", "Пар"),
 }
 
 BASE_DESC = {  # feature -> (en, uk)
@@ -69,4 +69,10 @@ def feature_plain(name: str, lang: str) -> str:
 
 
 def crop_name(slug: str, lang: str) -> str:
-    return CROP_NAMES.get(slug, (slug, slug))[1 if lang == "uk" else 0]
+    """a crop slug, "fallow", or a double crop "winter_wheat+soybean" (named "Winter wheat / soybean (double crop)")"""
+    i = 1 if lang == "uk" else 0
+    if "+" in slug:
+        a, b = slug.split("+")
+        word = "подвійний посів" if lang == "uk" else "double crop"
+        return f"{CROP_NAMES.get(a, (a, a))[i]} / {CROP_NAMES.get(b, (b, b))[i].lower()} ({word})"
+    return CROP_NAMES.get(slug, (slug, slug))[i]

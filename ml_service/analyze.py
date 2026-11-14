@@ -8,7 +8,7 @@ from . import MODEL_VERSION, COVERAGE_STATES
 from . import crops as crop_db
 from .climate import Context, build_timeline, heat_days, Rotation
 from .errors import invalid_input, out_of_coverage
-from .rotations import (SCORE_KEYS, Candidate, Evaluation, build_candidates, detect_rotation,
+from .mock_rotations import (SCORE_KEYS, Candidate, Evaluation, build_candidates, detect_rotation,
                         evaluate, mains_of, overall, plain)
 from .schemas import AnalyzeRequest, AnalyzeResponse
 from .texts import DISCLAIMER, MONTHS, SOURCES, T

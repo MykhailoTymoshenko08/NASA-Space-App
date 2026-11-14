@@ -101,6 +101,14 @@ class FieldContext:
     twi: float | None = None
     smap_deficit_share: float | None = None
     irrigated: bool | None = None
+    # used by the rotation planner (ml_service/rotations.py)
+    history: dict = field(default_factory=dict)     # year -> crop slug ("other" = not a candidate), from CSB; what the MODEL sees
+    history_rich: dict = field(default_factory=dict)  # year -> slug | "fallow" | "a+b" (double crop): for reading the rotation
+    target_year: int | None = None                  # the season we plan for
+    et0_monthly: list | None = None                 # 12 values, mm, climate normal (after the scenario shift)
+    precip_monthly: list | None = None              # 12 values, mm
+    precip_annual: float | None = None              # mm
+    scenario: tuple = (0.0, 0.0)                    # (temp_delta_c, precip_change_pct) already applied to the climate
 
 
 @dataclass
@@ -158,13 +166,15 @@ def calibrate(p: np.ndarray, cal: dict) -> np.ndarray:
     return out / out.sum(axis=1, keepdims=True)
 
 
-def model_forecast(ctx: FieldContext, a: Assets):
-    """calibrated probabilities per class + the SHAP contributions of every feature per class."""
+def model_forecast(ctx: FieldContext, a: Assets, explain: bool = True):
+    """calibrated probabilities per class + (if explain) the SHAP contributions of every feature per class."""
     x = build_feature_row(ctx, a)
     raw = a.booster.predict(x)
     probs = calibrate(np.asarray(raw), a.calibrator)[0]
-    k, f = len(a.classes), len(a.features)
-    contrib = a.booster.predict(x, pred_contrib=True).reshape(k, f + 1)[:, :f]
+    contrib = None
+    if explain:
+        k, f = len(a.classes), len(a.features)
+        contrib = a.booster.predict(x, pred_contrib=True).reshape(k, f + 1)[:, :f]
     return x, probs, contrib
 
 
@@ -252,12 +262,15 @@ def _transition_raw(prev: str, crop: str, a: Assets) -> tuple[float, str | None]
 
 # --------------------------------------------------------------------------- the ranking
 
-def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool | None = None) -> dict:
+def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool | None = None,
+               explain: bool = True, extra: dict | None = None) -> dict:
+    """explain=False skips the SHAP reasons (faster, used when many hypothetical situations are scored).
+    extra: {crop: [(multiplier, text), ...]} additional factors from outside, e.g. last season's NDVI stress."""
     t = T[lang]
     irrigated = ctx.irrigated if irrigated is None else irrigated
     li = 1 if lang == "uk" else 0
 
-    x, probs, contrib = model_forecast(ctx, a)
+    x, probs, contrib = model_forecast(ctx, a, explain)
     model_probs = dict(zip(a.classes, probs))
     # a crop without a model forecast (rules-only) is treated as likely as the field's LEAST likely modelled crop:
     # the data says these crops are rare, so rules alone can lift them only when the modelled crops are out
@@ -325,10 +338,17 @@ def rank_crops(ctx: FieldContext, a: Assets, lang: str = "uk", irrigated: bool |
         for rid in unknown:
             unevaluated.setdefault(rid, set()).add(slug)
 
-        score = 0.0 if blocked else prob * tm * suit * rules_mult
+        extra_mult = 1.0
+        for mult, text in (extra or {}).get(slug, []):
+            extra_mult *= mult
+            adjustments.append({"text": text, "multiplier": mult})
+
+        score = 0.0 if blocked else prob * tm * suit * rules_mult * extra_mult
 
         # main factors: SHAP for model crops, the biggest adjustments for rules-only crops
-        if in_model:
+        if in_model and not explain:
+            factors = []
+        elif in_model:
             factors = shap_factors(x, contrib[a.classes.index(slug)], a.features, lang)
         else:
             ranked_adj = sorted((ad for ad in adjustments if ad["multiplier"] != 1.0), key=lambda ad: -abs(np.log(ad["multiplier"])))
