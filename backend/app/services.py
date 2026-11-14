@@ -1,6 +1,7 @@
 """Process-wide services, loaded once at startup and stored on `app.state.services`."""
 
 import logging
+import secrets
 from pathlib import Path
 from typing import Any
 
@@ -79,6 +80,16 @@ class Services:
 
         self.boundary_tiles = self._tiles(d / "boundaries.pmtiles")
 
+        from app.auth.store import UserStore
+
+        self.users: UserStore | None = (
+            UserStore.connect(settings.database_url) if settings.database_url else None
+        )
+        self.jwt_secret = settings.jwt_secret.get_secret_value()
+        if not self.jwt_secret:
+            log.warning("JWT_SECRET not set: using a random per-process secret (tokens die on restart)")
+            self.jwt_secret = secrets.token_urlsafe(48)
+
     @staticmethod
     def _tiles(path: Path) -> TileSource | None:
         if not path.exists():
@@ -105,6 +116,8 @@ class Services:
             self.boundary_tiles.close()
         if self._fields:
             self._fields.close()
+        if self.users:
+            self.users.close()
 
 
 def get_services(request: Request) -> Services:

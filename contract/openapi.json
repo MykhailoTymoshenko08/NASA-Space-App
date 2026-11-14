@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Field Shift API",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it), so analysis still works.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one static PMTiles file hosted\n  outside the backend; its URL is `coverage.field_tiles.url_template`. The backend does not serve field tiles.\n"
   },
   "servers": [
@@ -29,6 +29,9 @@
     },
     {
       "name": "analyses"
+    },
+    {
+      "name": "auth"
     }
   ],
   "paths": {
@@ -588,9 +591,197 @@
           }
         }
       }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "register",
+        "summary": "Create an account and sign in",
+        "description": "Email is trimmed and stored lowercase. Password: 8-128 characters, at least one letter and one digit.\nOn success the response sets the refresh token cookie (see `/auth/refresh`).\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created and signed in",
+            "headers": {
+              "Set-Cookie": {
+                "$ref": "#/components/headers/RefreshCookie"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokens"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "login",
+        "summary": "Sign in with email and password",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "headers": {
+              "Set-Cookie": {
+                "$ref": "#/components/headers/RefreshCookie"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokens"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "refreshTokens",
+        "summary": "New access token from the refresh token cookie",
+        "description": "Reads the `refresh_token` httpOnly cookie (path `/v1/auth`); call with `credentials: \"include\"`.\nThe refresh token is single use: it is rotated and the response sets a new cookie.\n",
+        "responses": {
+          "200": {
+            "description": "New access token and rotated refresh cookie",
+            "headers": {
+              "Set-Cookie": {
+                "$ref": "#/components/headers/RefreshCookie"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokens"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "logout",
+        "summary": "Revoke the refresh token and clear its cookie",
+        "description": "Idempotent. Access tokens already issued stay valid until they expire.",
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "getMe",
+        "summary": "The signed-in user",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
     }
   },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Access token from `/auth/login`, `/auth/register` or `/auth/refresh`."
+      }
+    },
+    "headers": {
+      "RefreshCookie": {
+        "description": "`refresh_token=<opaque>; HttpOnly; Path=/v1/auth; Max-Age=<refresh TTL>; SameSite=...`",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
     "parameters": {
       "Z": {
         "name": "z",
@@ -622,6 +813,33 @@
       }
     },
     "responses": {
+      "Unauthorized": {
+        "description": "`UNAUTHORIZED`. `details.reason` is one of `missing_token`, `token_expired`, `invalid_token`,\n`unknown_user`, `invalid_credentials`, `missing_refresh_token`, `invalid_refresh_token`.\n",
+        "headers": {
+          "WWW-Authenticate": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "`VALIDATION_ERROR`",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
       "VectorTile": {
         "description": "Mapbox Vector Tile",
         "content": {
@@ -662,6 +880,100 @@
       }
     },
     "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "description": "At least one letter and one digit."
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "email",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Lowercase."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuthTokens": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "user"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "JWT. Send as `Authorization: Bearer <access_token>`."
+          },
+          "token_type": {
+            "type": "string",
+            "enum": [
+              "bearer"
+            ]
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Access token lifetime in seconds."
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
       "LatLon": {
         "type": "object",
         "required": [
@@ -1872,7 +2184,9 @@
           "OUTSIDE_COVERAGE",
           "UPSTREAM_DATA_UNAVAILABLE",
           "RATE_LIMITED",
-          "INTERNAL_ERROR"
+          "INTERNAL_ERROR",
+          "UNAUTHORIZED",
+          "EMAIL_TAKEN"
         ]
       },
       "ApiError": {

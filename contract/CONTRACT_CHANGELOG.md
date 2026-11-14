@@ -3,6 +3,20 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.4.0 (2026-11-14): email + password accounts
+
+Additive, not breaking. No existing endpoint requires auth yet.
+
+- New tag `auth`: `POST /auth/register` (201), `POST /auth/login`, `POST /auth/refresh`,
+  `POST /auth/logout` (204), `GET /me`.
+- Register, login and refresh return `AuthTokens` (`access_token` JWT, `token_type: bearer`,
+  `expires_in` seconds, `user`) and set the `refresh_token` httpOnly cookie on path `/v1/auth`.
+  Refresh reads that cookie and rotates it (single use).
+- `bearerAuth` security scheme; `GET /me` uses it.
+- New schemas `RegisterRequest`, `LoginRequest`, `User`, `AuthTokens`; new responses `Unauthorized`
+  (401, `WWW-Authenticate: Bearer`, `details.reason`) and `ValidationError`.
+- `ErrorCode` gains `UNAUTHORIZED` (401) and `EMAIL_TAKEN` (409).
+
 ## 0.3.1 (2026-11-14): farmer-facing field context
 
 Additive: `POST /fields/info` takes the existing `{point: {lat, lon}}` map payload and returns

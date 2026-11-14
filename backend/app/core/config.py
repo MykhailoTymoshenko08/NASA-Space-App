@@ -2,8 +2,9 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -44,6 +45,28 @@ class Settings(BaseSettings):
 
     # Field resolution.
     buffer_radius_m: float = 500.0
+
+    # Auth. Users and refresh tokens live in the `database_url` database.
+    # JWT_SECRET signs access tokens. Empty: a random per-process secret (dev only: tokens die on restart).
+    jwt_secret: SecretStr = SecretStr("")
+    access_token_ttl_min: int = Field(default=15, ge=1)
+    refresh_token_ttl_days: int = Field(default=7, ge=1)
+    # Refresh cookie. Frontend on another *site* (not just another port): SECURE=true, SAMESITE=none.
+    auth_cookie_secure: bool = False
+    auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def _secret_long_enough(cls, v: SecretStr) -> SecretStr:
+        if v.get_secret_value() and len(v.get_secret_value()) < 32:
+            raise ValueError("JWT_SECRET must be at least 32 characters")
+        return v
+
+    @model_validator(mode="after")
+    def _samesite_none_needs_secure(self) -> "Settings":
+        if self.auth_cookie_samesite == "none" and not self.auth_cookie_secure:
+            raise ValueError("AUTH_COOKIE_SAMESITE=none requires AUTH_COOKIE_SECURE=true")
+        return self
 
 
 @lru_cache
