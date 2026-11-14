@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Backend runtime / generated data
+backend/.cache/
+backend/data/*
+!backend/data/README.md
+
+# Secrets
+.env
+*.env
+!.env.example
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

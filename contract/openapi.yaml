@@ -1,0 +1,872 @@
+openapi: 3.1.0
+info:
+  title: Field Shift API
+  version: 0.2.0
+  description: |
+    Contract between the frontend and backend of the Field Shift farmer map
+    (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
+    Change it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.
+
+    ## Conventions (apply everywhere)
+    - Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.
+    - Coordinates in our own objects are `{ "lat": number, "lon": number }` (WGS84). NEVER bare arrays.
+      The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.
+    - All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.
+    - A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.
+    - Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.
+    - Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.
+    - Coverage v1: contiguous US (CONUS). Field polygons exist only inside the regions listed by `GET /meta/coverage`.
+    - Fields are NEVER sent as bulk GeoJSON. They are drawn from vector tiles; see `/tiles/fields/...`.
+servers:
+  - url: http://localhost:8000/v1
+    description: Local backend
+tags:
+  - name: meta
+  - name: geo
+  - name: tiles
+  - name: fields
+  - name: snapshots
+  - name: analyses
+
+paths:
+  /health:
+    get:
+      tags: [meta]
+      operationId: getHealth
+      summary: Liveness check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok] }
+
+  /meta/coverage:
+    get:
+      tags: [meta]
+      operationId: getCoverage
+      summary: Where the app works and where field polygons are available
+      description: Frontend uses this to set map bounds, tile zoom thresholds and to warn users outside field coverage.
+      responses:
+        "200":
+          description: Coverage description
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Coverage" }
+
+  /geo/states:
+    get:
+      tags: [geo]
+      operationId: listStates
+      summary: List states (for the state/county picker)
+      responses:
+        "200":
+          description: States, sorted by name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/State" }
+
+  /geo/states/{state_fips}/counties:
+    get:
+      tags: [geo]
+      operationId: listCounties
+      summary: List counties of a state
+      parameters:
+        - name: state_fips
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/StateFips" }
+      responses:
+        "200":
+          description: Counties, sorted by name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/County" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /geo/counties/{county_fips}:
+    get:
+      tags: [geo]
+      operationId: getCounty
+      summary: One county (use its bbox to fit the map after the user picks it)
+      parameters:
+        - name: county_fips
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/CountyFips" }
+      responses:
+        "200":
+          description: County
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/County" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /locations/resolve:
+    post:
+      tags: [geo]
+      operationId: resolveLocation
+      summary: Turn pasted text into a field selection (entry methods 2 and 3)
+      description: |
+        The user pastes ONE string into one input. Backend detects the kind:
+        plain coordinates (`41.5868, -93.625`, also `41.5868 -93.625` and degrees/minutes/seconds),
+        a Google Maps URL (full or short link), or an Apple Maps URL (full or short link).
+        Short links are followed server-side (host allow-list, no other redirects).
+        The point is then resolved to a field (see `POST /fields/resolve`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [input]
+              properties:
+                input:
+                  type: string
+                  minLength: 3
+                  maxLength: 2048
+            examples:
+              plain: { value: { input: "41.5868, -93.6250" } }
+              google: { value: { input: "https://maps.app.goo.gl/AbCdEf123" } }
+      responses:
+        "200":
+          description: Resolved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResolvedLocation" }
+        "422":
+          description: |
+            Error codes: `UNPARSEABLE_INPUT` (not coordinates or a known link),
+            `UNSUPPORTED_LINK` (recognised link but no coordinates inside, typical for some Apple short links),
+            `OUTSIDE_COVERAGE` (valid point outside CONUS).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /fields/resolve:
+    post:
+      tags: [fields]
+      operationId: resolveField
+      summary: Resolve a point (map click, coordinates) to a field selection
+      description: |
+        Snaps to the nearest field polygon within `snap_radius_m`. If none is found, falls back to a buffered point
+        (`resolved_by = buffered_point`) so the user can still run an analysis.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [point]
+              properties:
+                point: { $ref: "#/components/schemas/LatLon" }
+                snap_radius_m:
+                  type: number
+                  minimum: 0
+                  maximum: 2000
+                  default: 300
+                source: { $ref: "#/components/schemas/SelectionSource" }
+      responses:
+        "200":
+          description: Selection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldSelection" }
+        "422":
+          description: "`OUTSIDE_COVERAGE` or `VALIDATION_ERROR`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /fields/{field_id}:
+    get:
+      tags: [fields]
+      operationId: getField
+      summary: Get a field by id (landing-page click on a field tile)
+      parameters:
+        - name: field_id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/FieldId" }
+      responses:
+        "200":
+          description: Selection for that field
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldSelection" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /tiles/boundaries/{z}/{x}/{y}.mvt:
+    get:
+      tags: [tiles]
+      operationId: getBoundaryTile
+      summary: State and county outlines (vector tile)
+      description: |
+        Mapbox Vector Tile. Layers: `states` (props: `fips`, `name`, `postal`), `counties` (props: `fips`, `name`, `state_fips`).
+        Frontend shows `states` at zoom < 7 and `counties` at zoom 7 to 10.
+      parameters:
+        - { $ref: "#/components/parameters/Z" }
+        - { $ref: "#/components/parameters/X" }
+        - { $ref: "#/components/parameters/Y" }
+      responses:
+        "200": { $ref: "#/components/responses/VectorTile" }
+        "204": { description: Empty tile }
+
+  /tiles/fields/{z}/{x}/{y}.mvt:
+    get:
+      tags: [tiles]
+      operationId: getFieldTile
+      summary: Field polygons (vector tile)
+      description: |
+        Mapbox Vector Tile. Layer `fields`, props: `field_id` (string), `crop_class` (string, may be empty),
+        `area_ha` (number). Only served for z >= `coverage.field_tiles.min_zoom` inside covered regions;
+        elsewhere returns 204. The same data may be served as a static PMTiles file; the frontend must read
+        the tile URL template from `GET /meta/coverage` (`field_tiles.url_template`), not hardcode it.
+      parameters:
+        - { $ref: "#/components/parameters/Z" }
+        - { $ref: "#/components/parameters/X" }
+        - { $ref: "#/components/parameters/Y" }
+      responses:
+        "200": { $ref: "#/components/responses/VectorTile" }
+        "204": { description: Empty tile or outside coverage }
+
+  /snapshots:
+    post:
+      tags: [snapshots]
+      operationId: createSnapshot
+      summary: Base data for a selected field (fast, cached)
+      description: |
+        Called as soon as a field is selected (landing click, or any of the 3 entry methods).
+        Target latency under 2 s; the backend caches by field_id or rounded point. Synchronous.
+        Metrics are the same shape the analysis uses, so the UI can reuse one component.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [selection]
+              properties:
+                selection: { $ref: "#/components/schemas/SelectionRef" }
+      responses:
+        "200":
+          description: Snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Snapshot" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422":
+          description: "`OUTSIDE_COVERAGE` or `VALIDATION_ERROR`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /analyses:
+    post:
+      tags: [analyses]
+      operationId: createAnalysis
+      summary: Start a rotation analysis (async job)
+      description: |
+        Triggered by "Get analysis". Returns 202 immediately with a job. Poll `GET /analyses/{job_id}`
+        every 2 s (back off to 5 s after 30 s). Identical requests within the cache window may return an existing job.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnalysisRequest" }
+      responses:
+        "202":
+          description: Job accepted
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL of the job
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalysisJob" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422":
+          description: "`OUTSIDE_COVERAGE` or `VALIDATION_ERROR`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /analyses/{job_id}:
+    get:
+      tags: [analyses]
+      operationId: getAnalysis
+      summary: Job status and, when finished, the result
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: |
+            Job state. `result` is present only when `status = succeeded`; `error` only when `status = failed`.
+            A failed JOB still returns HTTP 200; HTTP errors are for failed REQUESTS.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalysisJob" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  parameters:
+    Z:
+      name: z
+      in: path
+      required: true
+      schema: { type: integer, minimum: 0, maximum: 22 }
+    X:
+      name: x
+      in: path
+      required: true
+      schema: { type: integer, minimum: 0 }
+    Y:
+      name: y
+      in: path
+      required: true
+      schema: { type: integer, minimum: 0 }
+
+  responses:
+    VectorTile:
+      description: Mapbox Vector Tile
+      content:
+        application/vnd.mapbox-vector-tile:
+          schema: { type: string, format: binary }
+    NotFound:
+      description: "`NOT_FOUND`"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    RateLimited:
+      description: "`RATE_LIMITED`. Honour the `Retry-After` header."
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  schemas:
+    # ---------- primitives ----------
+    LatLon:
+      type: object
+      required: [lat, lon]
+      additionalProperties: false
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lon: { type: number, minimum: -180, maximum: 180 }
+      example: { lat: 41.5868, lon: -93.625 }
+
+    BBox:
+      type: array
+      description: "[west, south, east, north] in degrees, GeoJSON order."
+      minItems: 4
+      maxItems: 4
+      items: { type: number }
+      example: [-96.64, 40.37, -90.14, 43.5]
+
+    GeoJSONPoint:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { type: string, enum: [Point] }
+        coordinates:
+          type: array
+          description: "[lon, lat]"
+          minItems: 2
+          maxItems: 2
+          items: { type: number }
+
+    GeoJSONPolygon:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { type: string, enum: [Polygon] }
+        coordinates:
+          type: array
+          description: Linear rings, each a list of [lon, lat]. First ring is the exterior.
+          items:
+            type: array
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items: { type: number }
+
+    StateFips:
+      type: string
+      pattern: "^[0-9]{2}$"
+      example: "19"
+    CountyFips:
+      type: string
+      description: 5-digit state+county FIPS.
+      pattern: "^[0-9]{5}$"
+      example: "19153"
+    FieldId:
+      type: string
+      description: |
+        Stable id of a field polygon. Opaque to the frontend. Backend guarantees it only changes when the
+        polygon data version changes (see `Coverage.field_data_version`).
+      example: "fld_8a3f1c9e2b"
+
+    # ---------- geo ----------
+    State:
+      type: object
+      required: [fips, name, postal, bbox]
+      properties:
+        fips: { $ref: "#/components/schemas/StateFips" }
+        name: { type: string, example: Iowa }
+        postal: { type: string, minLength: 2, maxLength: 2, example: IA }
+        bbox: { $ref: "#/components/schemas/BBox" }
+
+    County:
+      type: object
+      required: [fips, name, state_fips, state_postal, bbox, centroid, has_field_coverage]
+      properties:
+        fips: { $ref: "#/components/schemas/CountyFips" }
+        name: { type: string, example: Polk }
+        state_fips: { $ref: "#/components/schemas/StateFips" }
+        state_postal: { type: string, example: IA }
+        bbox: { $ref: "#/components/schemas/BBox" }
+        centroid: { $ref: "#/components/schemas/LatLon" }
+        has_field_coverage:
+          type: boolean
+          description: False means field tiles are empty here; the UI should offer point-based analysis instead.
+
+    Coverage:
+      type: object
+      required: [bounds, field_tiles, field_data_version, supported_states]
+      properties:
+        bounds:
+          allOf: [{ $ref: "#/components/schemas/BBox" }]
+          description: Overall supported area (CONUS).
+        supported_states:
+          type: array
+          items: { type: string, minLength: 2, maxLength: 2 }
+        field_data_version:
+          type: string
+          example: "2026-11-pilot-1"
+        field_boundary_source:
+          type: object
+          description: Where field polygons come from. Show the attribution near the map.
+          required: [name, edition, estimated_csb, attribution]
+          properties:
+            name: { type: string, example: "USDA Crop Sequence Boundaries" }
+            edition: { type: string, example: "2024" }
+            estimated_csb:
+              type: boolean
+              description: True because CSB polygons are algorithmic (synthetic), not surveyed field boundaries.
+            attribution: { type: string }
+            url: { type: [string, "null"], format: uri }
+        field_tiles:
+          type: object
+          required: [min_zoom, max_zoom, url_template, regions]
+          properties:
+            min_zoom: { type: integer, example: 11 }
+            max_zoom: { type: integer, example: 16 }
+            url_template:
+              type: string
+              description: "XYZ template, e.g. `/v1/tiles/fields/{z}/{x}/{y}.mvt` or a PMTiles URL."
+            regions:
+              type: array
+              description: Areas where field polygons exist.
+              items:
+                type: object
+                required: [name, bbox]
+                properties:
+                  name: { type: string, example: "Polk County, IA" }
+                  bbox: { $ref: "#/components/schemas/BBox" }
+
+    # ---------- selection ----------
+    SelectionSource:
+      type: string
+      description: How the user got here. Used for analytics and UI hints only; never changes results.
+      enum: [landing_map_click, county_pick, location_link, coordinates, map_click]
+
+    SelectionRef:
+      description: |
+        What the client sends to identify "the field". Give a `field_id` when you have one (preferred),
+        otherwise a `point`. Backend resolves it and returns the full `FieldSelection`.
+      oneOf:
+        - type: object
+          required: [field_id]
+          additionalProperties: false
+          properties:
+            field_id: { $ref: "#/components/schemas/FieldId" }
+        - type: object
+          required: [point]
+          additionalProperties: false
+          properties:
+            point: { $ref: "#/components/schemas/LatLon" }
+
+    FieldSelection:
+      type: object
+      description: Backend-resolved selection. This is the one object every page works with.
+      required: [field_id, anchor, geometry, resolved_by, county, area_ha, source]
+      properties:
+        field_id:
+          type: [string, "null"]
+          description: Null when `resolved_by = buffered_point`.
+        anchor:
+          allOf: [{ $ref: "#/components/schemas/LatLon" }]
+          description: Point used to sample point datasets (polygon centroid, or the clicked point).
+        geometry:
+          description: The field polygon, or the buffered circle (approximated as a polygon) around the point.
+          allOf: [{ $ref: "#/components/schemas/GeoJSONPolygon" }]
+        bbox: { $ref: "#/components/schemas/BBox" }
+        resolved_by:
+          type: string
+          enum: [field_polygon, snapped_point, buffered_point]
+          description: |
+            `field_polygon`: id lookup or point inside a polygon.
+            `snapped_point`: point snapped to nearest polygon within the snap radius.
+            `buffered_point`: no polygon nearby, a circle of `buffer_m` is used.
+        snap_distance_m: { type: [number, "null"] }
+        buffer_m: { type: [number, "null"] }
+        area_ha: { type: [number, "null"] }
+        crop_class:
+          type: [string, "null"]
+          description: Latest mapped crop on this field, if known (e.g. "Corn").
+        county:
+          type: object
+          required: [fips, name, state_postal]
+          properties:
+            fips: { $ref: "#/components/schemas/CountyFips" }
+            name: { type: string }
+            state_postal: { type: string }
+        source: { $ref: "#/components/schemas/SelectionSource" }
+        crop_history:
+          type: array
+          description: |
+            Mapped crop history for this field, newest first. Empty when the boundary source has no
+            multi-year history for this polygon (or for buffered points). Never guessed.
+          items: { $ref: "#/components/schemas/CropYear" }
+      example:
+        field_id: fld_8a3f1c9e2b
+        anchor: { lat: 41.5868, lon: -93.625 }
+        geometry:
+          type: Polygon
+          coordinates: [[[-93.626, 41.586], [-93.624, 41.586], [-93.624, 41.588], [-93.626, 41.588], [-93.626, 41.586]]]
+        resolved_by: field_polygon
+        snap_distance_m: 0
+        buffer_m: null
+        area_ha: 31.4
+        crop_class: Corn
+        county: { fips: "19153", name: Polk, state_postal: IA }
+        source: landing_map_click
+        crop_history: [{ year: 2024, crop: Corn }, { year: 2023, crop: Soybeans }]
+
+    CropYear:
+      type: object
+      required: [year, crop]
+      properties:
+        year: { type: integer, minimum: 1990, maximum: 2100 }
+        crop: { type: string }
+
+    ResolvedLocation:
+      type: object
+      required: [input_kind, point, selection]
+      properties:
+        input_kind:
+          type: string
+          enum: [plain_coordinates, google_maps_url, apple_maps_url]
+        point:
+          allOf: [{ $ref: "#/components/schemas/LatLon" }]
+          description: The point as parsed from the input, before snapping.
+        selection: { $ref: "#/components/schemas/FieldSelection" }
+
+    # ---------- metrics (shared by snapshot and analysis) ----------
+    Metric:
+      type: object
+      required: [key, label, category, value, unit, quality, source, resolution_m]
+      properties:
+        key:
+          type: string
+          description: |
+            Stable machine key. Known keys (new ones may be added, the frontend must render unknown keys generically):
+            `soil_moisture_surface` (SMAP), `soil_moisture_rootzone` (SMAP L4), `relative_humidity_2m` (NASA POWER),
+            `air_temp_mean_2m`, `precip_30d_total`, `precip_annual_normal`, `soil_organic_matter_pct`,
+            `soil_nitrogen_total` (estimated), `soil_ph`, `soil_texture_class`, `elevation_m`, `slope_pct`,
+            `soil_wetness_surface` and `soil_wetness_rootzone` (NASA POWER, modeled, unit `fraction`).
+          example: soil_moisture_surface
+        label: { type: string, description: "English display name.", example: "Soil moisture (surface)" }
+        category:
+          type: string
+          enum: [moisture, atmosphere, temperature, precipitation, soil, terrain, vegetation]
+        value:
+          type: [number, string, "null"]
+          description: Number for continuous metrics, string for classes (e.g. texture), null if unavailable.
+        unit:
+          type: string
+          description: "Machine unit: `m3/m3`, `%`, `degC`, `mm`, `g/kg`, `m`, `pH`, `class`, `fraction` (0 to 1, e.g. NASA POWER modeled soil wetness), `none`."
+        as_of:
+          type: [string, "null"]
+          format: date
+        period:
+          type: [object, "null"]
+          description: Averaging window for the value, if it is an aggregate.
+          properties:
+            start: { type: string, format: date }
+            end: { type: string, format: date }
+        quality:
+          type: string
+          enum: [measured, modeled, estimated, unavailable]
+          description: "`estimated` = derived proxy (e.g. nitrogen from organic matter). UI must label it as an estimate."
+        unavailable_reason: { type: [string, "null"] }
+        source:
+          type: object
+          required: [dataset, provider]
+          properties:
+            dataset: { type: string, example: "SMAP L3 Enhanced Soil Moisture" }
+            provider: { type: string, example: "NASA" }
+            url: { type: [string, "null"], format: uri }
+        resolution_m:
+          type: [number, "null"]
+          description: Native spatial resolution in metres. Coarse values (greater than the field size) are shown with a warning.
+        note: { type: [string, "null"] }
+      example:
+        key: soil_moisture_surface
+        label: Soil moisture (surface)
+        category: moisture
+        value: 0.27
+        unit: m3/m3
+        as_of: "2026-11-12"
+        period: null
+        quality: measured
+        unavailable_reason: null
+        source: { dataset: "SMAP L3 Enhanced Soil Moisture", provider: NASA, url: null }
+        resolution_m: 9000
+        note: null
+
+    Snapshot:
+      type: object
+      required: [selection, generated_at, metrics, cached]
+      properties:
+        selection: { $ref: "#/components/schemas/FieldSelection" }
+        generated_at: { type: string, format: date-time }
+        cached: { type: boolean }
+        metrics:
+          type: array
+          items: { $ref: "#/components/schemas/Metric" }
+
+    # ---------- analysis ----------
+    Priority:
+      type: string
+      enum: [water_conservation, extra_income, soil_health, erosion_control, low_input_cost, nitrogen_fixing]
+
+    AnalysisRequest:
+      type: object
+      required: [selection]
+      properties:
+        selection: { $ref: "#/components/schemas/SelectionRef" }
+        options:
+          type: object
+          properties:
+            priorities:
+              type: array
+              items: { $ref: "#/components/schemas/Priority" }
+              maxItems: 6
+              description: Farmer priorities. Empty means balanced.
+            crop_history:
+              type: array
+              description: Optional. Newest first. If omitted, backend uses mapped crop data.
+              maxItems: 10
+              items:
+                type: object
+                required: [year, crop]
+                properties:
+                  year: { type: integer, minimum: 1990, maximum: 2100 }
+                  crop: { type: string }
+            horizon_years: { type: integer, minimum: 1, maximum: 5, default: 3 }
+
+    JobStatus:
+      type: string
+      enum: [queued, running, succeeded, failed]
+
+    AnalysisJob:
+      type: object
+      required: [job_id, status, created_at, progress]
+      properties:
+        job_id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/JobStatus" }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        progress:
+          type: object
+          required: [percent, stage]
+          properties:
+            percent: { type: integer, minimum: 0, maximum: 100 }
+            stage:
+              type: string
+              description: Human-readable current step, safe to show to the user.
+              example: "Fetching soil moisture history"
+        result:
+          description: Present only when `status = succeeded`.
+          allOf: [{ $ref: "#/components/schemas/AnalysisResult" }]
+        error:
+          description: Present only when `status = failed`.
+          allOf: [{ $ref: "#/components/schemas/ApiError" }]
+
+    AnalysisResult:
+      type: object
+      required: [selection, generated_at, model_version, strategies, current_conditions, datasets_used, disclaimer]
+      properties:
+        selection: { $ref: "#/components/schemas/FieldSelection" }
+        generated_at: { type: string, format: date-time }
+        model_version: { type: string, example: "rotation-v0.1" }
+        current_conditions:
+          type: array
+          description: Same metric shape as the snapshot, possibly with more metrics.
+          items: { $ref: "#/components/schemas/Metric" }
+        time_series:
+          type: array
+          description: Optional history for charts (e.g. soil moisture, precipitation).
+          items: { $ref: "#/components/schemas/TimeSeries" }
+        strategies:
+          type: array
+          description: At least 3 rotation strategies, one of which has `is_current = true`. Sorted by `score` descending.
+          minItems: 3
+          items: { $ref: "#/components/schemas/Strategy" }
+        datasets_used:
+          type: array
+          items: { $ref: "#/components/schemas/DatasetRef" }
+        warnings:
+          type: array
+          items: { type: string }
+          description: User-visible caveats (coarse data, missing history...).
+        disclaimer:
+          type: string
+          description: Shown verbatim on the results page. The tool supports, not replaces, local expertise.
+
+    TimeSeries:
+      type: object
+      required: [key, label, unit, points]
+      properties:
+        key: { type: string, example: soil_moisture_surface }
+        label: { type: string }
+        unit: { type: string }
+        source: { $ref: "#/components/schemas/DatasetRef" }
+        points:
+          type: array
+          items:
+            type: object
+            required: [t, v]
+            properties:
+              t: { type: string, format: date }
+              v: { type: [number, "null"] }
+
+    DatasetRef:
+      type: object
+      required: [dataset, provider]
+      properties:
+        dataset: { type: string, example: "NASA POWER" }
+        provider: { type: string, example: NASA }
+        url: { type: [string, "null"], format: uri }
+        resolution_m: { type: [number, "null"] }
+        coverage_period:
+          type: [string, "null"]
+          example: "2015-2026"
+
+    Strategy:
+      type: object
+      required: [id, name, is_current, rotation, score, confidence, summary, benefits, risks, evidence, information_gaps, needs_local_review]
+      properties:
+        id: { type: string, example: strat_corn_soy_cover }
+        name: { type: string, example: "Corn / soybean with winter rye cover" }
+        is_current: { type: boolean, description: True for the baseline (the farmer's existing rotation). }
+        rotation:
+          type: array
+          description: Ordered seasons of one rotation cycle.
+          items:
+            type: object
+            required: [season_index, crop, role]
+            properties:
+              season_index: { type: integer, minimum: 0, description: "0 = first season of the horizon." }
+              crop: { type: string, example: Soybean }
+              role:
+                type: string
+                enum: [cash_crop, cover_crop, nitrogen_fixer, forage, fallow]
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Fit to this field and the chosen priorities. Comparable only inside this result.
+        score_breakdown:
+          type: array
+          items:
+            type: object
+            required: [criterion, score]
+            properties:
+              criterion:
+                type: string
+                enum: [water_use, soil_health, erosion, nitrogen, pest_cycle, income, climate_risk]
+              score: { type: number, minimum: 0, maximum: 100 }
+        confidence: { type: string, enum: [low, medium, high] }
+        summary: { type: string, description: One or two plain-language sentences for a farmer. }
+        benefits: { type: array, items: { type: string } }
+        risks: { type: array, items: { type: string } }
+        evidence:
+          type: array
+          description: Why it was suggested, tied to data.
+          items:
+            type: object
+            required: [statement]
+            properties:
+              statement: { type: string }
+              metric_key: { type: [string, "null"] }
+              source: { $ref: "#/components/schemas/DatasetRef" }
+        information_gaps: { type: array, items: { type: string } }
+        needs_local_review:
+          type: boolean
+          description: True when local agronomist or extension review is specifically advised.
+
+    # ---------- errors ----------
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - NOT_FOUND
+        - UNPARSEABLE_INPUT
+        - UNSUPPORTED_LINK
+        - OUTSIDE_COVERAGE
+        - UPSTREAM_DATA_UNAVAILABLE
+        - RATE_LIMITED
+        - INTERNAL_ERROR
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { $ref: "#/components/schemas/ErrorCode" }
+        message: { type: string, description: Safe to show to the user. }
+        details:
+          type: object
+          additionalProperties: true
+          description: "Optional machine details, e.g. `{ \"field\": \"input\" }`."
+        request_id: { type: string }
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: "#/components/schemas/ApiError" }
