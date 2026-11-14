@@ -242,7 +242,8 @@ def cmd_import(force: bool) -> None:
 # ---------- tiles ----------
 def export_geojsonseq(conn, path: Path) -> int:
     n = 0
-    with path.open("w") as f, conn.cursor(name="export") as cur:
+    # A named (server-side) cursor streams rows; it needs a transaction even in autocommit mode.
+    with path.open("w") as f, conn.transaction(), conn.cursor(name="export") as cur:
         cur.itersize = 20_000
         cur.execute("SELECT field_id, coalesce(crop_class, ''), round(area_ha::numeric, 2)::float8, "
                     "ST_AsGeoJSON(geom, 6) FROM fields")

@@ -145,7 +145,16 @@ to create and drop a scratch database.
    every `field_id` is present. Zooms and stats go to `field_data_meta.tiles`, which `/meta/coverage`
    reads.
 
-Result (2026-11-14): CSB_RESULTS_TABLE
+Result (2026-11-14, one laptop, PostGIS in Docker):
+
+| Item | Value |
+|---|---|
+| Polygons | 1,784,509 (IL 587,831, IA 628,672, NE 568,006); 0 dropped as empty; 190 became MultiPolygons after `ST_MakeValid` |
+| Crop history | 14,276,072 rows (8 years for every polygon); every polygon has a 2025 crop |
+| Import time | 730 s (staging ~2 min, geometry build ~7 min, history ~3.5 min) |
+| PostGIS database | 3.2 GB |
+| `csb_ia_il_ne.pmtiles` | 540 MB (539,948,783 bytes), z11-14, layer `fields`, every field present at z11 |
+| Tile build time | 386 s (export + tippecanoe at the first try, min zoom 11) |
 
 ## Hosting the field tiles
 
