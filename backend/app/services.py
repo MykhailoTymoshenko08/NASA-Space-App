@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import Request
 
 from app.core.cache import TwoLevelCache
@@ -54,6 +55,18 @@ class Services:
         self.link_client = make_link_client()
         self.dns_resolver = system_resolver
 
+        from app.snapshots.service import SnapshotService
+
+        self.data_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=5.0),
+            headers={"User-Agent": "FieldShift/0.1 (NASA Space Apps demo)"},
+            follow_redirects=True,
+        )
+        self.snapshots = SnapshotService(
+            self.cache, self.data_client,
+            source_timeout_s=settings.source_timeout_s, ttl_s=settings.snapshot_cache_ttl_s,
+        )
+
         self.field_tiles = self._tiles(d / "fields.pmtiles")
         self.boundary_tiles = self._tiles(d / "boundaries.pmtiles")
 
@@ -77,6 +90,7 @@ class Services:
 
     async def aclose(self) -> None:
         await self.link_client.aclose()
+        await self.data_client.aclose()
         self.cache.close()
         for t in (self.field_tiles, self.boundary_tiles):
             if t:
