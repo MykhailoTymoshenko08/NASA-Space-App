@@ -3,6 +3,17 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.3.2 (2026-11-14): backend serves the field PMTiles file
+
+Additive. (0.3.1 is the `POST /fields/info` change prepared in parallel.)
+
+- New `GET`/`HEAD /tiles/fields.pmtiles`: the whole field PMTiles archive with HTTP Range support
+  (206 + `Content-Range`, `ETag`, 416 for bad ranges, 404 when not prepared). CORS allows `HEAD` and
+  exposes `ETag`, `Content-Range`, `Content-Length`.
+- `coverage.field_tiles.url_template` is by default the absolute URL of that path on the backend; a
+  deployment may still point it at external static hosting. The frontend keeps reading the URL from
+  coverage, so nothing changes there.
+
 ## 0.3.0 (2026-11-14): CSB field polygons for IA, IL, NE; PLSS removed
 
 Breaking. The selectable unit is again an **estimated field area** from USDA Crop Sequence Boundaries

@@ -9,6 +9,8 @@ __pycache__/
 backend/.cache/
 backend/data/*
 !backend/data/README.md
+# Field PMTiles is shared with the team through Git LFS (.gitattributes).
+!backend/data/csb_ia_il_ne.pmtiles
 
 # Secrets
 .env

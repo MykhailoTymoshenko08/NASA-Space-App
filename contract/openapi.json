@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Field Shift API",
-    "version": "0.3.0",
-    "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it), so analysis still works.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one static PMTiles file hosted\n  outside the backend; its URL is `coverage.field_tiles.url_template`. The backend does not serve field tiles.\n"
+    "version": "0.3.2",
+    "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it), so analysis still works.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one PMTiles file read with HTTP\n  Range requests; its URL is `coverage.field_tiles.url_template`. By default the backend serves it at\n  `GET /tiles/fields.pmtiles`; a deployment may point the URL at external static hosting instead.\n"
   },
   "servers": [
     {
@@ -359,6 +359,85 @@
         }
       }
     },
+    "/tiles/fields.pmtiles": {
+      "get": {
+        "tags": [
+          "tiles"
+        ],
+        "operationId": "getFieldsPmtiles",
+        "summary": "The field polygon PMTiles archive (read with HTTP Range requests)",
+        "description": "The whole PMTiles v3 archive described by `coverage.field_tiles` (source layer `fields`). Clients\nread it with the PMTiles library, which sends `Range: bytes=a-b` requests and uses `ETag` to notice\na rebuilt file. Do not hardcode this path: use `coverage.field_tiles.url_template`, which may point\nelsewhere. `HEAD` is supported with the same headers. CORS exposes `ETag`, `Content-Range` and\n`Content-Length`.\n",
+        "parameters": [
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "bytes=0-16383"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whole file (no `Range` header)",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Accept-Ranges": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "bytes"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/vnd.pmtiles": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "The requested byte range",
+            "headers": {
+              "Content-Range": {
+                "schema": {
+                  "type": "string",
+                  "example": "bytes 0-16383/539948783"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.pmtiles": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "416": {
+            "description": "Range not satisfiable"
+          }
+        }
+      }
+    },
     "/tiles/boundaries/{z}/{x}/{y}.mvt": {
       "get": {
         "tags": [
@@ -366,7 +445,7 @@
         ],
         "operationId": "getBoundaryTile",
         "summary": "State and county outlines (vector tile)",
-        "description": "Mapbox Vector Tile, all of CONUS. Layers: `states` (props: `fips`, `name`, `postal`),\n`counties` (props: `fips`, `name`, `state_fips`).\nSuggested use: `states` at zoom < 7, `counties` at zoom 7 to 10, then the field polygons from the\nPMTiles file in `coverage.field_tiles` from `coverage.field_tiles.min_zoom`.\nField tiles are NOT served here (no `/tiles/fields/...` path since v0.3).\n",
+        "description": "Mapbox Vector Tile, all of CONUS. Layers: `states` (props: `fips`, `name`, `postal`),\n`counties` (props: `fips`, `name`, `state_fips`).\nSuggested use: `states` at zoom < 7, `counties` at zoom 7 to 10, then the field polygons from the\nPMTiles file in `coverage.field_tiles` from `coverage.field_tiles.min_zoom`.\nField polygons are not XYZ tiles: see `GET /tiles/fields.pmtiles`.\n",
         "parameters": [
           {
             "$ref": "#/components/parameters/Z"
@@ -848,7 +927,7 @@
           },
           "field_tiles": {
             "type": "object",
-            "description": "One static PMTiles archive (https://github.com/protomaps/PMTiles), read by the frontend with HTTP Range\nrequests. Source layer `fields`, one feature per CSB polygon, props: `field_id` (string, a `FieldId`),\n`crop_class` (string, latest mapped crop, may be empty), `area_ha` (number).\n",
+            "description": "One PMTiles archive (https://github.com/protomaps/PMTiles), read by the frontend with HTTP Range\nrequests. Source layer `fields`, one feature per CSB polygon, props: `field_id` (string, a `FieldId`),\n`crop_class` (string, latest mapped crop, may be empty), `area_ha` (number).\n",
             "required": [
               "format",
               "unit",
@@ -883,8 +962,8 @@
               },
               "url_template": {
                 "type": "string",
-                "description": "Absolute HTTPS (or local dev HTTP) URL of the `.pmtiles` file. Use it with the `pmtiles://` protocol; it is not an XYZ template.",
-                "example": "https://tiles.example.org/csb_ia_il_ne.pmtiles"
+                "description": "Absolute URL of the `.pmtiles` file. By default the backend's own `/v1/tiles/fields.pmtiles`; may be external static hosting. Use it with the `pmtiles://` protocol; it is not an XYZ template.",
+                "example": "http://localhost:8000/v1/tiles/fields.pmtiles"
               },
               "regions": {
                 "type": "array",

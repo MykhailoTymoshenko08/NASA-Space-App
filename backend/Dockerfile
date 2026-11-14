@@ -4,7 +4,8 @@
 #   make data-boundaries
 #   docker build -t field-shift-backend .
 #   docker run --rm -p 8000:8000 -e FRONTEND_ORIGIN=http://localhost:5173 \
-#     -e DATABASE_URL=postgresql://... -e FIELDS_PMTILES_URL=https://... field-shift-backend
+#     -e DATABASE_URL=postgresql://... \
+#     -v "$PWD/data/csb_ia_il_ne.pmtiles:/app/data/csb_ia_il_ne.pmtiles:ro" field-shift-backend
 
 # ---------- build stage: resolve dependencies into a venv ----------
 FROM python:3.12-slim AS build
@@ -29,8 +30,8 @@ COPY --from=build /app/.venv /app/.venv
 COPY app ./app
 # Prepared data (gitignored, built by `make data`). Fail the build early if it is missing.
 COPY data ./data
-# Field polygons are not baked in: they live in PostGIS (DATABASE_URL) and on static hosting
-# (FIELDS_PMTILES_URL).
+# Field polygons are not baked in: they live in PostGIS (DATABASE_URL), and data/csb_ia_il_ne.pmtiles
+# is mounted as a volume (docker-compose.yml).
 RUN for f in states.json counties.json counties.parquet states.parquet boundaries.pmtiles; do \
         test -s "data/$f" || { echo "data/$f missing: run 'make data' before docker build" >&2; exit 1; }; \
     done \

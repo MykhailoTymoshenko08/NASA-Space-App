@@ -23,8 +23,11 @@ class Settings(BaseSettings):
     # PostGIS with the CSB field polygons (scripts/prepare_csb.py). Empty: every point resolves to a
     # buffered point.
     database_url: str = "postgresql://fieldshift:fieldshift@localhost:5433/fieldshift"
-    # Public URL of the field PMTiles file (hosted outside the backend), sent in /meta/coverage.
-    fields_pmtiles_url: str = "http://localhost:8787/csb_ia_il_ne.pmtiles"
+    # Field PMTiles file in DATA_DIR, served by the backend at /v1/tiles/fields.pmtiles (HTTP Range).
+    fields_pmtiles_file: str = "csb_ia_il_ne.pmtiles"
+    # Optional override: absolute URL of the same file on external static hosting (CDN/R2). Empty means
+    # /meta/coverage advertises the backend's own /v1/tiles/fields.pmtiles.
+    fields_pmtiles_url: str = ""
     log_level: str = "INFO"
 
     contract_path: Path = REPO_DIR / "contract" / "openapi.yaml"
