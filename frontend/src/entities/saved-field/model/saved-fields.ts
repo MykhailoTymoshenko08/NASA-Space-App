@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { FieldSelection } from "@/shared/api";
+import type { FieldSelection, SavedFieldUpdate } from "@/shared/api";
 import { createBodyFor, savedFieldsApi } from "../api/saved-fields-api";
 
 const key = (userId: string | null) => ["saved-fields", userId] as const;
@@ -25,5 +25,13 @@ export function useSavedFieldMutations(userId: string | null) {
     mutationFn: (id: string) => savedFieldsApi.remove(id),
     onSuccess: invalidate,
   });
-  return { save, remove };
+  const update = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: SavedFieldUpdate }) => savedFieldsApi.update(id, body),
+    onSuccess: invalidate,
+  });
+  const refreshInfo = useMutation({
+    mutationFn: (id: string) => savedFieldsApi.refreshInfo(id),
+    onSuccess: invalidate,
+  });
+  return { save, remove, update, refreshInfo };
 }

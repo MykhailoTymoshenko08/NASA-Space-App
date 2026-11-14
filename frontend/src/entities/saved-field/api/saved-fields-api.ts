@@ -1,4 +1,11 @@
-import { api, unwrap, type FieldSelection, type SavedFieldCreate, type SavedFieldDto } from "@/shared/api";
+import {
+  api,
+  unwrap,
+  type FieldSelection,
+  type SavedFieldCreate,
+  type SavedFieldDto,
+  type SavedFieldUpdate,
+} from "@/shared/api";
 
 /** A saved field as the API returns it (GET /me/fields). */
 export type SavedField = SavedFieldDto;
@@ -7,9 +14,24 @@ export type SavedField = SavedFieldDto;
 export const savedFieldsApi = {
   list: () => unwrap(api.GET("/me/fields")),
   create: (body: SavedFieldCreate) => unwrap(api.POST("/me/fields", { body })),
+  get: (id: string) => unwrap(api.GET("/me/fields/{saved_field_id}", { params: { path: { saved_field_id: id } } })),
+  /** PATCH: omitted keys stay as they are; `crop_history: null` clears it. */
+  update: (id: string, body: SavedFieldUpdate) =>
+    unwrap(api.PATCH("/me/fields/{saved_field_id}", { params: { path: { saved_field_id: id } }, body })),
   remove: (id: string) =>
     unwrap(api.DELETE("/me/fields/{saved_field_id}", { params: { path: { saved_field_id: id } } })),
+  /** Fetch the /fields/info snapshot again. 502 UPSTREAM_DATA_UNAVAILABLE keeps the old one. */
+  refreshInfo: (id: string) =>
+    unwrap(api.POST("/me/fields/{saved_field_id}/refresh-info", { params: { path: { saved_field_id: id } } })),
 };
+
+/** SavedFieldUpdate.name: 1 to 100 characters after trimming. */
+export function nameError(name: string): string | null {
+  const t = name.trim();
+  if (!t) return "Give the field a name.";
+  if (t.length > 100) return "Use 100 characters or fewer.";
+  return null;
+}
 
 /** "Polk, IA": default name for a newly saved field. */
 export const defaultName = (sel: FieldSelection) =>

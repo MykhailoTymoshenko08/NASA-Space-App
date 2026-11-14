@@ -26,3 +26,4 @@ export type User = S["User"];
 export type AuthTokens = S["AuthTokens"];
 export type SavedFieldDto = S["SavedField"];
 export type SavedFieldCreate = S["SavedFieldCreate"];
+export type SavedFieldUpdate = S["SavedFieldUpdate"];
