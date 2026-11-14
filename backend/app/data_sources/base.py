@@ -1,11 +1,29 @@
 """Common shape for upstream data source clients."""
 
+import asyncio
 from dataclasses import dataclass
 from typing import Protocol
 
 import httpx
 
 from app.models import FieldSelection, Metric, MetricCategory, MetricSource, Quality
+
+
+async def get_with_retry(client: httpx.AsyncClient, url: str, *, params: dict) -> httpx.Response:
+    """Give slow point services two bounded attempts; callers enforce the total background deadline."""
+    for attempt in range(2):
+        try:
+            response = await client.get(url, params=params, timeout=httpx.Timeout(25.0, connect=5.0))
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as error:
+            if attempt or error.response.status_code not in (502, 503, 504):
+                raise
+        except httpx.TransportError:
+            if attempt:
+                raise
+        await asyncio.sleep(0.25)
+    raise AssertionError("unreachable")
 
 
 @dataclass(frozen=True)

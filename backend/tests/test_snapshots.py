@@ -189,6 +189,32 @@ async def test_soilgrids_converts_cg_per_kg():
     assert m.value == 2.91 and m.unit == "g/kg" and m.quality == "estimated"
 
 
+@pytest.mark.parametrize("module, source, payload, value", [
+    (elevation, elevation.ElevationSource, EPQS_OK, 276.2),
+    (soilgrids, soilgrids.SoilGridsSource, SOILGRIDS_OK, 2.91),
+])
+@pytest.mark.parametrize("failure", [httpx.Response(504), httpx.ReadTimeout("slow provider")])
+async def test_slow_sources_retry_transient_failures(module, source, payload, value, failure):
+    with respx.mock as router:
+        route = router.get(module.URL).mock(side_effect=[failure, httpx.Response(200, json=payload)])
+        async with httpx.AsyncClient() as client:
+            (metric,) = await source().fetch(client, SEL)
+    assert metric.value == value
+    assert route.call_count == 2
+
+
+@pytest.mark.parametrize("module, source", [
+    (elevation, elevation.ElevationSource), (soilgrids, soilgrids.SoilGridsSource),
+])
+async def test_slow_source_retries_are_bounded(module, source):
+    with respx.mock as router:
+        route = router.get(module.URL).respond(503)
+        async with httpx.AsyncClient() as client:
+            with pytest.raises(httpx.HTTPStatusError):
+                await source().fetch(client, SEL)
+    assert route.call_count == 2
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------

@@ -22,7 +22,7 @@ from app.models import FieldSelection, Metric, Quality, Snapshot
 
 log = logging.getLogger(__name__)
 
-BACKGROUND_TIMEOUT_S = 30.0
+BACKGROUND_TIMEOUT_S = 60.0
 SOURCE_CACHE_TTL_S = 24 * 3600
 TIMEOUT_REASON = "The data service did not answer in time. Try again in a minute."
 ERROR_REASON = "The data service is unavailable right now."
@@ -93,6 +93,12 @@ class SnapshotService:
             del self._inflight[key]
         if not task.cancelled() and task.exception() is not None:
             log.debug("background fetch %s failed: %r", key, task.exception())
+
+    async def aclose(self) -> None:
+        tasks = list(self._inflight.values())
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def metrics_for(self, sel: FieldSelection) -> tuple[list[Metric], bool]:
         results = await asyncio.gather(*(self._run(s, sel) for s in self.sources))

@@ -208,16 +208,8 @@ async def fetch_terrain(client: httpx.AsyncClient, point: LatLon) -> list[Metric
     async def sample(lon: float, lat: float) -> tuple[float | None, float | None]:
         try:
             # Bound each sample separately, preserving the centre if a neighbour fails.
-            async with asyncio.timeout(3.5):
-                response = await client.get(elevation.URL, params={
-                    "x": lon, "y": lat, "wkid": 4326, "units": "Meters", "includeDate": "false",
-                }, timeout=HTTP_TIMEOUT)
-                response.raise_for_status()
-                payload = response.json()
-                value = _number(payload.get("value"))
-                if value is None or value <= elevation.NODATA:
-                    return None, None
-                return value, _number(payload.get("resolution"))
+            async with asyncio.timeout(55.0):
+                return await elevation.sample(client, lon, lat)
         except Exception:  # A missing sample only removes its elevation/slope metric.
             return None, None
 

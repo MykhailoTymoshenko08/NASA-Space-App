@@ -262,9 +262,50 @@ async def test_sources_start_concurrently_and_timeout_is_isolated():
     async with httpx.AsyncClient(transport=httpx.MockTransport(answer)) as client:
         service = FieldInfoService(client, timeout_s=0.1)
         result = await service.info(LatLon(**POINT))
+        await service.aclose()
     metrics = by_key(result.metrics)
     assert len(started) == 5
     assert metrics["temperature_12m"].value == 10
     assert metrics["soil_ph"].value is None
     assert "in time" in metrics["soil_ph"].unavailable_reason
     assert metrics["land_cover"].value == "Cultivated crops"
+
+
+async def test_slow_terrain_finishes_once_and_is_cached(monkeypatch):
+    release = asyncio.Event()
+    calls = 0
+
+    async def slow_terrain(client, point):
+        nonlocal calls
+        calls += 1
+        await release.wait()
+        return [sources.TERRAIN_SPECS[0].metric(250), sources.TERRAIN_SPECS[1].metric(5)]
+
+    monkeypatch.setattr(sources, "fetch_terrain", slow_terrain)
+    with respx.mock(assert_all_called=False) as router:
+        mock_sources(router)
+        async with httpx.AsyncClient() as client:
+            service = FieldInfoService(client, timeout_s=0.01)
+            first = await service.info(LatLon(**POINT))
+            assert by_key(first.metrics)["elevation"].value is None
+            second = await service.info(LatLon(**POINT))
+            assert not second.cached
+            assert calls == 1  # Repeated requests must join the existing slow fetch.
+            release.set()
+            recovered = await service.info(LatLon(**POINT))
+            assert by_key(recovered.metrics)["elevation"].value == 250
+            assert by_key(recovered.metrics)["slope"].value == 5
+            cached = await service.info(LatLon(**POINT))
+            assert cached.cached
+            assert calls == 1
+
+
+async def test_terrain_accepts_responses_after_old_sample_deadline():
+    async def slow(request):
+        await asyncio.sleep(3.6)
+        return httpx.Response(200, json={"value": 250, "resolution": 10})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(slow)) as client:
+        metrics = by_key(await sources.fetch_terrain(client, LatLon(**POINT)))
+    assert metrics["elevation"].value == 250
+    assert metrics["slope"].value == 0

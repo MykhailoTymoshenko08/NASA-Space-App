@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Field Shift API",
-    "version": "0.4.1",
+    "version": "0.4.2",
     "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it), so analysis still works.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one PMTiles file read with HTTP\n  Range requests; its URL is `coverage.field_tiles.url_template`. By default the backend serves it at\n  `GET /tiles/fields.pmtiles`; a deployment may point the URL at external static hosting instead.\n"
   },
   "servers": [
@@ -164,6 +164,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       }
@@ -198,6 +201,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       }
@@ -335,7 +341,7 @@
         ],
         "operationId": "getFieldInfo",
         "summary": "Farmer-facing context for a selected map point",
-        "description": "Accepts the same WGS84 point as `/fields/resolve`; pass `FieldSelection.anchor`\nafter selecting a field. Independent of snapshots and ML analyses.\nCoverage is limited to rough state bounding boxes for Iowa, Illinois and Nebraska.\nSamples and in-memory cache keys round coordinates to four decimal places (~11 m).\nSources run concurrently with a short per-source deadline. Missing values remain\nnull with `quality: unavailable` and `unavailable_reason`; even a total upstream\noutage returns 200. Successful source results are cached for 24 hours.\nEach recent climate metric covers its latest complete 12-month window, which may\ndiffer between parameters due to publishing lag. Precipitation is a 12-month total;\ntemperature and solar radiation are day-weighted means. Long-term values use the\nNASA-provided climatology baseline. NLCD uses the fixed 2024 annual product.\nAuthentication is not yet merged; the route has an explicit dependency hook.\n",
+        "description": "Accepts the same WGS84 point as `/fields/resolve`; pass `FieldSelection.anchor`\nafter selecting a field. Independent of snapshots and ML analyses.\nCoverage is limited to rough state bounding boxes for Iowa, Illinois and Nebraska.\nSamples and in-memory cache keys round coordinates to four decimal places (~11 m).\nSources run concurrently with a short per-source deadline. Missing values remain\nnull with `quality: unavailable` and `unavailable_reason`; even a total upstream\noutage returns 200. Successful source results are cached for 24 hours. Slow sources\ncontinue in the background for up to 60 seconds and populate the cache for later requests;\nrepeated requests for the same source and point share the pending fetch.\nEach recent climate metric covers its latest complete 12-month window, which may\ndiffer between parameters due to publishing lag. Precipitation is a 12-month total;\ntemperature and solar radiation are day-weighted means. Long-term values use the\nNASA-provided climatology baseline. NLCD uses the fixed 2024 annual product.\nAuthentication is not yet merged; the route has an explicit dependency hook.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -523,6 +529,9 @@
           },
           "204": {
             "description": "Empty tile"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       }

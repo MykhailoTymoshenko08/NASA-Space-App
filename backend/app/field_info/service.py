@@ -12,6 +12,7 @@ from app.field_info import sources
 from app.models import FieldInfo, LatLon, Quality
 
 log = logging.getLogger(__name__)
+BACKGROUND_TIMEOUT_S = 60.0
 
 # Rough state envelopes, WGS84 (west, south, east, north). These intentionally need
 # neither prepared GIS data nor PostGIS. Small border false positives are acceptable.
@@ -34,6 +35,25 @@ class FieldInfoService:
         self.client = client
         self.timeout_s = timeout_s
         self.cache = MemoryCache(maxsize=1024, ttl_s=24 * 3600)
+        self._inflight: dict[str, asyncio.Task] = {}
+
+    async def _fetch_and_store(self, fetch, point: LatLon, key: str):
+        metrics = await asyncio.wait_for(fetch(self.client, point), BACKGROUND_TIMEOUT_S)
+        if all(m.quality != Quality.unavailable for m in metrics):
+            self.cache.set(key, metrics, 24 * 3600)
+        return metrics
+
+    def _done(self, key: str, task: asyncio.Task) -> None:
+        if self._inflight.get(key) is task:
+            del self._inflight[key]
+        if not task.cancelled() and task.exception() is not None:
+            log.debug("Field info background fetch %s failed: %r", key, task.exception())
+
+    async def aclose(self) -> None:
+        tasks = list(self._inflight.values())
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def info(self, point: LatLon) -> FieldInfo:
         # Validate the exact request before cache lookup, including on warm-cache requests.
@@ -51,10 +71,14 @@ class FieldInfoService:
             key = f"{fetch.__name__}:{point.lat:.4f},{point.lon:.4f}"
             if (hit := self.cache.get(key)) is not None:
                 return hit, True
+            task = self._inflight.get(key)
+            if task is None or task.done():
+                task = asyncio.create_task(self._fetch_and_store(fetch, point, key))
+                self._inflight[key] = task
+                task.add_done_callback(lambda task, key=key: self._done(key, task))
             try:
-                metrics = await asyncio.wait_for(fetch(self.client, point), self.timeout_s)
-                if all(m.quality != Quality.unavailable for m in metrics):
-                    self.cache.set(key, metrics, 24 * 3600)
+                # The response deadline must not cancel work that can populate a later response.
+                metrics = await asyncio.wait_for(asyncio.shield(task), self.timeout_s)
                 return metrics, False
             except (TimeoutError, httpx.TimeoutException):
                 reason = "The data service did not answer in time. Try again shortly."

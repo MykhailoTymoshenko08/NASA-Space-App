@@ -3,6 +3,16 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.4.2 (2026-11-14): audit fixes for validation and slow data sources
+
+Additive contract correction; existing response shapes are unchanged.
+
+- Document `422 ValidationError` for malformed state/county FIPS and invalid boundary tile coordinates.
+- Field context keeps slow source fetches running for up to 60 seconds, shares pending requests,
+  and caches successful results for subsequent calls instead of cancelling at the response deadline.
+- USGS terrain and SoilGrids nitrogen queries allow slow replies and retry one transient transport
+  failure or HTTP 502/503/504. Snapshot background work has the same 60-second upper bound.
+
 ## 0.4.1 (2026-11-14): backend serves the field PMTiles file
 
 Additive. (Prepared on a parallel branch as 0.3.2; renumbered when merged after 0.4.0.)

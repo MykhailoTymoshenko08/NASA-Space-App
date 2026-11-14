@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Field Shift API
-  version: 0.4.1
+  version: 0.4.2
   description: |
     Contract between the frontend and backend of the Field Shift farmer map
     (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
@@ -120,6 +120,8 @@ paths:
                       $ref: '#/components/schemas/County'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
   /geo/counties/{county_fips}:
     get:
       tags:
@@ -141,6 +143,8 @@ paths:
                 $ref: '#/components/schemas/County'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
   /locations/resolve:
     post:
       tags:
@@ -244,7 +248,9 @@ paths:
         Samples and in-memory cache keys round coordinates to four decimal places (~11 m).
         Sources run concurrently with a short per-source deadline. Missing values remain
         null with `quality: unavailable` and `unavailable_reason`; even a total upstream
-        outage returns 200. Successful source results are cached for 24 hours.
+        outage returns 200. Successful source results are cached for 24 hours. Slow sources
+        continue in the background for up to 60 seconds and populate the cache for later requests;
+        repeated requests for the same source and point share the pending fetch.
         Each recent climate metric covers its latest complete 12-month window, which may
         differ between parameters due to publishing lag. Precipitation is a 12-month total;
         temperature and solar radiation are day-weighted means. Long-term values use the
@@ -373,6 +379,8 @@ paths:
           $ref: '#/components/responses/VectorTile'
         '204':
           description: Empty tile
+        '422':
+          $ref: '#/components/responses/ValidationError'
   /snapshots:
     post:
       tags:

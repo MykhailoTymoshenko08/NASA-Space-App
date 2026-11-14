@@ -1,7 +1,7 @@
 # Field Shift backend
 
 FastAPI backend for Field Shift, a NASA Space Apps crop-rotation decision-support tool for US farmers.
-It implements `../contract/openapi.yaml` (v0.4.1). The contract is the source of truth; see
+It implements `../contract/openapi.yaml` (v0.4.2). The contract is the source of truth; see
 `../contract/CONTRACT_CHANGELOG.md` for changes.
 
 ## Setup
@@ -234,6 +234,9 @@ startup if missing). Passwords are hashed with argon2id.
   a per-source cache, so the next request gets its value. A failed source yields
   `quality: unavailable` metrics; the request never fails because of it. Snapshots are cached 24 h by
   `field_id`, or by the point rounded to 0.01 degrees, but only when every source answered.
+  USGS and SoilGrids requests allow 25 seconds per HTTP attempt and retry one transient transport
+  failure or HTTP 502/503/504 after 250 ms. Background fetches stop after 60 seconds. Repeated
+  requests share pending source work; shutdown cancels it before closing the HTTP client and cache.
   - SSURGO is area-weighted over the estimated field area: soil map units are clipped to the polygon
     in Soil Data Access. If that query fails it falls back to the anchor point, and the metric `note`
     says which was used.
@@ -257,9 +260,12 @@ It works without prepared boundaries or PostGIS. Only rough bounding boxes for I
 and Nebraska are accepted; other points return 422 `OUTSIDE_COVERAGE`. Border false positives
 are possible with these approximate envelopes.
 
-All source calls run concurrently using async/httpx. The default overall deadline is 4 seconds
-per source (`SOURCE_TIMEOUT_S`); individual HTTP calls have a 3.5-second timeout and a 1.5-second
-connect timeout. Failed, empty or incomplete data yields `value: null`, `quality: unavailable`
+All source calls run concurrently using async/httpx. The default response deadline is 4 seconds
+per source (`SOURCE_TIMEOUT_S`). Slow work continues in the background for up to 60 seconds;
+repeated requests for the same source and rounded point share that work. Non-terrain HTTP calls
+have a 3.5-second timeout and a 1.5-second connect timeout. USGS terrain samples allow 25 seconds
+per attempt and retry one transient transport failure or HTTP 502/503/504, bounded to 55 seconds
+per sample. Failed, empty or incomplete data yields `value: null`, `quality: unavailable`
 and a short `unavailable_reason`. Even an upstream outage returns 200 with all metric keys present.
 Successful sources are cached in memory for 24 hours at coordinates rounded to four decimals
 (about 11 m); the returned `point` is the actual rounded sample location. Incomplete sources are
@@ -283,8 +289,8 @@ Sources, in priority order:
 3. USGS [3DEP EPQS](https://epqs.nationalmap.gov/v1/docs): point elevation plus a slope estimate
    from samples 100 m north, east, south and west. Slope is percent rise, not degrees or a field
    average. A failed neighbor does not discard the center elevation. Raw SRTM tiles are omitted
-   to avoid Earthdata credentials and tile processing. EPQS can exceed the deadline: both terrain
-   values were null in the live Ames check, while the other three datasets returned data.
+   to avoid Earthdata credentials and tile processing. EPQS can exceed the response deadline;
+   successful background results populate the cache so later requests can recover terrain values.
 4. USGS/MRLC [Annual NLCD](https://www.mrlc.gov/data-services-page), fixed 2024 land-cover product:
    a public WMS point query returns a readable class such as "Cultivated crops" at 30 m resolution.
    Pinning the year keeps demos reproducible without downloading rasters.

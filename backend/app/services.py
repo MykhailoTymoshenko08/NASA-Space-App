@@ -110,6 +110,8 @@ class Services:
 
     async def aclose(self) -> None:
         await self.link_client.aclose()
+        await self.field_info.aclose()
+        await self.snapshots.aclose()
         await self.data_client.aclose()
         self.cache.close()
         if self.boundary_tiles:

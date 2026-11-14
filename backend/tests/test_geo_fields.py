@@ -64,10 +64,16 @@ def test_not_found(client, url):
     assert_matches_contract(r)
 
 
-def test_bad_fips_is_validation_error(client):
-    r = client.get("/v1/geo/counties/abc")
+@pytest.mark.parametrize("url", [
+    "/v1/geo/states/abc/counties", "/v1/geo/counties/abc",
+    "/v1/tiles/boundaries/23/0/0.mvt", "/v1/tiles/boundaries/-1/0/0.mvt",
+    "/v1/tiles/boundaries/7/-1/0.mvt", "/v1/tiles/boundaries/7/0/nope.mvt",
+])
+def test_invalid_path_is_contract_validation_error(client, url):
+    r = client.get(url)
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert_matches_contract(r)
 
 
 # ---------- coverage ----------
