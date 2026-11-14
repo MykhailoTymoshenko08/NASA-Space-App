@@ -134,6 +134,30 @@
 .remove:hover {
   background: var(--color-paper-wash);
 }
+.remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Rename and refresh */
+.rename {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-green-700);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkButton:disabled {
+  color: var(--color-ink-muted);
+  cursor: default;
+}
 
 /* Compare table */
 .tableWrap {

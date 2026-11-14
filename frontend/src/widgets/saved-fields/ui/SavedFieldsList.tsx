@@ -1,10 +1,12 @@
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { GeometrySketch } from "@/entities/field";
-import type { SavedField } from "@/entities/saved-field";
+import { nameError, type SavedField } from "@/entities/saved-field";
+import { friendlyMessage } from "@/shared/api";
 import { fieldPath, ROUTES } from "@/shared/config";
-import { formatAcres } from "@/shared/lib";
+import { formatAcres, formatDateTime } from "@/shared/lib";
 import { Button, ButtonLink, buttonClass } from "@/shared/ui/button";
-import { Checkbox } from "@/shared/ui/form";
+import { Checkbox, TextField } from "@/shared/ui/form";
 import { Icon } from "@/shared/ui/icon";
 import { isPoint, savedCoords, savedCrop, savedKind, savedRings, savedSearch } from "../lib/title";
 import s from "./saved-fields.module.css";
@@ -18,12 +20,75 @@ type Props = {
   limit: number;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
+  /** PATCH /me/fields/{id} with a new name. Rejects with the API error. */
+  onRename: (id: string, name: string) => Promise<unknown>;
+  /** POST /me/fields/{id}/refresh-info. */
+  onRefresh: (id: string) => void;
+  /** Saved field whose data is being fetched again, if any. */
+  refreshingId: string | null;
   onCompare: () => void;
   removing: boolean;
 };
 
+/** Inline rename form for one card. */
+function RenameForm({ field, onRename, onDone }: { field: SavedField; onRename: Props["onRename"]; onDone: () => void }) {
+  const [name, setName] = useState(field.name);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const problem = nameError(name);
+    if (problem) return setError(problem);
+    if (name.trim() === field.name) return onDone();
+    setBusy(true);
+    setError(null);
+    try {
+      await onRename(field.id, name.trim());
+      onDone();
+    } catch (err) {
+      setError(friendlyMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className={s.rename} onSubmit={submit} noValidate>
+      <TextField
+        label="Field name"
+        value={name}
+        maxLength={100}
+        autoFocus
+        error={error}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === "Escape" && onDone()}
+      />
+      <div className={s.right}>
+        <Button type="submit" variant="primary" disabled={busy}>
+          {busy ? "Saving..." : "Save name"}
+        </Button>
+        <Button variant="ghost" onClick={onDone} disabled={busy}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 /** "My fields" (GET /me/fields): cards with a sketch, compare checkboxes (2 to 4), open and remove. */
-export function SavedFieldsList({ fields, selected, limit, onToggle, onRemove, onCompare, removing }: Props) {
+export function SavedFieldsList({
+  fields,
+  selected,
+  limit,
+  onToggle,
+  onRemove,
+  onRename,
+  onRefresh,
+  refreshingId,
+  onCompare,
+  removing,
+}: Props) {
+  const [editingId, setEditingId] = useState<string | null>(null);
   if (fields.length === 0) {
     return (
       <div className={s.empty}>
@@ -70,15 +135,30 @@ export function SavedFieldsList({ fields, selected, limit, onToggle, onRemove, o
                 />
               </div>
               <div className={s.body}>
-                <div className={s.titleRow}>
-                  <h2 className={s.title}>{f.name}</h2>
-                  {f.area_ha != null && <div className={s.muted}>About {formatAcres(f.area_ha)} acres</div>}
-                </div>
+                {editingId === f.id ? (
+                  <RenameForm field={f} onRename={onRename} onDone={() => setEditingId(null)} />
+                ) : (
+                  <div className={s.titleRow}>
+                    <h2 className={s.title}>{f.name}</h2>
+                    {f.area_ha != null && <div className={s.muted}>About {formatAcres(f.area_ha)} acres</div>}
+                  </div>
+                )}
                 <div className={s.muted}>
                   {savedKind(f)}, {f.state}. {crop ? `Latest crop: ${crop}` : "No crop recorded"}
                 </div>
                 <div className={s.coords}>{savedCoords(f)}</div>
                 {f.field_id && <div className={s.id}>{f.field_id}</div>}
+                <div className={s.small}>
+                  {f.info_fetched_at ? `Field data from ${formatDateTime(f.info_fetched_at)}.` : "No field data stored yet."}{" "}
+                  <button
+                    type="button"
+                    className={s.linkButton}
+                    onClick={() => onRefresh(f.id)}
+                    disabled={refreshingId !== null}
+                  >
+                    {refreshingId === f.id ? "Refreshing..." : "Refresh data"}
+                  </button>
+                </div>
                 <div className={s.actions}>
                   <Checkbox
                     checked={on}
@@ -92,6 +172,15 @@ export function SavedFieldsList({ fields, selected, limit, onToggle, onRemove, o
                     <Link to={fieldPath(savedSearch(f))} className={buttonClass({ variant: "secondary" })}>
                       Open
                     </Link>
+                    <button
+                      type="button"
+                      className={s.remove}
+                      onClick={() => setEditingId(f.id)}
+                      disabled={editingId === f.id}
+                      aria-label={`Rename ${f.name}`}
+                    >
+                      <Icon name="file" />
+                    </button>
                     <button
                       type="button"
                       className={s.remove}

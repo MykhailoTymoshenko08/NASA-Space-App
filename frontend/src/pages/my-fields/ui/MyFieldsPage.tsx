@@ -16,7 +16,7 @@ export function MyFieldsPage() {
   const session = useSession();
   const userId = session.status === "authenticated" ? session.user.id : null;
   const saved = useSavedFields(userId);
-  const { remove } = useSavedFieldMutations(userId);
+  const { remove, update, refreshInfo } = useSavedFieldMutations(userId);
   const [selected, setSelected] = useState<string[]>([]);
   const [view, setView] = useState<"list" | "compare">("list");
 
@@ -73,6 +73,11 @@ export function MyFieldsPage() {
             {friendlyMessage(remove.error)}
           </Message>
         )}
+        {refreshInfo.isError && (
+          <Message tone="error" role="alert">
+            {friendlyMessage(refreshInfo.error)}
+          </Message>
+        )}
         {saved.data &&
           (comparing ? (
             <>
@@ -100,6 +105,9 @@ export function MyFieldsPage() {
                 remove.mutate(key);
                 setSelected((list) => list.filter((k) => k !== key));
               }}
+              onRename={(id, name) => update.mutateAsync({ id, body: { name } })}
+              onRefresh={(id) => refreshInfo.mutate(id)}
+              refreshingId={refreshInfo.isPending ? (refreshInfo.variables ?? null) : null}
               onCompare={() => setView("compare")}
               removing={remove.isPending}
             />

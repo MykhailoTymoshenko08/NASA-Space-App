@@ -1,5 +1,5 @@
 import { setupServer } from "msw/node";
-import { createBodyFor, matchesSelection, savedFieldsApi } from "@/entities/saved-field";
+import { createBodyFor, matchesSelection, nameError, savedFieldsApi } from "@/entities/saved-field";
 import { signOut, signUp } from "@/entities/session";
 import { api, ApiError, unwrap } from "@/shared/api";
 import { handlers } from "@/shared/mocks";
@@ -37,6 +37,35 @@ describe("saved fields (GET/POST/DELETE /me/fields)", () => {
     await savedFieldsApi.remove(saved.id);
     expect((await savedFieldsApi.list()).items).toEqual([]);
     await signOut();
+  });
+
+  it("renames a saved field, reads it back and refreshes its data (GET/PATCH, refresh-info)", async () => {
+    await signUp({ email: "renamer@example.com", password: "wheat2026" });
+    const saved = await savedFieldsApi.create(createBodyFor(await resolve(41.5868, -93.625)));
+    expect(saved.info).toBeNull();
+
+    const renamed = await savedFieldsApi.update(saved.id, { name: "  Home quarter " });
+    expect(renamed).toMatchObject({ id: saved.id, name: "Home quarter", crop_history: saved.crop_history });
+    expect((await savedFieldsApi.get(saved.id)).name).toBe("Home quarter");
+
+    const cleared = await savedFieldsApi.update(saved.id, { crop_history: null });
+    expect(cleared).toMatchObject({ name: "Home quarter", crop_history: null });
+
+    const bad = await savedFieldsApi.update(saved.id, { name: "   " }).catch((e: unknown) => e);
+    expect((bad as ApiError).code).toBe("VALIDATION_ERROR");
+
+    const refreshed = await savedFieldsApi.refreshInfo(saved.id);
+    expect(refreshed.info?.metrics.length).toBeGreaterThan(0);
+    expect(refreshed.info_fetched_at).not.toBeNull();
+
+    await expect(savedFieldsApi.get("00000000-0000-0000-0000-000000000000")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await signOut();
+  });
+
+  it("checks a new name before sending it", () => {
+    expect(nameError("Home quarter")).toBeNull();
+    expect(nameError("  ")).toBe("Give the field a name.");
+    expect(nameError("x".repeat(101))).toBe("Use 100 characters or fewer.");
   });
 
   it("saves a buffered circle as its point and refuses places outside IA, IL and NE", async () => {

@@ -373,6 +373,49 @@ export const handlers: AnyHandler[] = [
     return HttpResponse.json(publicRow(row), { status: 201, headers: { Location: `/v1/me/fields/${row.id}` } });
   }),
 
+  http.get(url("/me/fields/:id"), ({ request, params }) => {
+    const a = bearerAccount(request);
+    if (!a) return unauthorized();
+    const row = savedRows().find((r) => r.id === params.id && r.owner === a.id);
+    return row ? HttpResponse.json(publicRow(row)) : errorResponse(404, "NOT_FOUND", "No saved field with that id.");
+  }),
+
+  http.patch<{ id: string }, S["SavedFieldUpdate"]>(url("/me/fields/:id"), async ({ request, params }) => {
+    await wait(300);
+    const a = bearerAccount(request);
+    if (!a) return unauthorized();
+    const rows = savedRows();
+    const row = rows.find((r) => r.id === params.id && r.owner === a.id);
+    if (!row) return errorResponse(404, "NOT_FOUND", "No saved field with that id.");
+    const body = await request.json();
+    if (Object.keys(body).length === 0) return errorResponse(422, "VALIDATION_ERROR", "Send a name or a crop history.");
+    if ("name" in body) {
+      const name = body.name?.trim() ?? "";
+      if (!name || name.length > 100) return errorResponse(422, "VALIDATION_ERROR", "Give the field a name.");
+      row.name = name;
+    }
+    if ("crop_history" in body) row.crop_history = body.crop_history ?? null;
+    row.updated_at = new Date().toISOString();
+    writeRows(rows);
+    return HttpResponse.json(publicRow(row));
+  }),
+
+  http.post<{ id: string }>(url("/me/fields/:id/refresh-info"), async ({ request, params }) => {
+    await wait();
+    const a = bearerAccount(request);
+    if (!a) return unauthorized();
+    const rows = savedRows();
+    const row = rows.find((r) => r.id === params.id && r.owner === a.id);
+    if (!row) return errorResponse(404, "NOT_FOUND", "No saved field with that id.");
+    const now = new Date().toISOString();
+    const point = { lat: Math.round(row.centroid.lat * 1e4) / 1e4, lon: Math.round(row.centroid.lon * 1e4) / 1e4 };
+    row.info = { point, generated_at: now, cached: false, metrics: metricsFor(point) };
+    row.info_fetched_at = now;
+    row.updated_at = now;
+    writeRows(rows);
+    return HttpResponse.json(publicRow(row));
+  }),
+
   http.delete(url("/me/fields/:id"), ({ request, params }) => {
     const a = bearerAccount(request);
     if (!a) return unauthorized();
