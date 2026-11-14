@@ -1,0 +1,126 @@
+/*
+ * Fieldline design tokens — the only place hex values live.
+ * Source: design canvas, DS-Foundations (color, type, space, shape, depth)
+ * and DS-Map (map colors). Components use var(--…) only.
+ */
+:root {
+  /* Ground and ink */
+  --color-paper: #f5f2e9; /* paper-50: page ground */
+  --color-paper-wash: #eae5d6; /* paper-100: hover wash, tracks */
+  --color-map-ground: #e8e3d3; /* water and land beyond the data */
+  --color-surface: #fffdf8; /* cards, panels, map controls */
+  --color-white: #ffffff; /* input fields, text on green */
+  --color-line: #d3cdbb; /* hairlines, card borders (decorative) */
+  --color-line-soft: #e4dfd0; /* row dividers, skeleton block */
+  --color-skeleton: #eeeadd; /* lighter skeleton block */
+  --color-line-control: #857f68; /* input and button borders, 4.0:1 on surface */
+  --color-ink: #17211b; /* body text and icons */
+  --color-ink-muted: #4f5a50; /* secondary text */
+
+  /* Field green (primary) */
+  --color-green-900: #163a29;
+  --color-green-700: #1f4d38;
+  --color-green-300: #a9c09b;
+  --color-green-100: #dce6d3;
+
+  /* Wheat (accent: what the farmer chose) */
+  --color-wheat-700: #8a5a00;
+  --color-wheat-500: #e2a62b;
+  --color-wheat-300: #f0b93b;
+
+  /* Status: always paired with an icon and a sentence */
+  --color-success-bg: #e3efdd;
+  --color-success-fg: #0b4a0b;
+  --color-info-bg: #deeaf6;
+  --color-info-fg: #184f95;
+  --color-error-bg: #f7e2dc;
+  --color-error-fg: #8f2a1c;
+
+  /* Data lines: one hue per measure */
+  --color-data-humidity: #2a78d6;
+  --color-data-soil: #1c5cab;
+  --color-data-temp: #eb6834;
+  --color-data-nitrogen: #008300;
+
+  /* Map (DS-Map) */
+  --color-map-field-1: #b7c48e;
+  --color-map-field-2: #cdbe86;
+  --color-map-field-3: #9db27f;
+  --color-map-field-4: #c7ae74;
+  --color-map-field-5: #a9b27a;
+  --color-map-field-line: #6f7c4f;
+  --color-map-field-selected: #f0b93b;
+
+  /* Focus */
+  --color-focus: #2c6e9e;
+  --focus-ring: 3px solid var(--color-focus);
+  --focus-offset: 2px;
+
+  /* Type families */
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: Inter, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Type scale: size / line height */
+  --text-display: 72px;
+  --text-display-lh: 74px;
+  --text-title-1: 48px;
+  --text-title-1-lh: 52px;
+  --text-title-2: 40px;
+  --text-title-2-lh: 44px;
+  --text-title-3: 28px;
+  --text-title-3-lh: 34px;
+  --text-title-4: 22px;
+  --text-title-4-lh: 28px;
+  --text-body-lg: 20px;
+  --text-body-lg-lh: 30px;
+  --text-body: 16px;
+  --text-body-lh: 24px;
+  --text-small: 14px;
+  --text-small-lh: 20px;
+  --text-caption: 13px;
+  --text-caption-lh: 18px;
+  --text-micro: 12px;
+  --text-micro-lh: 16px;
+  --text-button-lg: 17px;
+  --text-stat: 44px;
+  --text-stat-lh: 48px;
+
+  /* Spacing, 4 px base */
+  --s-4: 4px;
+  --s-8: 8px;
+  --s-12: 12px;
+  --s-16: 16px;
+  --s-20: 20px;
+  --s-24: 24px;
+  --s-32: 32px;
+  --s-48: 48px;
+  --s-64: 64px;
+  --s-96: 96px;
+
+  /* Radius */
+  --radius-control-inner: 8px;
+  --radius-control: 10px;
+  --radius-panel: 12px;
+  --radius-card: 14px;
+  --radius-stage: 16px;
+  --radius-band: 20px;
+  --radius-pill: 999px;
+
+  /* Depth: two shadows only, no gradients */
+  --shadow-1: 0 1px 2px rgba(23, 33, 27, 0.08); /* map controls, legends */
+  --shadow-2: 0 8px 24px rgba(23, 33, 27, 0.18); /* popovers, hint chips */
+
+  /* Sizing */
+  --control-min: 44px;
+  --control-md: 48px;
+  --control-lg: 52px;
+  --page-max: 1280px;
+  --page-gutter: 32px;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --page-gutter: 16px;
+  }
+}
