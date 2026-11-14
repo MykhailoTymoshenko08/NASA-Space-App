@@ -48,7 +48,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List states (for the state/county picker) */
+        /**
+         * List the supported states (for the state/county picker)
+         * @description Only states with field polygons (v0.3 IA, IL, NE). Other CONUS states are not listed.
+         */
         get: operations["listStates"];
         put?: never;
         post?: never;
@@ -65,7 +68,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List counties of a state */
+        /**
+         * List counties of a supported state
+         * @description `404 NOT_FOUND` for a state that is not in `GET /geo/states`.
+         */
         get: operations["listCounties"];
         put?: never;
         post?: never;
@@ -137,6 +143,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/fields/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Farmer-facing context for a selected map point
+         * @description Accepts the same WGS84 point as `/fields/resolve`; pass `FieldSelection.anchor`
+         *     after selecting a field. Independent of snapshots and ML analyses.
+         *     Coverage is limited to rough state bounding boxes for Iowa, Illinois and Nebraska.
+         *     Samples and in-memory cache keys round coordinates to four decimal places (~11 m).
+         *     Sources run concurrently with a short per-source deadline. Missing values remain
+         *     null with `quality: unavailable` and `unavailable_reason`; even a total upstream
+         *     outage returns 200. Successful source results are cached for 24 hours.
+         *     Each recent climate metric covers its latest complete 12-month window, which may
+         *     differ between parameters due to publishing lag. Precipitation is a 12-month total;
+         *     temperature and solar radiation are day-weighted means. Long-term values use the
+         *     NASA-provided climatology baseline. NLCD uses the fixed 2024 annual product.
+         *     Authentication is not yet merged; the route has an explicit dependency hook.
+         */
+        post: operations["getFieldInfo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/fields/{field_id}": {
         parameters: {
             query?: never;
@@ -154,6 +191,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tiles/fields.pmtiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The field polygon PMTiles archive (read with HTTP Range requests)
+         * @description The whole PMTiles v3 archive described by `coverage.field_tiles` (source layer `fields`). Clients
+         *     read it with the PMTiles library, which sends `Range: bytes=a-b` requests and uses `ETag` to notice
+         *     a rebuilt file. Do not hardcode this path: use `coverage.field_tiles.url_template`, which may point
+         *     elsewhere. `HEAD` is supported with the same headers. CORS exposes `ETag`, `Content-Range` and
+         *     `Content-Length`.
+         */
+        get: operations["getFieldsPmtiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tiles/boundaries/{z}/{x}/{y}.mvt": {
         parameters: {
             query?: never;
@@ -163,33 +224,13 @@ export interface paths {
         };
         /**
          * State and county outlines (vector tile)
-         * @description Mapbox Vector Tile. Layers: `states` (props: `fips`, `name`, `postal`), `counties` (props: `fips`, `name`, `state_fips`).
-         *     Frontend shows `states` at zoom < 7 and `counties` at zoom 7 to 10.
+         * @description Mapbox Vector Tile, all of CONUS. Layers: `states` (props: `fips`, `name`, `postal`),
+         *     `counties` (props: `fips`, `name`, `state_fips`).
+         *     Suggested use: `states` at zoom < 7, `counties` at zoom 7 to 10, then the field polygons from the
+         *     PMTiles file in `coverage.field_tiles` from `coverage.field_tiles.min_zoom`.
+         *     Field polygons are not XYZ tiles: see `GET /tiles/fields.pmtiles`.
          */
         get: operations["getBoundaryTile"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/tiles/fields/{z}/{x}/{y}.mvt": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Field polygons (vector tile)
-         * @description Mapbox Vector Tile. Layer `fields`, props: `field_id` (string), `crop_class` (string, may be empty),
-         *     `area_ha` (number). Only served for z >= `coverage.field_tiles.min_zoom` inside covered regions;
-         *     elsewhere returns 204. The same data may be served as a static PMTiles file; the frontend must read
-         *     the tile URL template from `GET /meta/coverage` (`field_tiles.url_template`), not hardcode it.
-         */
-        get: operations["getFieldTile"];
         put?: never;
         post?: never;
         delete?: never;
@@ -258,10 +299,137 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an account and sign in
+         * @description Email is trimmed and stored lowercase. Password: 8-128 characters, at least one letter and one digit.
+         *     On success the response sets the refresh token cookie (see `/auth/refresh`).
+         */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in with email and password */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New access token from the refresh token cookie
+         * @description Reads the `refresh_token` httpOnly cookie (path `/v1/auth`); call with `credentials: "include"`.
+         *     The refresh token is single use: it is rotated and the response sets a new cookie.
+         */
+        post: operations["refreshTokens"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke the refresh token and clear its cookie
+         * @description Idempotent. Access tokens already issued stay valid until they expire.
+         */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        RegisterRequest: {
+            /** Format: email */
+            email: string;
+            /** @description At least one letter and one digit. */
+            password: string;
+        };
+        LoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        User: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: email
+             * @description Lowercase.
+             */
+            email: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AuthTokens: {
+            /** @description JWT. Send as `Authorization: Bearer <access_token>`. */
+            access_token: string;
+            /** @enum {string} */
+            token_type: "bearer";
+            /** @description Access token lifetime in seconds. */
+            expires_in: number;
+            user: components["schemas"]["User"];
+        };
         /**
          * @example {
          *       "lat": 41.5868,
@@ -302,10 +470,10 @@ export interface components {
          */
         CountyFips: string;
         /**
-         * @description Stable id of a field polygon. Opaque to the frontend. Backend builds it as a hash of the source edition
-         *     plus the geometry (source ids are only unique per edition), so it only changes when the polygon data
-         *     version changes (see `Coverage.field_data_version`).
-         * @example fld_8a3f1c9e2b
+         * @description Stable id of an estimated field area. Opaque to the frontend. Built as `csb<edition>_<source id>`:
+         *     the CSB source id (`CSBID`) is unique only within one CSB edition, so the edition's last year is part
+         *     of the id. It changes when the data version changes (see `Coverage.field_data_version`).
+         * @example csb2025_190000123456
          */
         FieldId: string;
         State: {
@@ -325,34 +493,66 @@ export interface components {
             state_postal: string;
             bbox: components["schemas"]["BBox"];
             centroid: components["schemas"]["LatLon"];
-            /** @description False means field tiles are empty here; the UI should offer point-based analysis instead. */
+            /** @description True when the county has CSB field polygons. Every county listed by `/geo/states/{state_fips}/counties` is in a supported state, so it is true there. A county fetched by fips outside the supported states is false; the UI should offer point-based analysis instead. */
             has_field_coverage: boolean;
         };
         Coverage: {
-            /** @description Overall supported area (CONUS). */
+            /** @description Bounding box of the supported states (IA, IL, NE). Fit the initial map to it. */
             bounds: components["schemas"]["BBox"];
+            /**
+             * @description Postal codes of the states with field polygons.
+             * @example [
+             *       "IA",
+             *       "IL",
+             *       "NE"
+             *     ]
+             */
             supported_states: string[];
-            /** @example 2026-11-pilot-1 */
+            /** @example csb2018-2025-ia-il-ne */
             field_data_version: string;
             field_boundary_source: {
                 /** @example USDA Crop Sequence Boundaries */
                 name: string;
-                /** @example 2024 */
+                /**
+                 * @description Years covered by the CSB release.
+                 * @example 2018-2025
+                 */
                 edition: string;
-                /** @example estimated_csb */
-                boundary_type: string;
+                /** @enum {string} */
+                boundary_type: "estimated_csb";
                 attribution?: string | null;
             };
+            /**
+             * @description One PMTiles archive (https://github.com/protomaps/PMTiles), read by the frontend with HTTP Range
+             *     requests. Source layer `fields`, one feature per CSB polygon, props: `field_id` (string, a `FieldId`),
+             *     `crop_class` (string, latest mapped crop, may be empty), `area_ha` (number).
+             */
             field_tiles: {
-                /** @example 11 */
+                /** @enum {string} */
+                format: "pmtiles";
+                /**
+                 * @description What the features in the `fields` layer are.
+                 * @enum {string}
+                 */
+                unit: "estimated_csb";
+                /**
+                 * @description Lowest zoom that has field polygons. No field is dropped at or above it.
+                 * @example 12
+                 */
                 min_zoom: number;
-                /** @example 16 */
+                /**
+                 * @description Highest zoom stored; the map overzooms beyond it.
+                 * @example 14
+                 */
                 max_zoom: number;
-                /** @description XYZ template, e.g. `/v1/tiles/fields/{z}/{x}/{y}.mvt` or a PMTiles URL. */
+                /**
+                 * @description Absolute URL of the `.pmtiles` file. By default the backend's own `/v1/tiles/fields.pmtiles`; may be external static hosting. Use it with the `pmtiles://` protocol; it is not an XYZ template.
+                 * @example http://localhost:8000/v1/tiles/fields.pmtiles
+                 */
                 url_template: string;
-                /** @description Areas where field polygons exist. */
+                /** @description The supported states, one entry each. */
                 regions: {
-                    /** @example Polk County, IA */
+                    /** @example Iowa */
                     name: string;
                     bbox: components["schemas"]["BBox"];
                 }[];
@@ -372,10 +572,25 @@ export interface components {
         } | {
             point: components["schemas"]["LatLon"];
         };
+        FieldInfo: {
+            /** @description Sampling coordinates, rounded to four decimal places. */
+            point: components["schemas"]["LatLon"];
+            /** Format: date-time */
+            generated_at: string;
+            /** @description True when every source result came from memory. */
+            cached: boolean;
+            /**
+             * @description Always includes temperature_12m, precipitation_12m, solar_radiation_12m,
+             *     temperature_normal, precipitation_normal, solar_radiation_normal,
+             *     dominant_soil, soil_texture, soil_drainage, soil_organic_matter, soil_ph,
+             *     elevation, slope, land_cover. Labels, units, source and notes are display-ready.
+             */
+            metrics: components["schemas"]["Metric"][];
+        };
         /**
          * @description Backend-resolved selection. This is the one object every page works with.
          * @example {
-         *       "field_id": "fld_8a3f1c9e2b",
+         *       "field_id": "csb2025_190000123456",
          *       "anchor": {
          *         "lat": 41.5868,
          *         "lon": -93.625
@@ -385,24 +600,24 @@ export interface components {
          *         "coordinates": [
          *           [
          *             [
-         *               -93.626,
-         *               41.586
+         *               -93.634,
+         *               41.578
          *             ],
          *             [
-         *               -93.624,
-         *               41.586
+         *               -93.616,
+         *               41.578
          *             ],
          *             [
-         *               -93.624,
-         *               41.588
+         *               -93.616,
+         *               41.596
          *             ],
          *             [
-         *               -93.626,
-         *               41.588
+         *               -93.634,
+         *               41.596
          *             ],
          *             [
-         *               -93.626,
-         *               41.586
+         *               -93.634,
+         *               41.578
          *             ]
          *           ]
          *         ]
@@ -411,7 +626,7 @@ export interface components {
          *       "boundary_type": "estimated_csb",
          *       "snap_distance_m": 0,
          *       "buffer_m": null,
-         *       "area_ha": 31.4,
+         *       "area_ha": 32.4,
          *       "crop_class": "Corn",
          *       "crop_history": [
          *         {
@@ -421,6 +636,10 @@ export interface components {
          *         {
          *           "year": 2024,
          *           "crop": "Soybeans"
+         *         },
+         *         {
+         *           "year": 2023,
+         *           "crop": "Corn"
          *         }
          *       ],
          *       "county": {
@@ -447,19 +666,21 @@ export interface components {
              */
             resolved_by: "field_polygon" | "snapped_point" | "buffered_point";
             /**
-             * @description `estimated_csb`: polygon from USDA Crop Sequence Boundaries. These are algorithmic estimates of
-             *     areas with a common crop sequence, NOT legal or surveyed field boundaries; a real field may be split
-             *     or merged. The UI must say so near the map ("estimated field area").
-             *     `buffered_point`: no polygon, a circle around the point. Enum is extensible (e.g. a later ML-boundary source).
+             * @description `estimated_csb`: a USDA Crop Sequence Boundaries polygon. It is an algorithmic estimate of a field
+             *     from satellite crop maps, not a surveyed or ownership boundary: a real field may be split into
+             *     several polygons or merged with a neighbour. The UI must say "estimated field area".
+             *     `buffered_point`: no polygon here (outside the supported states, or nothing within the snap
+             *     radius), a circle around the point is used.
+             *     Enum is extensible.
              * @enum {string}
              */
             boundary_type: "estimated_csb" | "buffered_point";
             snap_distance_m?: number | null;
             buffer_m?: number | null;
             area_ha: number | null;
-            /** @description Latest mapped crop on this field, if known (e.g. "Corn"). */
+            /** @description Latest mapped crop (USDA Cropland Data Layer class name, e.g. "Corn"). Null for buffered points or when the source has no crop for the latest year. */
             crop_class?: string | null;
-            /** @description Mapped crop per year, newest first. May be empty if the source has no history; never guessed. */
+            /** @description Mapped crop per year from CSB, newest first, up to the CSB window length (8 years). Empty for buffered points. Years without a mapped crop are left out; never guessed. */
             crop_history?: {
                 year: number;
                 crop: string;
@@ -504,6 +725,7 @@ export interface components {
              *     `soil_moisture_surface` (SMAP), `soil_moisture_rootzone` (SMAP L4), `relative_humidity_2m` (NASA POWER),
              *     `air_temp_mean_2m`, `precip_30d_total`, `precip_annual_normal`, `soil_organic_matter_pct`,
              *     `soil_nitrogen_total` (estimated), `soil_ph`, `soil_texture_class`, `elevation_m`, `slope_pct`.
+             *     `soil_wetness_surface` and `soil_wetness_rootzone` (NASA POWER, modeled, unit `fraction`).
              * @example soil_moisture_surface
              */
             key: string;
@@ -516,7 +738,7 @@ export interface components {
             category: "moisture" | "atmosphere" | "temperature" | "precipitation" | "soil" | "terrain" | "vegetation";
             /** @description Number for continuous metrics, string for classes (e.g. texture), null if unavailable. */
             value: number | string | null;
-            /** @description Machine unit: `m3/m3`, `%`, `degC`, `mm`, `g/kg`, `m`, `pH`, `class`, `none`. */
+            /** @description Machine unit: `m3/m3`, `%`, `degC`, `mm`, `g/kg`, `m`, `pH`, `class`, `fraction` (0 to 1, e.g. NASA POWER modeled soil wetness), `none`. */
             unit: string;
             /** Format: date */
             as_of?: string | null;
@@ -559,7 +781,7 @@ export interface components {
             options?: {
                 /** @description Farmer priorities. Empty means balanced. */
                 priorities?: components["schemas"]["Priority"][];
-                /** @description Optional. Newest first. If omitted, backend uses mapped crop data. */
+                /** @description Optional farmer correction, newest first. When given it replaces the mapped `FieldSelection.crop_history`; the UI prefills it from that history and lets the farmer edit it. */
                 crop_history?: {
                     year: number;
                     crop: string;
@@ -672,7 +894,7 @@ export interface components {
             needs_local_review: boolean;
         };
         /** @enum {string} */
-        ErrorCode: "VALIDATION_ERROR" | "NOT_FOUND" | "UNPARSEABLE_INPUT" | "UNSUPPORTED_LINK" | "OUTSIDE_COVERAGE" | "UPSTREAM_DATA_UNAVAILABLE" | "RATE_LIMITED" | "INTERNAL_ERROR";
+        ErrorCode: "VALIDATION_ERROR" | "NOT_FOUND" | "UNPARSEABLE_INPUT" | "UNSUPPORTED_LINK" | "OUTSIDE_COVERAGE" | "UPSTREAM_DATA_UNAVAILABLE" | "RATE_LIMITED" | "INTERNAL_ERROR" | "UNAUTHORIZED" | "EMAIL_TAKEN";
         ApiError: {
             code: components["schemas"]["ErrorCode"];
             /** @description Safe to show to the user. */
@@ -688,6 +910,28 @@ export interface components {
         };
     };
     responses: {
+        /**
+         * @description `UNAUTHORIZED`. `details.reason` is one of `missing_token`, `token_expired`, `invalid_token`,
+         *     `unknown_user`, `invalid_credentials`, `missing_refresh_token`, `invalid_refresh_token`.
+         */
+        Unauthorized: {
+            headers: {
+                "WWW-Authenticate"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description `VALIDATION_ERROR` */
+        ValidationError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
         /** @description Mapbox Vector Tile */
         VectorTile: {
             headers: {
@@ -723,7 +967,10 @@ export interface components {
         Y: number;
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description `refresh_token=<opaque>; HttpOnly; Path=/v1/auth; Max-Age=<refresh TTL>; SameSite=...` */
+        RefreshCookie: string;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -780,7 +1027,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description States, sorted by name */
+            /** @description Supported states, sorted by name */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -878,6 +1125,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            429: components["responses"]["RateLimited"];
         };
     };
     resolveField: {
@@ -918,6 +1166,49 @@ export interface operations {
             };
         };
     };
+    getFieldInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "point": {
+                 *         "lat": 41.98,
+                 *         "lon": -93.7
+                 *       }
+                 *     }
+                 */
+                "application/json": {
+                    point: components["schemas"]["LatLon"];
+                };
+            };
+        };
+        responses: {
+            /** @description Available context, including null metrics for unavailable data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldInfo"];
+                };
+            };
+            /** @description `OUTSIDE_COVERAGE` (IA/IL/NE only) or `VALIDATION_ERROR` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getField: {
         parameters: {
             query?: never;
@@ -941,6 +1232,49 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    getFieldsPmtiles: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whole file (no `Range` header) */
+            200: {
+                headers: {
+                    ETag?: string;
+                    "Accept-Ranges"?: "bytes";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.pmtiles": string;
+                };
+            };
+            /** @description The requested byte range */
+            206: {
+                headers: {
+                    "Content-Range"?: string;
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.pmtiles": string;
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description Range not satisfiable */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getBoundaryTile: {
         parameters: {
             query?: never;
@@ -956,29 +1290,6 @@ export interface operations {
         responses: {
             200: components["responses"]["VectorTile"];
             /** @description Empty tile */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    getFieldTile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                z: components["parameters"]["Z"];
-                x: components["parameters"]["X"];
-                y: components["parameters"]["Y"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["VectorTile"];
-            /** @description Empty tile or outside coverage */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -1084,6 +1395,131 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Account created and signed in */
+            201: {
+                headers: {
+                    "Set-Cookie": components["headers"]["RefreshCookie"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokens"];
+                };
+            };
+            /** @description `EMAIL_TAKEN` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    "Set-Cookie": components["headers"]["RefreshCookie"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokens"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    refreshTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New access token and rotated refresh cookie */
+            200: {
+                headers: {
+                    "Set-Cookie": components["headers"]["RefreshCookie"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokens"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
 }

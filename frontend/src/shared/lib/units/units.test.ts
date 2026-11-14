@@ -8,11 +8,17 @@ describe("toDisplay", () => {
 
   it("converts mm to inches", () => {
     expect(toDisplay(25.4, "mm")).toEqual({ value: "1.0", unit: "in" });
-    expect(toDisplay(889, "mm")).toEqual({ value: "35", unit: "in" });
+    expect(toDisplay(910, "mm")).toEqual({ value: "35.8", unit: "in" });
   });
 
-  it("converts m3/m3 to percent by volume", () => {
-    expect(toDisplay(0.27, "m3/m3")).toEqual({ value: "27", unit: "% by volume" });
+  it("keeps m3/m3 with two decimals", () => {
+    expect(toDisplay(0.27, "m3/m3")).toEqual({ value: "0.27", unit: "m³/m³" });
+  });
+
+  it("shows fractions and percents", () => {
+    expect(toDisplay(0.412, "fraction")).toEqual({ value: "0.41", unit: "" });
+    expect(toDisplay(68, "%")).toEqual({ value: "68", unit: "%" });
+    expect(toDisplay(3.84, "%")).toEqual({ value: "3.8", unit: "%" });
   });
 
   it("converts metres to feet", () => {

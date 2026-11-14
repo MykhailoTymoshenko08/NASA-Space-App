@@ -1,0 +1,8 @@
+.map {
+  position: absolute;
+  inset: 0;
+}
+.map :global(.maplibregl-canvas):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -3px;
+}

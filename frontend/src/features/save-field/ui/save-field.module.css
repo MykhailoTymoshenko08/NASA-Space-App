@@ -1,0 +1,10 @@
+.saved {
+  background: var(--color-success-bg);
+}
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-min);
+  font-size: var(--text-small);
+  font-weight: 500;
+}

@@ -1,0 +1,55 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+}
+.track {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--color-line-soft);
+  overflow: hidden;
+}
+.bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--color-green-700);
+  transition: width 300ms;
+}
+.pct {
+  min-width: 44px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+.thin {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-line-soft);
+  overflow: hidden;
+}
+.slide {
+  width: 40%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-green-700);
+  animation: slide 1.4s ease-in-out infinite;
+}
+@keyframes slide {
+  0% {
+    margin-left: -40%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide {
+    animation: none;
+    margin-left: 0;
+    width: 60%;
+  }
+}
+.meter {
+  background: var(--color-line-soft);
+}

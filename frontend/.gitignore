@@ -5,3 +5,6 @@ dist/
 .env.*
 !.env.example
 coverage/
+
+# Design source files (local only)
+design/

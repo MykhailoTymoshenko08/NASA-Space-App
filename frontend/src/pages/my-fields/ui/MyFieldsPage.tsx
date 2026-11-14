@@ -1,0 +1,104 @@
+import { useState } from "react";
+import { useSavedFieldMutations, useSavedFields } from "@/entities/saved-field";
+import { useSession } from "@/entities/session";
+import { friendlyMessage } from "@/shared/api";
+import { ROUTES } from "@/shared/config";
+import { useDocumentTitle } from "@/shared/lib";
+import { Button, ButtonLink } from "@/shared/ui/button";
+import { ErrorPanel, Skeleton } from "@/shared/ui/feedback";
+import { Icon } from "@/shared/ui/icon";
+import { Container, PageIntro } from "@/shared/ui/layout";
+import { FieldsCompare, MAX_COMPARE, SavedFieldsList } from "@/widgets/saved-fields";
+import s from "./my-fields.module.css";
+
+/** "My fields" list and "Compare fields" (2 to 4). Saved fields use the saved-field stub until the API has them. */
+export function MyFieldsPage() {
+  const session = useSession();
+  const userId = session.status === "authenticated" ? session.user.id : null;
+  const saved = useSavedFields(userId);
+  const { remove } = useSavedFieldMutations(userId);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [view, setView] = useState<"list" | "compare">("list");
+
+  const fields = saved.data ?? [];
+  const chosen = fields.filter((f) => selected.includes(f.key));
+  const comparing = view === "compare" && chosen.length >= 2;
+  useDocumentTitle(comparing ? "Compare fields" : "My fields");
+
+  if (session.status === "unknown") {
+    return (
+      <Container className={s.pad} role="status">
+        <Skeleton height={48} width="40%" />
+        <span className="visually-hidden">Checking your session</span>
+      </Container>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <Container className={s.pad}>
+        <div className={s.signedOut}>
+          <h1 id="page-title" className={s.h1}>
+            Sign in to see your fields
+          </h1>
+          <p className={s.muted}>Saved fields live in your account, so you can come back to them and compare them.</p>
+          <ButtonLink to={`${ROUTES.signIn}?next=${encodeURIComponent(ROUTES.myFields)}`} variant="primary" size="lg" block>
+            Sign in
+          </ButtonLink>
+        </div>
+      </Container>
+    );
+  }
+
+  const toggle = (key: string) =>
+    setSelected((list) =>
+      list.includes(key) ? list.filter((k) => k !== key) : list.length >= MAX_COMPARE ? list : [...list, key],
+    );
+
+  return (
+    <>
+      <PageIntro
+        title={comparing ? "Compare fields" : "My fields"}
+        lead={
+          comparing
+            ? "Side by side base conditions for the fields you picked."
+            : "Fields you saved. Select two or more to compare them."
+        }
+      />
+      <Container className={s.body}>
+        {saved.isPending && <Skeleton height={200} />}
+        {saved.isError && <ErrorPanel title="We could not load your fields" message={friendlyMessage(saved.error)} />}
+        {saved.data &&
+          (comparing ? (
+            <>
+              <div className={s.compareBar}>
+                <Button variant="secondary" onClick={() => setView("list")}>
+                  <Icon name="arrow-left" size={18} />
+                  Back to my fields
+                </Button>
+                <span className={s.muted}>Latest values for each field, read from our server now.</span>
+              </div>
+              <FieldsCompare fields={chosen} />
+              <p className={s.fine}>
+                Bars are scaled to the highest value in each row. Each row says if the value was measured, modeled or
+                estimated. Nitrogen is an estimate from organic matter, not a lab test. Values from the API are metric and
+                shown here in US units.
+              </p>
+            </>
+          ) : (
+            <SavedFieldsList
+              fields={fields}
+              selected={selected}
+              onToggle={toggle}
+              onRemove={(key) => {
+                remove.mutate(key);
+                setSelected((list) => list.filter((k) => k !== key));
+              }}
+              onCompare={() => setView("compare")}
+              removing={remove.isPending}
+            />
+          ))}
+      </Container>
+    </>
+  );
+}

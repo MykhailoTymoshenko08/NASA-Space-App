@@ -1,0 +1,250 @@
+.muted {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.small {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+
+/* Strategy card */
+.strategy {
+  padding: var(--s-20) var(--s-24);
+  border-radius: var(--radius-stage);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+.best {
+  border: 2px solid var(--color-green-700);
+}
+.strategyTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-12);
+}
+.strategyMain {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+}
+.strategyName {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-4);
+  line-height: var(--text-title-4-lh);
+}
+.score {
+  flex: none;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-4);
+}
+.scoreValue {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-2);
+  line-height: var(--text-title-2-lh);
+}
+.scoreMax {
+  font-size: var(--text-body);
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+.confidence {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  font-weight: 500;
+}
+.seasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.season {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-8) var(--s-12);
+  border-radius: var(--radius-control);
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+}
+.seasonWhen {
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  color: var(--color-ink-muted);
+}
+.seasonCrop {
+  font-weight: 600;
+}
+.seasonRole {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+.toggle {
+  margin-top: 14px;
+  font-size: 15px;
+}
+.details:not([hidden]) {
+  margin-top: var(--s-16);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--s-20);
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bullets {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.evidence {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.breakdown {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+.breakdownRow {
+  display: grid;
+  grid-template-columns: 110px 1fr 32px;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+}
+.breakdownScore {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+/* Charts */
+.chartCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: 18px var(--s-20) 14px;
+  border-radius: var(--radius-stage);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  min-width: 0;
+}
+.chartHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-12);
+}
+.chartTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 26px;
+}
+.readout {
+  text-align: right;
+}
+.readoutValue {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 30px;
+  white-space: nowrap;
+}
+.chart {
+  display: block;
+  touch-action: pan-y;
+}
+.gridLine {
+  fill: none;
+  stroke: var(--color-line-soft);
+  stroke-width: 1;
+}
+.tick {
+  font-size: 12px;
+  fill: var(--color-ink-muted);
+  font-family: var(--font-body);
+}
+.line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cross {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.dot {
+  stroke: var(--color-surface);
+  stroke-width: 2;
+}
+.hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+/* Datasets */
+.datasets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: var(--s-20) var(--s-24);
+  border-radius: var(--radius-stage);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+.datasetList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.datasetRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-4) var(--s-16);
+  padding: var(--s-12) 0;
+  border-top: 1px solid var(--color-line-soft);
+}
+.datasetName {
+  font-weight: 600;
+}
+.datasetMeta {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+  text-align: right;
+}

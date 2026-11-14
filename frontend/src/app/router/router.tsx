@@ -1,23 +1,28 @@
 import { createBrowserRouter } from "react-router";
-import { AnalysisPage } from "@/pages/analysis";
+import { AnalysisPage, AnalysisSetupPage } from "@/pages/analysis";
 import { FieldPage } from "@/pages/field";
-import { LandingPage } from "@/pages/landing";
+import { MyFieldsPage } from "@/pages/my-fields";
 import { NotFoundPage } from "@/pages/not-found";
-import { PickFieldPage } from "@/pages/pick-field";
+import { ResetPasswordPage } from "@/pages/reset-password";
 import { SignInPage } from "@/pages/sign-in";
+import { SignUpPage } from "@/pages/sign-up";
 import { ROUTES } from "@/shared/config";
 import { RootLayout } from "../layout/RootLayout";
 
-/** Route table only. Every screen lives in src/pages. */
+/** Route table only. Every screen lives in src/pages. Map pages load lazily (MapLibre is large). */
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
-      { path: ROUTES.home, element: <LandingPage /> },
-      { path: ROUTES.pickField, element: <PickFieldPage /> },
+      { path: ROUTES.home, lazy: () => import("@/pages/landing").then((m) => ({ Component: m.LandingPage })) },
+      { path: ROUTES.pickField, lazy: () => import("@/pages/pick-field").then((m) => ({ Component: m.PickFieldPage })) },
       { path: ROUTES.field, element: <FieldPage /> },
+      { path: ROUTES.analysisSetup, element: <AnalysisSetupPage /> },
       { path: ROUTES.analysis, element: <AnalysisPage /> },
       { path: ROUTES.signIn, element: <SignInPage /> },
+      { path: ROUTES.signUp, element: <SignUpPage /> },
+      { path: ROUTES.resetPassword, element: <ResetPasswordPage /> },
+      { path: ROUTES.myFields, element: <MyFieldsPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

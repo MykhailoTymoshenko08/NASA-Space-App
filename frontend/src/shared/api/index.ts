@@ -1,5 +1,6 @@
-export { api, unwrap } from "./client";
-export { ApiError, friendlyMessage } from "./errors";
+export { api, apiUrl, unwrap } from "./client";
+export { getAccessToken, setAccessToken } from "./access-token";
+export { ApiError, friendlyMessage, messageForCode } from "./errors";
 export type { ErrorCode } from "./errors";
 export type { components, paths } from "./schema.gen";
 
@@ -7,6 +8,19 @@ import type { components } from "./schema.gen";
 type S = components["schemas"];
 export type FieldSelection = S["FieldSelection"];
 export type SelectionRef = S["SelectionRef"];
+export type SelectionSource = S["SelectionSource"];
+export type ResolvedLocation = S["ResolvedLocation"];
 export type Snapshot = S["Snapshot"];
 export type Metric = S["Metric"];
+export type Coverage = S["Coverage"];
+export type GeoState = S["State"];
+export type County = S["County"];
 export type AnalysisJob = S["AnalysisJob"];
+export type AnalysisRequest = S["AnalysisRequest"];
+export type AnalysisResult = S["AnalysisResult"];
+export type Strategy = S["Strategy"];
+export type TimeSeries = S["TimeSeries"];
+export type DatasetRef = S["DatasetRef"];
+export type Priority = S["Priority"];
+export type User = S["User"];
+export type AuthTokens = S["AuthTokens"];

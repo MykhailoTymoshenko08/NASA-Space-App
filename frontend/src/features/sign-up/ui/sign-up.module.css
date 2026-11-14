@@ -1,0 +1,25 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-20);
+}
+.rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.rule {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+.foot {
+  text-align: center;
+  color: var(--color-ink-muted);
+}
+.strong {
+  font-weight: 600;
+}

@@ -1,6 +1,6 @@
 # Fieldline frontend
 
-Landing page and Field base-conditions page. "Fieldline" is a working name, set once in
+Landing map, pick a field, base conditions, analysis, accounts and saved fields. "Fieldline" is a working name, set once in
 `src/shared/config/brand.ts`.
 
 Stack: Vite, React 19, TypeScript (strict), React Router 7, TanStack Query, openapi-fetch.
@@ -43,41 +43,65 @@ change the contract first (and add an entry to `CONTRACT_CHANGELOG.md`), then ru
 `gen:api` runs `openapi-typescript` through `npx` with TypeScript 5, because
 `openapi-typescript` does not support the TypeScript 7 this project uses.
 
-### What the Field page calls
+### What each screen calls
 
-`/field?lat=..&lon=..` (or `?field_id=..`, which takes priority) → `POST /v1/snapshots`
-with `{ selection: { point } }` or `{ selection: { field_id } }`. One call returns the resolved
-field (`FieldSelection`) and its metrics. "Get analysis" → `POST /v1/analyses` → `/analysis/:jobId`.
+| Screen | Route | API |
+| --- | --- | --- |
+| Landing map | `/` | `GET /meta/coverage`, `GET /geo/states`, `GET /geo/counties/{fips}`, boundary tiles `GET /tiles/boundaries/{z}/{x}/{y}.mvt`, field polygons from the PMTiles file at `coverage.field_tiles.url_template`, `GET /fields/{field_id}` on a field click |
+| Pick a field | `/pick-field` | `GET /geo/states`, `GET /geo/states/{fips}/counties`, `POST /locations/resolve` (link or coordinates box), `GET /fields/{id}` or `POST /fields/resolve` (map click) |
+| Base conditions | `/field?field_id=..` or `?lat=..&lon=..` | `POST /snapshots` |
+| Analysis setup | `/analysis?field_id=..` | `POST /snapshots` (cached), `POST /analyses` (202) |
+| Analysis | `/analysis/:jobId?field_id=..&p=..&h=..` | `GET /analyses/{job_id}`, every 2 s, every 5 s after 30 s |
+| Sign in, create account | `/sign-in`, `/sign-up` | `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh` (on start), `POST /auth/logout` |
+| Reset password | `/reset-password` | Stub (no contract route yet) |
+| My fields, compare | `/my-fields` | Saved fields: stub. Compare: `POST /snapshots` per field |
 
-### Mock scenarios (by requested point)
+Auth: the access token is kept in memory only; the refresh token is the backend's httpOnly cookie
+(`credentials: "include"` on `/auth/*`). "Keep me signed in" off ends the session with the browser tab.
 
-| Point | Result |
+### Stubs (the design needs them, the contract does not have them)
+
+Each sits behind one interface, so the real endpoint replaces one object:
+
+- **Saved fields** (`entities/saved-field/api/saved-fields-api.ts`, `SavedFieldsApi`): list, save, remove.
+  Kept in this browser per signed-in user until the API has endpoints.
+- **Password reset** (`features/reset-password/api/password-reset-api.ts`, `PasswordResetApi`):
+  request link, set new password. Works in mock mode; against a real backend it says reset is not available.
+- **PDF export**: prints the result page (browser "Save as PDF"). No server endpoint.
+
+### Mock scenarios
+
+| Input | Result |
 | --- | --- |
-| Corn Belt, e.g. `41.5868, -93.625` | Mapped field, every metric answered |
-| `lat >= 45`, e.g. `46.5, -96.8` | Soil moisture unavailable (card error state) |
-| `lon > -90`, e.g. `40.1, -88.2` | No mapped field: 500 m circle |
+| A point in Iowa, Illinois or Nebraska, e.g. `41.5868, -93.625` | Estimated field area (snapped), every metric answered |
+| Elsewhere in the contiguous US, e.g. `39.7392, -104.9903` | 300 m buffered circle, no field id |
+| `lat >= 45`, e.g. `46.5, -96.8` | Soil moisture "Not available"; analyses fail (`UPSTREAM_DATA_UNAVAILABLE`) |
 | Outside the contiguous US | `422 OUTSIDE_COVERAGE` |
-| `field_id=fld_missing` | `404 NOT_FOUND` |
+| `my back forty` in the link box | `422 UNPARSEABLE_INPUT` |
+
+Mock mode serves no map tiles, so the maps show no outlines; everything else works.
+Demo accounts are kept in `localStorage`.
 
 ## Structure (FSD)
 
 ```
 src/
-  app/        router, query client, root layout, mock worker start, global CSS
-  pages/      landing, field, pick-field (stub), analysis (stub), sign-in (stub), not-found
-  widgets/    site-header, site-footer, base-conditions
-  features/   request-analysis (Get analysis button)
-  entities/   field (URL state, snapshot query, sketch, labels), metric (cards, sources, formatting)
-  shared/     api (client, errors, generated types), config, lib (units, geo), mocks, ui (kit, tokens)
+  app/        router (map pages load lazily), query client, root layout, mock worker, session restore
+  pages/      landing, pick-field, field, analysis (setup + job), sign-in, sign-up, reset-password,
+              my-fields, not-found
+  widgets/    site-header, site-footer, explore-map, pick-map, analysis-result, saved-fields
+  features/   sign-in, sign-up, sign-out, reset-password, pick-by-county, pick-by-location,
+              save-field, configure-analysis, export-pdf
+  entities/   session, field, metric, region, analysis, saved-field
+  shared/     api (client, auth token, errors, generated types), config, lib (units, geo, dates),
+              mocks, ui (kit, form, choice, progress, map, map-overlay, tokens)
 ```
 
 Design tokens live only in `src/shared/ui/theme/tokens.css`. Components use `var(--…)`.
+The design handoff (`design/`) is local only and ignored by git.
 
-## Not built yet
+## Open questions
 
-- **Landing map.** Waits for the backend's map API (boundary and segment tiles). The stage is
-  a placeholder that links to `/pick-field`.
-- **Field boundary source.** Not chosen. Options to evaluate: USDA Crop Sequence Boundaries
-  (the contract's example), Fields of The World, commercial field boundaries (for example
-  Varda or Planet), and state parcel layers.
-- **Pick-field, analysis results, sign-in.** Route stubs only.
+- Segments (the 5 by 5 grid between county and field in the design) are not in the API. The map goes
+  from county straight to field outlines at `field_tiles.min_zoom`; clicking in county view zooms there.
+- Registration has no name field in the contract, so Create account asks for email and password only.

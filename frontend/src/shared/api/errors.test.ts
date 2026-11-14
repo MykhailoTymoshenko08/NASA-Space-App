@@ -30,9 +30,14 @@ describe("toApiError", () => {
 });
 
 describe("friendlyMessage", () => {
-  it("maps each code to our own wording", () => {
-    const err = new ApiError({ code: "OUTSIDE_COVERAGE", message: "server text" });
+  it("maps each code to our own wording when the server sent no message", () => {
+    const err = new ApiError({ code: "OUTSIDE_COVERAGE", message: "client text" });
     expect(friendlyMessage(err)).toBe("This tool currently covers the contiguous United States.");
+  });
+
+  it("shows the server's error.message when the envelope has one", () => {
+    const err = toApiError(res(422), { error: { code: "OUTSIDE_COVERAGE", message: "Point is outside CONUS." } });
+    expect(friendlyMessage(err)).toBe("Point is outside CONUS.");
   });
 
   it("explains network failures", () => {

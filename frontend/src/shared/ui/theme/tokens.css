@@ -35,12 +35,17 @@
   --color-info-fg: #184f95;
   --color-error-bg: #f7e2dc;
   --color-error-fg: #8f2a1c;
+  --color-warning-bg: #fbebc8;
+  --color-warning-fg: #6b4a00;
+  --color-warning-ink: #3f2d00; /* body text on warning ground */
 
   /* Data lines: one hue per measure */
   --color-data-humidity: #2a78d6;
   --color-data-soil: #1c5cab;
   --color-data-temp: #eb6834;
   --color-data-nitrogen: #008300;
+  --color-data-rain: #2a78d6;
+  --color-data-soil-chem: #6b4a00;
 
   /* Map (DS-Map) */
   --color-map-field-1: #b7c48e;
@@ -50,6 +55,12 @@
   --color-map-field-5: #a9b27a;
   --color-map-field-line: #6f7c4f;
   --color-map-field-selected: #f0b93b;
+  --color-map-state: #cbd7be;
+  --color-map-state-fields: #9fbe84;
+  --color-map-state-hover: #7fa463;
+  --color-map-county: #d5e0c8;
+  --color-map-region-line: #8fa67c;
+  --color-map-outline: #17211b;
 
   /* Focus */
   --color-focus: #2c6e9e;

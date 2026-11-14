@@ -36,6 +36,10 @@
   background: var(--color-info-bg);
   color: var(--color-info-fg);
 }
+.warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-fg);
+}
 .error {
   background: var(--color-error-bg);
   color: var(--color-error-fg);
@@ -58,4 +62,64 @@
   50% {
     opacity: 0.55;
   }
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: var(--s-16) 18px;
+  border-radius: var(--radius-card);
+  background: var(--color-paper-wash);
+  color: var(--color-ink);
+}
+.noteWarning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-ink);
+}
+.noteBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.noteBody ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.errorPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+  padding: var(--s-24);
+  border-radius: var(--radius-stage);
+  background: var(--color-surface);
+  border: 2px solid var(--color-error-fg);
+}
+.errorHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--color-error-fg);
+}
+.errorHead > svg {
+  margin-top: 4px;
+}
+.errorTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 30px;
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-12);
 }

@@ -1,93 +1,72 @@
-import type { CSSProperties } from "react";
-import { Button } from "@/shared/ui/button";
-import { Badge, Message, Skeleton } from "@/shared/ui/feedback";
-import { MonoLabel } from "@/shared/ui/layout";
-import type { PresentedMetric } from "../lib/present";
+import type { Metric } from "@/shared/api";
+import { Badge, Skeleton } from "@/shared/ui/feedback";
+import { Icon } from "@/shared/ui/icon";
+import { SectionTitle } from "@/shared/ui/layout";
+import { groupMetrics, presentMetric } from "../lib/present";
 import s from "./metric-card.module.css";
 
-export type MetricCardState =
-  | { kind: "loading" }
-  | { kind: "error"; message: string; onRetry: () => void; retrying: boolean }
-  | { kind: "ready"; metric: PresentedMetric; onRetry: () => void; retrying: boolean };
-
-type Props = { title: string; accent?: string; state: MetricCardState };
-
-/** One measure: label + source, a big number with its unit, and its own loading and error states. */
-export function MetricCard({ title, accent, state }: Props) {
-  const style = accent ? ({ "--accent": accent } as CSSProperties) : undefined;
-  const source = state.kind === "ready" ? state.metric.sourceName : null;
-
+/** One measure: label + quality pill, the value with its unit, date, source, pixel size and notes. */
+export function MetricCard({ metric, fieldSizeM }: { metric: Metric; fieldSizeM: number | null }) {
+  const m = presentMetric(metric, fieldSizeM);
   return (
-    <article className={s.card} style={style} aria-busy={state.kind === "loading"}>
-      <header className={s.head}>
-        <MonoLabel as="h3" className={s.label}>
-          {accent && <span className={s.swatch} aria-hidden="true" />}
-          {title}
-        </MonoLabel>
-        {source && <span className={s.source}>{source}</span>}
-      </header>
-
-      {state.kind === "loading" && (
-        <>
-          <Skeleton width="55%" height={48} />
-          <Skeleton height={40} soft />
-          <p className={s.muted}>Fetching from our server…</p>
-        </>
+    <article className={s.card} aria-labelledby={`metric-${m.key}`}>
+      <div className={s.head}>
+        <h3 id={`metric-${m.key}`} className={s.label}>
+          {m.label}
+        </h3>
+        <Badge tone={m.quality.tone}>{m.quality.label}</Badge>
+      </div>
+      <div className={s.valueRow}>
+        <span className={m.available ? s.value : s.valueMissing}>{m.value}</span>
+        {m.unit && <span className={s.unit}>{m.unit}</span>}
+      </div>
+      <div className={s.meta}>{m.when}</div>
+      <div className={s.meta}>{m.source}</div>
+      {m.pixel && <div className={s.meta}>{m.pixel}</div>}
+      {m.coarse && (
+        <div className={s.coarse}>
+          <Icon name="warning" size={16} />
+          <span>Wider than this field. One reading covers many fields around it.</span>
+        </div>
       )}
-
-      {state.kind === "error" && (
-        <ErrorBody message={state.message} onRetry={state.onRetry} retrying={state.retrying} />
-      )}
-
-      {state.kind === "ready" && state.metric.status === "unavailable" && (
-        <ErrorBody
-          message={`${state.metric.sourceName} did not answer. Your other values are fine.`}
-          detail={state.metric.reason}
-          onRetry={state.onRetry}
-          retrying={state.retrying}
-        />
-      )}
-
-      {state.kind === "ready" && state.metric.status === "ok" && (
-        <>
-          <div className={s.valueRow}>
-            <span className={s.value}>{state.metric.value}</span>
-            {state.metric.unit && <span className={s.unit}>{state.metric.unit}</span>}
-            {state.metric.badge && (
-              <span className={s.badge}>
-                <Badge tone={state.metric.badge.tone}>{state.metric.badge.text}</Badge>
-              </span>
-            )}
-          </div>
-          {state.metric.when && <p className={s.when}>{state.metric.when}</p>}
-          {state.metric.coarseWarning && <p className={s.warning}>{state.metric.coarseWarning}</p>}
-          {state.metric.note && <p className={s.note}>{state.metric.note}</p>}
-        </>
-      )}
+      {m.note && <div className={s.note}>{m.note}</div>}
     </article>
   );
 }
 
-function ErrorBody({
-  message,
-  detail,
-  onRetry,
-  retrying,
+/** Metrics in category sections ("Moisture", "Air", ...), as on the Field and Analysis pages. */
+export function MetricGroups({
+  metrics,
+  fieldSizeM,
+  headingLevel = 2,
 }: {
-  message: string;
-  detail?: string;
-  onRetry: () => void;
-  retrying: boolean;
+  metrics: readonly Metric[];
+  fieldSizeM: number | null;
+  headingLevel?: 2 | 3;
 }) {
   return (
     <>
-      <Message tone="error">
-        <span>{message}</span>
-        {detail && <span className={s.detail}>{detail}</span>}
-      </Message>
-      <Button variant="secondary" onClick={onRetry} disabled={retrying}>
-        {retrying ? "Trying again…" : "Try again"}
-      </Button>
+      {groupMetrics(metrics).map((g) => (
+        <section key={g.category} className={s.group} aria-label={g.title}>
+          <SectionTitle as={headingLevel === 2 ? "h2" : "h3"}>{g.title}</SectionTitle>
+          <div className={s.grid}>
+            {g.metrics.map((m) => (
+              <MetricCard key={m.key} metric={m} fieldSizeM={fieldSizeM} />
+            ))}
+          </div>
+        </section>
+      ))}
     </>
+  );
+}
+
+/** Six grey blocks while metrics load. */
+export function MetricGridSkeleton() {
+  return (
+    <div className={s.grid} aria-hidden="true">
+      {Array.from({ length: 6 }, (_, i) => (
+        <Skeleton key={i} height={150} />
+      ))}
+    </div>
   );
 }

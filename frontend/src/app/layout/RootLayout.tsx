@@ -11,7 +11,7 @@ export function RootLayout() {
         Skip to content
       </a>
       {env.useMocks && (
-        <div className={s.mockBanner} role="note">
+        <div className={s.mockBanner} role="note" data-mock-banner>
           Demo mode: every value on screen comes from mock data, not from our server.
         </div>
       )}
