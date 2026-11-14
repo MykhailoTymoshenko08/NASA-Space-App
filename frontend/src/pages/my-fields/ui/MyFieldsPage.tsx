@@ -5,13 +5,13 @@ import { friendlyMessage } from "@/shared/api";
 import { ROUTES } from "@/shared/config";
 import { useDocumentTitle } from "@/shared/lib";
 import { Button, ButtonLink } from "@/shared/ui/button";
-import { ErrorPanel, Skeleton } from "@/shared/ui/feedback";
+import { ErrorPanel, Message, Skeleton } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import { Container, PageIntro } from "@/shared/ui/layout";
 import { FieldsCompare, MAX_COMPARE, SavedFieldsList } from "@/widgets/saved-fields";
 import s from "./my-fields.module.css";
 
-/** "My fields" list and "Compare fields" (2 to 4). Saved fields use the saved-field stub until the API has them. */
+/** "My fields" (GET /me/fields) and "Compare fields" (2 to 4). */
 export function MyFieldsPage() {
   const session = useSession();
   const userId = session.status === "authenticated" ? session.user.id : null;
@@ -20,8 +20,8 @@ export function MyFieldsPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [view, setView] = useState<"list" | "compare">("list");
 
-  const fields = saved.data ?? [];
-  const chosen = fields.filter((f) => selected.includes(f.key));
+  const fields = saved.data?.items ?? [];
+  const chosen = fields.filter((f) => selected.includes(f.id));
   const comparing = view === "compare" && chosen.length >= 2;
   useDocumentTitle(comparing ? "Compare fields" : "My fields");
 
@@ -68,6 +68,11 @@ export function MyFieldsPage() {
       <Container className={s.body}>
         {saved.isPending && <Skeleton height={200} />}
         {saved.isError && <ErrorPanel title="We could not load your fields" message={friendlyMessage(saved.error)} />}
+        {remove.isError && (
+          <Message tone="error" role="alert">
+            {friendlyMessage(remove.error)}
+          </Message>
+        )}
         {saved.data &&
           (comparing ? (
             <>
@@ -89,6 +94,7 @@ export function MyFieldsPage() {
             <SavedFieldsList
               fields={fields}
               selected={selected}
+              limit={saved.data.limit}
               onToggle={toggle}
               onRemove={(key) => {
                 remove.mutate(key);

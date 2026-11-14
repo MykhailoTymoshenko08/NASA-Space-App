@@ -24,3 +24,5 @@ export type DatasetRef = S["DatasetRef"];
 export type Priority = S["Priority"];
 export type User = S["User"];
 export type AuthTokens = S["AuthTokens"];
+export type SavedFieldDto = S["SavedField"];
+export type SavedFieldCreate = S["SavedFieldCreate"];

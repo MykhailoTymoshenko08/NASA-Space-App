@@ -54,7 +54,7 @@ change the contract first (and add an entry to `CONTRACT_CHANGELOG.md`), then ru
 | Analysis | `/analysis/:jobId?field_id=..&p=..&h=..` | `GET /analyses/{job_id}`, every 2 s, every 5 s after 30 s |
 | Sign in, create account | `/sign-in`, `/sign-up` | `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh` (on start), `POST /auth/logout` |
 | Reset password | `/reset-password` | Stub (no contract route yet) |
-| My fields, compare | `/my-fields` | Saved fields: stub. Compare: `POST /snapshots` per field |
+| My fields, compare | `/my-fields` | `GET`/`POST /me/fields`, `DELETE /me/fields/{id}` (Save field button too). Compare: `POST /snapshots` per field |
 
 Auth: the access token is kept in memory only; the refresh token is the backend's httpOnly cookie
 (`credentials: "include"` on `/auth/*`). "Keep me signed in" off ends the session with the browser tab.
@@ -63,8 +63,6 @@ Auth: the access token is kept in memory only; the refresh token is the backend'
 
 Each sits behind one interface, so the real endpoint replaces one object:
 
-- **Saved fields** (`entities/saved-field/api/saved-fields-api.ts`, `SavedFieldsApi`): list, save, remove.
-  Kept in this browser per signed-in user until the API has endpoints.
 - **Password reset** (`features/reset-password/api/password-reset-api.ts`, `PasswordResetApi`):
   request link, set new password. Works in mock mode; against a real backend it says reset is not available.
 - **PDF export**: prints the result page (browser "Save as PDF"). No server endpoint.
@@ -80,7 +78,8 @@ Each sits behind one interface, so the real endpoint replaces one object:
 | `my back forty` in the link box | `422 UNPARSEABLE_INPUT` |
 
 Mock mode serves no map tiles, so the maps show no outlines; everything else works.
-Demo accounts are kept in `localStorage`.
+Demo accounts and saved fields are kept in `localStorage`. Saving outside Iowa, Illinois or Nebraska
+returns `422 OUTSIDE_COVERAGE`, as the real API does.
 
 ## Structure (FSD)
 
@@ -105,3 +104,5 @@ The design handoff (`design/`) is local only and ignored by git.
 - Segments (the 5 by 5 grid between county and field in the design) are not in the API. The map goes
   from county straight to field outlines at `field_tiles.min_zoom`; clicking in county view zooms there.
 - Registration has no name field in the contract, so Create account asks for email and password only.
+- Saved fields get a default name ("Polk, IA"); renaming (`PATCH /me/fields/{id}`), `refresh-info` and
+  `POST /profitability/estimate` (contract 0.5.0) are not in the design yet, so the UI does not use them.

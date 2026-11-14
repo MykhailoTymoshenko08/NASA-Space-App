@@ -1,12 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { sortStrategies, useAnalysisJob } from "@/entities/analysis";
-import { buildFieldSearch, FieldFacts, parseFieldSearch, selectionKey, selectionSearch } from "@/entities/field";
-import { useSavedFieldMutations, useSavedFields } from "@/entities/saved-field";
-import { useSession } from "@/entities/session";
+import { useAnalysisJob } from "@/entities/analysis";
+import { buildFieldSearch, FieldFacts, parseFieldSearch, selectionSearch } from "@/entities/field";
 import { ExportPdfButton } from "@/features/export-pdf";
 import { SaveFieldButton } from "@/features/save-field";
-import { ApiError, friendlyMessage, type AnalysisResult } from "@/shared/api";
+import { ApiError, friendlyMessage } from "@/shared/api";
 import { analysisSetupPath, fieldPath, ROUTES } from "@/shared/config";
 import { useDocumentTitle } from "@/shared/lib";
 import { ButtonLink } from "@/shared/ui/button";
@@ -49,7 +47,6 @@ export function AnalysisPage() {
         ? "result"
         : "running";
   useDocumentTitle(COPY[phase].title);
-  useRecordBestRotation(result);
 
   const tryAgain = fieldSearch ? analysisSetupPath(fieldSearch) : ROUTES.pickField;
 
@@ -94,7 +91,7 @@ export function AnalysisPage() {
       {result && (
         <Panel className={s.noPrint}>
           <ExportPdfButton />
-          <SaveFieldButton selection={result.selection} bestRotation={bestOf(result)} showMyFieldsLink />
+          <SaveFieldButton selection={result.selection} showMyFieldsLink />
           <ButtonLink to={tryAgain} variant="ghost" className={s.rerun}>
             Change priorities and run again
           </ButtonLink>
@@ -117,23 +114,4 @@ export function AnalysisPage() {
       <PageColumns main={main} aside={aside} asideLabel="Actions" />
     </div>
   );
-}
-
-const bestOf = (r: AnalysisResult) => {
-  const best = sortStrategies(r.strategies)[0];
-  return best ? { name: best.name, score: best.score } : null;
-};
-
-/** Keep "Best-fit rotation" on My fields up to date when a saved field gets a result. */
-function useRecordBestRotation(result: AnalysisResult | null) {
-  const session = useSession();
-  const userId = session.status === "authenticated" ? session.user.id : null;
-  const saved = useSavedFields(userId);
-  const { setBestRotation } = useSavedFieldMutations(userId);
-  const key = result ? selectionKey(result.selection) : null;
-  const isSaved = !!key && !!saved.data?.some((f) => f.key === key);
-  const mutate = setBestRotation.mutate;
-  useEffect(() => {
-    if (result && key && isSaved) mutate({ key, best: bestOf(result) });
-  }, [result, key, isSaved, mutate]);
 }

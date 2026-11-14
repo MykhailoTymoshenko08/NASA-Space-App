@@ -23,5 +23,5 @@ export {
   useField,
   useFieldSnapshot,
 } from "./api/field-api";
-export { FieldSketch } from "./ui/FieldSketch";
+export { FieldSketch, GeometrySketch } from "./ui/FieldSketch";
 export { FieldFacts, FieldOverview } from "./ui/FieldOverview";

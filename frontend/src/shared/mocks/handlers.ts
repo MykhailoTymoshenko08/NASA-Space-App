@@ -6,7 +6,7 @@
  *  - lat >= 45                            : SMAP soil moisture unavailable; analyses fail
  *  - outside the contiguous US            : 422 OUTSIDE_COVERAGE
  *  - field_id "csb_missing"               : 404 NOT_FOUND
- * Auth keeps demo accounts in localStorage; the refresh "cookie" is simulated in memory/localStorage.
+ * Auth keeps demo accounts and saved fields in localStorage; the refresh "cookie" is simulated there too.
  */
 import { delay, http, HttpResponse, type AnyHandler } from "msw";
 import type { components } from "@/shared/api";
@@ -20,6 +20,7 @@ import {
   resultFor,
   selectionFor,
   STATES,
+  supportedStateAt,
 } from "./data";
 
 type S = components["schemas"];
@@ -137,6 +138,41 @@ const tokensFor = (a: Account): S["AuthTokens"] => {
   store.set(SESSION_KEY, a.id);
   return { access_token: `mock.${a.id}`, token_type: "bearer", expires_in: 900, user: userOf(a) };
 };
+
+/* ---------- saved fields ---------- */
+
+const FIELDS_KEY = "fieldline.mock.saved";
+const FIELD_LIMIT = 50;
+type SavedRow = S["SavedField"] & { owner: string };
+const savedRows = (): SavedRow[] => JSON.parse(store.get(FIELDS_KEY) ?? "[]") as SavedRow[];
+const writeRows = (rows: SavedRow[]) => store.set(FIELDS_KEY, JSON.stringify(rows));
+const publicRow = ({ owner: _owner, ...row }: SavedRow): S["SavedField"] => row;
+
+/** The account behind "Authorization: Bearer mock.<id>", or null. */
+function bearerAccount(request: Request): Account | null {
+  const id = request.headers.get("Authorization")?.replace(/^Bearer mock\./, "");
+  return accounts().find((x) => x.id === id) ?? null;
+}
+const unauthorized = () => errorResponse(401, "UNAUTHORIZED", "Sign in first.", { "WWW-Authenticate": "Bearer" });
+
+/** Centroid and rough area (ha) of a polygon's outer ring, or the point itself. */
+function shapeFacts(g: S["SavedFieldCreate"]["geometry"]): { centroid: LatLon; area_ha: number | null; positions: number[][] } {
+  if (g.type === "Point") {
+    const [lon = NaN, lat = NaN] = g.coordinates;
+    return { centroid: { lat, lon }, area_ha: null, positions: [g.coordinates] };
+  }
+  const ring = g.coordinates[0] ?? [];
+  const pts = ring.slice(0, -1);
+  const lat = pts.reduce((a, p) => a + (p[1] ?? 0), 0) / Math.max(1, pts.length);
+  const lon = pts.reduce((a, p) => a + (p[0] ?? 0), 0) / Math.max(1, pts.length);
+  const kx = 111_320 * Math.cos((lat * Math.PI) / 180);
+  let twice = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const a = ring[i]!, b = ring[i + 1]!;
+    twice += (a[0]! * kx) * (b[1]! * 110_574) - (b[0]! * kx) * (a[1]! * 110_574);
+  }
+  return { centroid: { lat, lon }, area_ha: Math.abs(twice) / 2 / 10_000, positions: g.coordinates.flat() };
+}
 
 export const handlers: AnyHandler[] = [
   http.get(url("/health"), () => HttpResponse.json({ status: "ok" as const })),
@@ -287,6 +323,62 @@ export const handlers: AnyHandler[] = [
 
   http.post(url("/auth/logout"), () => {
     store.set(SESSION_KEY, null);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get(url("/me/fields"), ({ request }) => {
+    const a = bearerAccount(request);
+    if (!a) return unauthorized();
+    const items = savedRows()
+      .filter((r) => r.owner === a.id)
+      .sort((x, y) => y.created_at.localeCompare(x.created_at))
+      .map(publicRow);
+    const list: S["SavedFieldList"] = { items, limit: FIELD_LIMIT };
+    return HttpResponse.json(list);
+  }),
+
+  http.post<never, S["SavedFieldCreate"]>(url("/me/fields"), async ({ request }) => {
+    await wait(300);
+    const a = bearerAccount(request);
+    if (!a) return unauthorized();
+    const body = await request.json();
+    const name = body.name?.trim() ?? "";
+    if (!name || name.length > 100) return errorResponse(422, "VALIDATION_ERROR", "Give the field a name.");
+    const facts = shapeFacts(body.geometry);
+    const state = supportedStateAt(facts.centroid);
+    if (!state || facts.positions.some((p) => !supportedStateAt({ lon: p[0] ?? NaN, lat: p[1] ?? NaN }))) {
+      return errorResponse(422, "OUTSIDE_COVERAGE", "Saved fields must be in Iowa, Illinois or Nebraska.");
+    }
+    const mine = savedRows().filter((r) => r.owner === a.id);
+    if (mine.length >= FIELD_LIMIT) {
+      return errorResponse(409, "FIELD_LIMIT_REACHED", `You can save up to ${FIELD_LIMIT} fields.`);
+    }
+    const now = new Date().toISOString();
+    const row: SavedRow = {
+      owner: a.id,
+      id: crypto.randomUUID(),
+      name,
+      field_id: body.field_id ?? null,
+      geometry: body.geometry,
+      centroid: facts.centroid,
+      area_ha: facts.area_ha,
+      state: state.postal as S["SavedField"]["state"],
+      crop_history: body.crop_history ?? null,
+      info: null,
+      info_fetched_at: null,
+      created_at: now,
+      updated_at: now,
+    };
+    writeRows([...savedRows(), row]);
+    return HttpResponse.json(publicRow(row), { status: 201, headers: { Location: `/v1/me/fields/${row.id}` } });
+  }),
+
+  http.delete(url("/me/fields/:id"), ({ request, params }) => {
+    const a = bearerAccount(request);
+    if (!a) return unauthorized();
+    const rows = savedRows();
+    if (!rows.some((r) => r.id === params.id && r.owner === a.id)) return errorResponse(404, "NOT_FOUND", "No saved field with that id.");
+    writeRows(rows.filter((r) => r.id !== params.id));
     return new HttpResponse(null, { status: 204 });
   }),
 

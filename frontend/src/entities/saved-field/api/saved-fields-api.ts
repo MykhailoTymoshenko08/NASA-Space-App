@@ -1,70 +1,40 @@
-import type { FieldSelection } from "@/shared/api";
+import { api, unwrap, type FieldSelection, type SavedFieldCreate, type SavedFieldDto } from "@/shared/api";
+
+/** A saved field as the API returns it (GET /me/fields). */
+export type SavedField = SavedFieldDto;
+
+/** Saved fields of the signed-in user. Every call sends the bearer token (shared/api client). */
+export const savedFieldsApi = {
+  list: () => unwrap(api.GET("/me/fields")),
+  create: (body: SavedFieldCreate) => unwrap(api.POST("/me/fields", { body })),
+  remove: (id: string) =>
+    unwrap(api.DELETE("/me/fields/{saved_field_id}", { params: { path: { saved_field_id: id } } })),
+};
+
+/** "Polk, IA": default name for a newly saved field. */
+export const defaultName = (sel: FieldSelection) =>
+  `${sel.field_id ? "" : "Point near "}${sel.county.name}, ${sel.county.state_postal}`;
 
 /**
- * STUB. The contract has no saved-fields endpoints yet (design README, open question 1).
- * Everything goes through this interface, so swapping in the real endpoints later touches
- * only `savedFieldsApi` below. Until then fields are kept in this browser, per signed-in user.
+ * Request body for a selection. A mapped field sends its polygon and id; a buffered circle is not a
+ * field, so it is saved as the point the user picked.
  */
-export type SavedField = {
-  /** field_id, or "pt:lat,lon" for a buffered point. */
-  key: string;
-  selection: FieldSelection;
-  savedAt: string;
-  /** Best-fit rotation from the last analysis seen for this field, if any. */
-  bestRotation: { name: string; score: number } | null;
-};
-
-export interface SavedFieldsApi {
-  list(userId: string): Promise<SavedField[]>;
-  save(userId: string, field: Omit<SavedField, "savedAt">): Promise<void>;
-  remove(userId: string, key: string): Promise<void>;
-  setBestRotation(userId: string, key: string, best: SavedField["bestRotation"]): Promise<void>;
+export function createBodyFor(sel: FieldSelection): SavedFieldCreate {
+  const buffered = sel.resolved_by === "buffered_point";
+  return {
+    name: defaultName(sel).slice(0, 100),
+    field_id: buffered ? null : sel.field_id,
+    geometry: buffered ? { type: "Point", coordinates: [sel.anchor.lon, sel.anchor.lat] } : sel.geometry,
+    crop_history: sel.crop_history && sel.crop_history.length > 0 ? sel.crop_history.slice(0, 10) : null,
+  };
 }
 
-const storageKey = (userId: string) => `fieldline.saved.${userId}`;
+const near = (a: number, b: number) => Math.abs(a - b) < 1e-5;
 
-function read(userId: string): SavedField[] {
-  try {
-    const raw = localStorage.getItem(storageKey(userId));
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? (parsed as SavedField[]) : [];
-  } catch {
-    return [];
-  }
+/** Whether a saved field is this selection: same CSB id, or the same picked point. */
+export function matchesSelection(saved: SavedField, sel: FieldSelection): boolean {
+  if (sel.field_id && saved.field_id) return saved.field_id === sel.field_id;
+  if (sel.field_id || saved.field_id) return false;
+  const g = saved.geometry;
+  return g.type === "Point" && near(g.coordinates[0] ?? NaN, sel.anchor.lon) && near(g.coordinates[1] ?? NaN, sel.anchor.lat);
 }
-
-function write(userId: string, list: SavedField[]) {
-  try {
-    localStorage.setItem(storageKey(userId), JSON.stringify(list));
-  } catch {
-    throw new Error("We could not save this field in your browser. Check that site storage is allowed.");
-  }
-}
-
-/** Browser-only stand-in for the missing endpoints. */
-export const browserSavedFieldsApi: SavedFieldsApi = {
-  async list(userId) {
-    return read(userId).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
-  },
-  async save(userId, field) {
-    const list = read(userId).filter((f) => f.key !== field.key);
-    write(userId, [{ ...field, savedAt: new Date().toISOString() }, ...list]);
-  },
-  async remove(userId, key) {
-    write(
-      userId,
-      read(userId).filter((f) => f.key !== key),
-    );
-  },
-  async setBestRotation(userId, key, best) {
-    const list = read(userId);
-    if (!list.some((f) => f.key === key)) return;
-    write(
-      userId,
-      list.map((f) => (f.key === key ? { ...f, bestRotation: best } : f)),
-    );
-  },
-};
-
-/** The implementation the app uses. Replace with an HTTP client once the contract has the endpoints. */
-export const savedFieldsApi: SavedFieldsApi = browserSavedFieldsApi;

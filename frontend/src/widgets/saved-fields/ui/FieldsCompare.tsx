@@ -1,14 +1,14 @@
 import { useQueries } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { countyLine, fetchSnapshot, selectionRef, selectionSearch, snapshotQueryKey } from "@/entities/field";
+import { countyLine, fetchSnapshot, snapshotQueryKey } from "@/entities/field";
 import { QUALITY } from "@/entities/metric";
 import type { SavedField } from "@/entities/saved-field";
-import { friendlyMessage, type FieldSelection, type Metric } from "@/shared/api";
+import { friendlyMessage, type Metric } from "@/shared/api";
 import { fieldPath } from "@/shared/config";
 import { formatAcres, toDisplayNumber } from "@/shared/lib";
 import { Skeleton } from "@/shared/ui/feedback";
 import { MeterBar } from "@/shared/ui/progress";
-import { savedTitle, shortId } from "../lib/title";
+import { savedCrop, savedRef, savedSearch, shortId } from "../lib/title";
 import s from "./saved-fields.module.css";
 
 /** Rows of the comparison: metric keys from the contract, with a bar color per measure. */
@@ -21,19 +21,19 @@ const METRIC_ROWS: { key: string; label: string; color: string; decimals: number
   { key: "soil_nitrogen_total", label: "Soil nitrogen (total)", color: "var(--color-data-nitrogen)", decimals: 1 },
 ];
 
-const formatAcresOf = (sel: FieldSelection) => (sel.area_ha != null ? formatAcres(sel.area_ha) : "Not available");
+const formatAcresOf = (f: SavedField) => (f.area_ha != null ? formatAcres(f.area_ha) : "Not available");
 
 const fmt = (v: number, d: number) => v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 
 /**
  * Side-by-side base conditions. No compare endpoint exists, so this reuses POST /snapshots per field
- * (design README, open question 1). Values are converted to US units; each row says how it was obtained.
+ * (by CSB id, else by the saved centroid). Values are converted to US units; each row says how it was obtained.
  */
 export function FieldsCompare({ fields }: { fields: readonly SavedField[] }) {
   const snaps = useQueries({
     queries: fields.map((f) => ({
-      queryKey: snapshotQueryKey(selectionRef(f.selection)),
-      queryFn: ({ signal }: { signal: AbortSignal }) => fetchSnapshot(selectionRef(f.selection), signal),
+      queryKey: snapshotQueryKey(savedRef(f)),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchSnapshot(savedRef(f), signal),
     })),
   });
   const cols = fields.length;
@@ -48,7 +48,7 @@ export function FieldsCompare({ fields }: { fields: readonly SavedField[] }) {
         <span className={s.small}>{unit}</span>
       </div>
       {fields.map((f, i) => (
-        <div role="cell" className={s.cell} key={f.key}>
+        <div role="cell" className={s.cell} key={f.id}>
           <span className={s.cellText}>{cell(f, i)}</span>
         </div>
       ))}
@@ -63,19 +63,24 @@ export function FieldsCompare({ fields }: { fields: readonly SavedField[] }) {
             Measure
           </div>
           {fields.map((f) => (
-            <div role="columnheader" className={s.colHead} key={f.key}>
-              <span className={s.colTitle}>{savedTitle(f.selection)}</span>
-              <span className={s.id}>{shortId(f.selection)}</span>
-              <Link to={fieldPath(selectionSearch(f.selection))} className={s.small}>
+            <div role="columnheader" className={s.colHead} key={f.id}>
+              <span className={s.colTitle}>{f.name}</span>
+              <span className={s.id}>{shortId(f)}</span>
+              <Link to={fieldPath(savedSearch(f))} className={s.small}>
                 Open field
               </Link>
             </div>
           ))}
         </div>
 
-        {textRow("Location", "County and state", (f) => countyLine(f.selection))}
-        {textRow("Latest mapped crop", "USDA crop maps", (f) => f.selection.crop_class ?? "None mapped")}
-        {textRow("Area", "Acres, about", (f) => formatAcresOf(f.selection))}
+        {textRow("Location", "County and state", (f, i) => {
+          const sel = snaps[i]?.data?.selection;
+          return sel ? countyLine(sel) : f.state;
+        })}
+        {textRow("Latest crop", "Your record or USDA crop maps", (f, i) =>
+          savedCrop(f) ?? snaps[i]?.data?.selection.crop_class ?? "None recorded",
+        )}
+        {textRow("Area", "Acres, about", (f) => formatAcresOf(f))}
 
         {METRIC_ROWS.map((row) => {
           const values = fields.map((_, i) => {
@@ -96,7 +101,7 @@ export function FieldsCompare({ fields }: { fields: readonly SavedField[] }) {
                 const q = snaps[i];
                 const v = values[i];
                 return (
-                  <div role="cell" className={s.cell} key={f.key}>
+                  <div role="cell" className={s.cell} key={f.id}>
                     {q?.isPending ? (
                       <Skeleton height={24} width="60%" />
                     ) : q?.isError ? (
@@ -116,9 +121,6 @@ export function FieldsCompare({ fields }: { fields: readonly SavedField[] }) {
           );
         })}
 
-        {textRow("Best-fit rotation", "From the analysis", (f) =>
-          f.bestRotation ? `${f.bestRotation.name} (${Math.round(f.bestRotation.score)} / 100)` : "Not run yet",
-        )}
       </div>
     </div>
   );

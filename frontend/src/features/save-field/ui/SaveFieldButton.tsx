@@ -1,8 +1,7 @@
 import { Link, useLocation } from "react-router";
-import { selectionKey } from "@/entities/field";
-import { useSavedFieldMutations, useSavedFields, type SavedField } from "@/entities/saved-field";
+import { matchesSelection, useSavedFieldMutations, useSavedFields } from "@/entities/saved-field";
 import { useSession } from "@/entities/session";
-import type { FieldSelection } from "@/shared/api";
+import { friendlyMessage, type FieldSelection } from "@/shared/api";
 import { ROUTES } from "@/shared/config";
 import { Button, buttonClass } from "@/shared/ui/button";
 import { Message } from "@/shared/ui/feedback";
@@ -11,15 +10,13 @@ import s from "./save-field.module.css";
 
 /**
  * "Save field" toggle for signed-in users; "Sign in to save this field" otherwise.
- * Saved fields go through the saved-field entity (a stub until the contract has endpoints).
+ * POST /me/fields to save, DELETE /me/fields/{id} to unsave.
  */
 export function SaveFieldButton({
   selection,
-  bestRotation,
   showMyFieldsLink = false,
 }: {
   selection: FieldSelection;
-  bestRotation?: SavedField["bestRotation"];
   showMyFieldsLink?: boolean;
 }) {
   const session = useSession();
@@ -27,8 +24,8 @@ export function SaveFieldButton({
   const userId = session.status === "authenticated" ? session.user.id : null;
   const saved = useSavedFields(userId);
   const { save, remove } = useSavedFieldMutations(userId);
-  const key = selectionKey(selection);
-  const isSaved = saved.data?.some((f) => f.key === key) ?? false;
+  const match = saved.data?.items.find((f) => matchesSelection(f, selection)) ?? null;
+  const isSaved = match !== null;
 
   if (session.status === "unknown") return null;
   if (!userId) {
@@ -44,7 +41,7 @@ export function SaveFieldButton({
   }
 
   const pending = save.isPending || remove.isPending;
-  const toggle = () => (isSaved ? remove.mutate(key) : save.mutate({ key, selection, bestRotation: bestRotation ?? null }));
+  const toggle = () => (match ? remove.mutate(match.id) : save.mutate(selection));
   const error = save.error ?? remove.error;
 
   return (
@@ -63,7 +60,7 @@ export function SaveFieldButton({
       </Button>
       {error && (
         <Message tone="error" role="alert">
-          {error instanceof Error ? error.message : "We could not save this field."}
+          {friendlyMessage(error)}
         </Message>
       )}
       {showMyFieldsLink && isSaved && (

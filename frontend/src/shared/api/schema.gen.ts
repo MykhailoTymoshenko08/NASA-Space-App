@@ -160,7 +160,9 @@ export interface paths {
          *     Samples and in-memory cache keys round coordinates to four decimal places (~11 m).
          *     Sources run concurrently with a short per-source deadline. Missing values remain
          *     null with `quality: unavailable` and `unavailable_reason`; even a total upstream
-         *     outage returns 200. Successful source results are cached for 24 hours.
+         *     outage returns 200. Successful source results are cached for 24 hours. Slow sources
+         *     continue in the background for up to 60 seconds and populate the cache for later requests;
+         *     repeated requests for the same source and point share the pending fetch.
          *     Each recent climate metric covers its latest complete 12-month window, which may
          *     differ between parameters due to publishing lag. Precipitation is a 12-month total;
          *     temperature and solar radiation are day-weighted means. Long-term values use the
@@ -299,6 +301,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profitability/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rough profit per acre for one crop (low / base / high)
+         * @description Profit per acre = yield x price - costs, for a low, base and high price. Synchronous and
+         *     deterministic: static baseline tables, no price forecast, no external calls.
+         *     Yield is `predicted_yield` when given (from the ML yield model), else a per-crop, per-state
+         *     default. Costs are the baseline for the crop and state; `land_rent_per_acre` replaces the
+         *     baseline rent and `total_cost_per_acre` replaces all costs. Corn after soybeans gets a nitrogen
+         *     credit on fertilizer. `assumptions` explains each number in plain English for the UI.
+         *     While `baseline.is_placeholder` is true the tables hold rough placeholder values, not USDA data.
+         */
+        post: operations["estimateProfitability"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -395,6 +423,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in user's saved fields, newest first
+         * @description Each item carries its stored context snapshot (`info`), so no external calls are made.
+         */
+        get: operations["listSavedFields"];
+        put?: never;
+        /**
+         * Save a field selected on the map
+         * @description Send `FieldSelection.geometry` (a Polygon) and `FieldSelection.field_id`, or a GeoJSON Point.
+         *     The backend derives `centroid` (inside the polygon), `area_ha` (EPSG:5070, null for points) and
+         *     `state`. Every position must lie in Iowa, Illinois or Nebraska (rough state envelopes, as in
+         *     `/fields/info`). Polygon rules: each ring closed and at least 4 positions, at most 20 rings and
+         *     2000 positions, valid (no self-intersection), area above 0 and at most 2000 ha.
+         *     The `/fields/info` context for the centroid is fetched once on create (same per-source deadline).
+         *     `info` is null when every source is unavailable; call `refresh-info` later.
+         *     At most `SavedFieldList.limit` (default 50) fields per user, else `409 FIELD_LIMIT_REACHED`.
+         */
+        post: operations["createSavedField"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/fields/{saved_field_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved field id (UUID). Another user's id, or a malformed one, is `404`. */
+                saved_field_id: string;
+            };
+            cookie?: never;
+        };
+        /** One of the signed-in user's saved fields */
+        get: operations["getSavedField"];
+        put?: never;
+        post?: never;
+        /** Delete a saved field (permanent) */
+        delete: operations["deleteSavedField"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a saved field or change its crop history
+         * @description Omitted keys stay as they are. `crop_history` null clears it. `name` cannot be null.
+         */
+        patch: operations["updateSavedField"];
+        trace?: never;
+    };
+    "/me/fields/{saved_field_id}/refresh-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved field id (UUID). Another user's id, or a malformed one, is `404`. */
+                saved_field_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch the field context again and store it
+         * @description Same data as `/fields/info` for the saved centroid. When every source is unavailable the old
+         *     snapshot is kept and the response is `502 UPSTREAM_DATA_UNAVAILABLE`.
+         */
+        post: operations["refreshSavedFieldInfo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -461,6 +569,51 @@ export interface components {
             type: "Polygon";
             /** @description Linear rings, each a list of [lon, lat]. First ring is the exterior. */
             coordinates: number[][][];
+        };
+        /** @description A farmer-entered crop for one year. */
+        SavedCropYear: {
+            year: number;
+            crop: string;
+        };
+        SavedFieldCreate: {
+            /** @description Trimmed; must not be blank. */
+            name: string;
+            geometry: components["schemas"]["GeoJSONPolygon"] | components["schemas"]["GeoJSONPoint"];
+            /** @description `FieldSelection.field_id` when a mapped CSB field was picked; null otherwise. */
+            field_id?: string | null;
+            /** @description Last crops grown, newest first. Optional. */
+            crop_history?: components["schemas"]["SavedCropYear"][] | null;
+        };
+        SavedFieldUpdate: {
+            name?: string;
+            crop_history?: components["schemas"]["SavedCropYear"][] | null;
+        };
+        SavedField: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            field_id: string | null;
+            geometry: components["schemas"]["GeoJSONPolygon"] | components["schemas"]["GeoJSONPoint"];
+            /** @description Inside the polygon (or the point itself). `/fields/info` is sampled here. */
+            centroid: components["schemas"]["LatLon"];
+            /** @description Polygon area in hectares (EPSG:5070); null for a point. */
+            area_ha: number | null;
+            /** @enum {string} */
+            state: "IA" | "IL" | "NE";
+            crop_history: components["schemas"]["SavedCropYear"][] | null;
+            /** @description Stored `/fields/info` snapshot; null until it could be fetched. */
+            info: components["schemas"]["FieldInfo"] | null;
+            /** Format: date-time */
+            info_fetched_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        SavedFieldList: {
+            items: components["schemas"]["SavedField"][];
+            /** @description Maximum saved fields per user. */
+            limit: number;
         };
         /** @example 19 */
         StateFips: string;
@@ -893,8 +1046,83 @@ export interface components {
             /** @description True when local agronomist or extension review is specifically advised. */
             needs_local_review: boolean;
         };
+        /**
+         * @description Crops with baseline data. Names match the CDL class names in `crop_class` / `crop_history`.
+         * @enum {string}
+         */
+        ProfitCrop: "Corn" | "Soybeans" | "Winter Wheat";
+        /**
+         * @description State postal code. Only the three supported states have baseline data.
+         * @enum {string}
+         */
+        ProfitState: "IA" | "IL" | "NE";
+        /**
+         * @example {
+         *       "crop": "Corn",
+         *       "state": "IA",
+         *       "predicted_yield": 205,
+         *       "previous_crop": "Soybeans",
+         *       "cost_overrides": {
+         *         "land_rent_per_acre": 250
+         *       }
+         *     }
+         */
+        ProfitEstimateRequest: {
+            crop: components["schemas"]["ProfitCrop"];
+            state: components["schemas"]["ProfitState"];
+            /** @description Yield per acre from the ML model, in the crop's unit (`bu`). Null or missing uses the baseline default yield. */
+            predicted_yield?: number | null;
+            /** @description Last season's crop (e.g. newest `crop_history` entry). "Soybeans" before Corn lowers the corn fertilizer cost (nitrogen credit). Other values are ignored. */
+            previous_crop?: string | null;
+            cost_overrides?: {
+                /** @description Replaces the baseline land rent ($/acre). Use 0 for owned land. */
+                land_rent_per_acre?: number | null;
+                /** @description Replaces every baseline cost ($/acre, rent included). Wins over `land_rent_per_acre`. */
+                total_cost_per_acre?: number | null;
+            };
+        };
+        ProfitScenario: {
+            /** @description $ per yield unit. */
+            price: number;
+            revenue_per_acre: number;
+            cost_per_acre: number;
+            /** @description Negative means a loss. */
+            profit_per_acre: number;
+        };
+        ProfitCostItem: {
+            /** @enum {string} */
+            key: "seed" | "fertilizer" | "chemicals" | "other_operating" | "land_rent" | "total";
+            label: string;
+            amount_per_acre: number;
+            /** @enum {string} */
+            source: "baseline" | "farmer" | "baseline_with_nitrogen_credit";
+        };
+        ProfitEstimate: {
+            crop: components["schemas"]["ProfitCrop"];
+            state: components["schemas"]["ProfitState"];
+            yield_per_acre: number;
+            /** @example bu */
+            yield_unit: string;
+            /** @enum {string} */
+            yield_source: "model" | "baseline_default";
+            /** @description Cost lines that add up to `scenarios.*.cost_per_acre`. One `total` line when the farmer gave `total_cost_per_acre`. */
+            costs: components["schemas"]["ProfitCostItem"][];
+            /** @description Same yield and costs; only the price differs. */
+            scenarios: {
+                low: components["schemas"]["ProfitScenario"];
+                base: components["schemas"]["ProfitScenario"];
+                high: components["schemas"]["ProfitScenario"];
+            };
+            /** @description Plain-English lines showing how each number was calculated, e.g. "Revenue = 205 bu × $4.30 = $881.50". Display as-is. */
+            assumptions: string[];
+            baseline: {
+                version: string;
+                /** @description True while the tables hold placeholder values. The UI should label the numbers as illustrative. */
+                is_placeholder: boolean;
+            };
+        };
         /** @enum {string} */
-        ErrorCode: "VALIDATION_ERROR" | "NOT_FOUND" | "UNPARSEABLE_INPUT" | "UNSUPPORTED_LINK" | "OUTSIDE_COVERAGE" | "UPSTREAM_DATA_UNAVAILABLE" | "RATE_LIMITED" | "INTERNAL_ERROR" | "UNAUTHORIZED" | "EMAIL_TAKEN";
+        ErrorCode: "VALIDATION_ERROR" | "NOT_FOUND" | "UNPARSEABLE_INPUT" | "UNSUPPORTED_LINK" | "OUTSIDE_COVERAGE" | "UPSTREAM_DATA_UNAVAILABLE" | "RATE_LIMITED" | "INTERNAL_ERROR" | "UNAUTHORIZED" | "EMAIL_TAKEN" | "FIELD_LIMIT_REACHED";
         ApiError: {
             code: components["schemas"]["ErrorCode"];
             /** @description Safe to show to the user. */
@@ -1063,6 +1291,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
         };
     };
     getCounty: {
@@ -1086,6 +1315,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
         };
     };
     resolveLocation: {
@@ -1296,6 +1526,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            422: components["responses"]["ValidationError"];
         };
     };
     createSnapshot: {
@@ -1395,6 +1626,31 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    estimateProfitability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfitEstimateRequest"];
+            };
+        };
+        responses: {
+            /** @description Estimate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfitEstimate"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
         };
     };
     register: {
@@ -1520,6 +1776,232 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listSavedFields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved fields */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedFieldList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createSavedField: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "North 80",
+                 *       "field_id": "csb2025_1900001",
+                 *       "geometry": {
+                 *         "type": "Polygon",
+                 *         "coordinates": [
+                 *           [
+                 *             [
+                 *               -93.7,
+                 *               41.98
+                 *             ],
+                 *             [
+                 *               -93.69,
+                 *               41.98
+                 *             ],
+                 *             [
+                 *               -93.69,
+                 *               41.99
+                 *             ],
+                 *             [
+                 *               -93.7,
+                 *               41.99
+                 *             ],
+                 *             [
+                 *               -93.7,
+                 *               41.98
+                 *             ]
+                 *           ]
+                 *         ]
+                 *       },
+                 *       "crop_history": [
+                 *         {
+                 *           "year": 2025,
+                 *           "crop": "Corn"
+                 *         },
+                 *         {
+                 *           "year": 2024,
+                 *           "crop": "Soybeans"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["SavedFieldCreate"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            201: {
+                headers: {
+                    /** @description `/v1/me/fields/{id}` */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedField"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `FIELD_LIMIT_REACHED`. `details.limit` is the per-user cap. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_ERROR` (bad name, geometry or crop history) or `OUTSIDE_COVERAGE` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getSavedField: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved field id (UUID). Another user's id, or a malformed one, is `404`. */
+                saved_field_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved field */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedField"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSavedField: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved field id (UUID). Another user's id, or a malformed one, is `404`. */
+                saved_field_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateSavedField: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved field id (UUID). Another user's id, or a malformed one, is `404`. */
+                saved_field_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Home quarter"
+                 *     }
+                 */
+                "application/json": components["schemas"]["SavedFieldUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated saved field */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedField"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    refreshSavedFieldInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved field id (UUID). Another user's id, or a malformed one, is `404`. */
+                saved_field_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved field with the new snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedField"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description `UPSTREAM_DATA_UNAVAILABLE` */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
 }
