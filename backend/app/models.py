@@ -257,7 +257,7 @@ class TimeSeries(BaseModel):
     key: str
     label: str
     unit: str
-    source: DatasetRef | None = None
+    source: DatasetRef | None = Field(default=None, exclude_if=lambda v: v is None)
     points: list[TimeSeriesPoint]
 
 
@@ -293,7 +293,8 @@ class CriterionScore(BaseModel):
 class Evidence(BaseModel):
     statement: str
     metric_key: str | None = None
-    source: DatasetRef | None = None
+    # Contract: `source` is an object, not nullable, so omit it rather than send null.
+    source: DatasetRef | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class Strategy(BaseModel):

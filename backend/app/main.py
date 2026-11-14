@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import fields, geo, locations, meta, snapshots, tiles
+from app.api import analyses, fields, geo, locations, meta, snapshots, tiles
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import setup_logging
@@ -54,6 +54,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     for r in (
         meta.router, geo.router, locations.router, fields.router, tiles.router, snapshots.router,
+        analyses.router,
     ):
         app.include_router(r, prefix=API_PREFIX)
     return app

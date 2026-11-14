@@ -67,6 +67,18 @@ class Services:
             source_timeout_s=settings.source_timeout_s, ttl_s=settings.snapshot_cache_ttl_s,
         )
 
+        from app.analyses.service import AnalysisService
+        from app.analyses.store import InMemoryJobStore
+        from app.analyses.stub import StubAnalysisEngine
+
+        self.analyses = AnalysisService(
+            InMemoryJobStore(),
+            StubAnalysisEngine(duration_s=settings.stub_duration_s),
+            self.snapshots,
+            dedupe_ttl_s=settings.analysis_dedupe_ttl_s,
+            fail_rate=settings.stub_fail_rate,
+        )
+
         self.field_tiles = self._tiles(d / "fields.pmtiles")
         self.boundary_tiles = self._tiles(d / "boundaries.pmtiles")
 
