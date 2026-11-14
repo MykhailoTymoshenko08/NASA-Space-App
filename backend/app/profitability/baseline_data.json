@@ -1,0 +1,814 @@
+{
+  "version": "usda-extension-2026-11-14",
+  "generated": "2026-11-14",
+  "generated_by": "backend/scripts/build_profit_baseline.py",
+  "units": {
+    "price": "USD/bu",
+    "yield": "bu/acre",
+    "costs": "USD/acre",
+    "land_rent": "USD/acre",
+    "nitrogen_credit": "lb N/acre",
+    "nitrogen_price": "USD/lb N"
+  },
+  "method": {
+    "price": "base = mean NASS marketing-year average price received over the last 3 years; low / high = 10th / 90th percentile (linear) over the last 10 years.",
+    "yield": "mean NASS state yield per harvested acre over the last 5 years.",
+    "costs": "2026 state extension budgets; corn uses corn-after-corn so the API's soybean nitrogen credit is not counted twice. other_operating = all non-land lines except seed, fertilizer and chemicals (machinery, fuel, repairs, drying, insurance, labor, interest, overhead)."
+  },
+  "prices": {
+    "Corn": {
+      "IA": {
+        "low": 3.31,
+        "base": 4.32,
+        "high": 6.15,
+        "unit": "USD/bu",
+        "data_years": "2016-2025",
+        "base_years": "2023-2025",
+        "history": {
+          "2016": 3.3,
+          "2017": 3.31,
+          "2018": 3.59,
+          "2019": 3.5,
+          "2020": 4.64,
+          "2021": 6.1,
+          "2022": 6.62,
+          "2023": 4.61,
+          "2024": 4.25,
+          "2025": 4.1
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Values Annual Summary (releases 2026-02, 2025-02, 2024-02, 2023-02, 2022-02, 2021-02, 2020-02, 2019-04)",
+          "table": "Corn for Grain Price per Bushel and Value of Production \u0096 States and United States: 2023-2025",
+          "url": "https://esmis.nal.usda.gov/publication/crop-values-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Marketing-year average price received. 2025 is preliminary."
+        }
+      },
+      "IL": {
+        "low": 3.43,
+        "base": 4.26,
+        "high": 6.0,
+        "unit": "USD/bu",
+        "data_years": "2016-2025",
+        "base_years": "2023-2025",
+        "history": {
+          "2016": 3.43,
+          "2017": 3.41,
+          "2018": 3.62,
+          "2019": 3.55,
+          "2020": 4.46,
+          "2021": 5.96,
+          "2022": 6.4,
+          "2023": 4.46,
+          "2024": 4.18,
+          "2025": 4.15
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Values Annual Summary (releases 2026-02, 2025-02, 2024-02, 2023-02, 2022-02, 2021-02, 2020-02, 2019-04)",
+          "table": "Corn for Grain Price per Bushel and Value of Production \u0096 States and United States: 2023-2025",
+          "url": "https://esmis.nal.usda.gov/publication/crop-values-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Marketing-year average price received. 2025 is preliminary."
+        }
+      },
+      "NE": {
+        "low": 3.35,
+        "base": 4.37,
+        "high": 6.04,
+        "unit": "USD/bu",
+        "data_years": "2016-2025",
+        "base_years": "2023-2025",
+        "history": {
+          "2016": 3.32,
+          "2017": 3.35,
+          "2018": 3.58,
+          "2019": 3.52,
+          "2020": 4.47,
+          "2021": 5.96,
+          "2022": 6.77,
+          "2023": 4.68,
+          "2024": 4.33,
+          "2025": 4.1
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Values Annual Summary (releases 2026-02, 2025-02, 2024-02, 2023-02, 2022-02, 2021-02, 2020-02, 2019-04)",
+          "table": "Corn for Grain Price per Bushel and Value of Production \u0096 States and United States: 2023-2025",
+          "url": "https://esmis.nal.usda.gov/publication/crop-values-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Marketing-year average price received. 2025 is preliminary."
+        }
+      }
+    },
+    "Soybeans": {
+      "IA": {
+        "low": 8.48,
+        "base": 10.78,
+        "high": 13.48,
+        "unit": "USD/bu",
+        "data_years": "2016-2025",
+        "base_years": "2023-2025",
+        "history": {
+          "2016": 9.34,
+          "2017": 9.25,
+          "2018": 8.46,
+          "2019": 8.48,
+          "2020": 11.1,
+          "2021": 13.4,
+          "2022": 14.2,
+          "2023": 12.2,
+          "2024": 9.95,
+          "2025": 10.2
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Values Annual Summary (releases 2026-02, 2025-02, 2024-02, 2023-02, 2022-02, 2021-02, 2020-02, 2019-04)",
+          "table": "Soybeans for Beans Price per Bushel and Value of Production \u0096 States and United States: 2023-2025",
+          "url": "https://esmis.nal.usda.gov/publication/crop-values-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Marketing-year average price received. 2025 is preliminary."
+        }
+      },
+      "IL": {
+        "low": 8.83,
+        "base": 11.03,
+        "high": 13.58,
+        "unit": "USD/bu",
+        "data_years": "2016-2025",
+        "base_years": "2023-2025",
+        "history": {
+          "2016": 9.78,
+          "2017": 9.6,
+          "2018": 8.74,
+          "2019": 8.84,
+          "2020": 10.9,
+          "2021": 13.5,
+          "2022": 14.3,
+          "2023": 12.4,
+          "2024": 10.2,
+          "2025": 10.5
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Values Annual Summary (releases 2026-02, 2025-02, 2024-02, 2023-02, 2022-02, 2021-02, 2020-02, 2019-04)",
+          "table": "Soybeans for Beans Price per Bushel and Value of Production \u0096 States and United States: 2023-2025",
+          "url": "https://esmis.nal.usda.gov/publication/crop-values-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Marketing-year average price received. 2025 is preliminary."
+        }
+      },
+      "NE": {
+        "low": 8.26,
+        "base": 10.65,
+        "high": 12.85,
+        "unit": "USD/bu",
+        "data_years": "2016-2025",
+        "base_years": "2023-2025",
+        "history": {
+          "2016": 9.18,
+          "2017": 9.08,
+          "2018": 8.2,
+          "2019": 8.27,
+          "2020": 10.2,
+          "2021": 12.7,
+          "2022": 14.2,
+          "2023": 12.2,
+          "2024": 9.79,
+          "2025": 9.95
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Values Annual Summary (releases 2026-02, 2025-02, 2024-02, 2023-02, 2022-02, 2021-02, 2020-02, 2019-04)",
+          "table": "Soybeans for Beans Price per Bushel and Value of Production \u0096 States and United States: 2023-2025",
+          "url": "https://esmis.nal.usda.gov/publication/crop-values-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Marketing-year average price received. 2025 is preliminary."
+        }
+      }
+    },
+    "Winter Wheat": {
+      "IA": {
+        "low": 4.8,
+        "base": 5.5,
+        "high": 6.3,
+        "unit": "USD/bu",
+        "placeholder": true,
+        "placeholder_reason": "NASS does not publish Iowa winter wheat yield or price (Iowa is not an estimating state) and ISU publishes no wheat budget."
+      },
+      "IL": {
+        "low": 4.54,
+        "base": 5.59,
+        "high": 6.63,
+        "unit": "USD/bu",
+        "data_years": "2016-2025",
+        "base_years": "2023-2025",
+        "history": {
+          "2016": 4.09,
+          "2017": 4.59,
+          "2018": 4.77,
+          "2019": 5.06,
+          "2020": 5.39,
+          "2021": 6.43,
+          "2022": 8.46,
+          "2023": 6.31,
+          "2024": 5.4,
+          "2025": 5.05
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Values Annual Summary (releases 2026-02, 2025-02, 2024-02, 2023-02, 2022-02, 2021-02, 2020-02, 2019-04)",
+          "table": "Winter Wheat Price per Bushel and Value of Production \u0096 States and United States: 2023-2025",
+          "url": "https://esmis.nal.usda.gov/publication/crop-values-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Marketing-year average price received. 2025 is preliminary."
+        }
+      },
+      "NE": {
+        "low": 3.81,
+        "base": 5.28,
+        "high": 7.02,
+        "unit": "USD/bu",
+        "data_years": "2016-2025",
+        "base_years": "2023-2025",
+        "history": {
+          "2016": 3.14,
+          "2017": 4.03,
+          "2018": 4.71,
+          "2019": 3.88,
+          "2020": 4.65,
+          "2021": 6.87,
+          "2022": 8.38,
+          "2023": 6.47,
+          "2024": 5.02,
+          "2025": 4.35
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Values Annual Summary (releases 2026-02, 2025-02, 2024-02, 2023-02, 2022-02, 2021-02, 2020-02, 2019-04)",
+          "table": "Winter Wheat Price per Bushel and Value of Production \u0096 States and United States: 2023-2025",
+          "url": "https://esmis.nal.usda.gov/publication/crop-values-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Marketing-year average price received. 2025 is preliminary."
+        }
+      }
+    }
+  },
+  "default_yield": {
+    "Corn": {
+      "IA": {
+        "value": 205.2,
+        "unit": "bu/acre",
+        "data_years": "2021-2025",
+        "history": {
+          "2021": 204.0,
+          "2022": 200.0,
+          "2023": 201.0,
+          "2024": 211.0,
+          "2025": 210.0
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Production Annual Summary (releases 2026-01, 2024-01)",
+          "table": "Corn Area Planted for All Purposes and Harvested for Grain, Yield, and Production \u0096 States and United States: 2023-2025 (continued)",
+          "url": "https://esmis.nal.usda.gov/publication/crop-production-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Mean state yield per harvested acre, 2021-2025."
+        }
+      },
+      "IL": {
+        "value": 210.6,
+        "unit": "bu/acre",
+        "data_years": "2021-2025",
+        "history": {
+          "2021": 202.0,
+          "2022": 214.0,
+          "2023": 206.0,
+          "2024": 217.0,
+          "2025": 214.0
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Production Annual Summary (releases 2026-01, 2024-01)",
+          "table": "Corn Area Planted for All Purposes and Harvested for Grain, Yield, and Production \u0096 States and United States: 2023-2025 (continued)",
+          "url": "https://esmis.nal.usda.gov/publication/crop-production-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Mean state yield per harvested acre, 2021-2025."
+        }
+      },
+      "NE": {
+        "value": 184.6,
+        "unit": "bu/acre",
+        "data_years": "2021-2025",
+        "history": {
+          "2021": 194.0,
+          "2022": 165.0,
+          "2023": 182.0,
+          "2024": 188.0,
+          "2025": 194.0
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Production Annual Summary (releases 2026-01, 2024-01)",
+          "table": "Corn Area Planted for All Purposes and Harvested for Grain, Yield, and Production \u0096 States and United States: 2023-2025 (continued)",
+          "url": "https://esmis.nal.usda.gov/publication/crop-production-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Mean state yield per harvested acre, 2021-2025."
+        }
+      }
+    },
+    "Soybeans": {
+      "IA": {
+        "value": 60.6,
+        "unit": "bu/acre",
+        "data_years": "2021-2025",
+        "history": {
+          "2021": 63.0,
+          "2022": 58.5,
+          "2023": 58.0,
+          "2024": 60.0,
+          "2025": 63.5
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Production Annual Summary (releases 2026-01, 2024-01)",
+          "table": "Soybeans for Beans Area Planted and Harvested, Yield, and Production \u0096 States and United States: 2023-2025 (continued)",
+          "url": "https://esmis.nal.usda.gov/publication/crop-production-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Mean state yield per harvested acre, 2021-2025."
+        }
+      },
+      "IL": {
+        "value": 63.5,
+        "unit": "bu/acre",
+        "data_years": "2021-2025",
+        "history": {
+          "2021": 65.0,
+          "2022": 63.0,
+          "2023": 63.0,
+          "2024": 64.0,
+          "2025": 62.5
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Production Annual Summary (releases 2026-01, 2024-01)",
+          "table": "Soybeans for Beans Area Planted and Harvested, Yield, and Production \u0096 States and United States: 2023-2025 (continued)",
+          "url": "https://esmis.nal.usda.gov/publication/crop-production-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Mean state yield per harvested acre, 2021-2025."
+        }
+      },
+      "NE": {
+        "value": 57.3,
+        "unit": "bu/acre",
+        "data_years": "2021-2025",
+        "history": {
+          "2021": 63.0,
+          "2022": 49.0,
+          "2023": 51.5,
+          "2024": 57.5,
+          "2025": 65.5
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Production Annual Summary (releases 2026-01, 2024-01)",
+          "table": "Soybeans for Beans Area Planted and Harvested, Yield, and Production \u0096 States and United States: 2023-2025 (continued)",
+          "url": "https://esmis.nal.usda.gov/publication/crop-production-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Mean state yield per harvested acre, 2021-2025."
+        }
+      }
+    },
+    "Winter Wheat": {
+      "IA": {
+        "value": 65,
+        "unit": "bu/acre",
+        "placeholder": true,
+        "placeholder_reason": "NASS does not publish Iowa winter wheat yield or price (Iowa is not an estimating state) and ISU publishes no wheat budget."
+      },
+      "IL": {
+        "value": 83.8,
+        "unit": "bu/acre",
+        "data_years": "2021-2025",
+        "history": {
+          "2021": 79.0,
+          "2022": 79.0,
+          "2023": 87.0,
+          "2024": 86.0,
+          "2025": 88.0
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Production Annual Summary (releases 2026-01, 2024-01)",
+          "table": "Winter Wheat Area Planted and Harvested, Yield, and Production \u0096 States and United States: 2023-2025 (continued)",
+          "url": "https://esmis.nal.usda.gov/publication/crop-production-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Mean state yield per harvested acre, 2021-2025."
+        }
+      },
+      "NE": {
+        "value": 44.4,
+        "unit": "bu/acre",
+        "data_years": "2021-2025",
+        "history": {
+          "2021": 49.0,
+          "2022": 32.0,
+          "2023": 42.0,
+          "2024": 52.0,
+          "2025": 47.0
+        },
+        "source": {
+          "publisher": "USDA NASS",
+          "document": "Crop Production Annual Summary (releases 2026-01, 2024-01)",
+          "table": "Winter Wheat Area Planted and Harvested, Yield, and Production \u0096 States and United States: 2023-2025 (continued)",
+          "url": "https://esmis.nal.usda.gov/publication/crop-production-annual-summary",
+          "year": 2025,
+          "retrieved": "2026-11-14",
+          "note": "Mean state yield per harvested acre, 2021-2025."
+        }
+      }
+    }
+  },
+  "costs": {
+    "Corn": {
+      "IA": {
+        "seed": 113.7,
+        "fertilizer": 181.0,
+        "chemicals": 81.0,
+        "other_operating": 310.32,
+        "unit": "USD/acre",
+        "data_years": "2026",
+        "line_items": {
+          "seed": {
+            "Seed": 113.7
+          },
+          "fertilizer": {
+            "Nitrogen": 102.82,
+            "Phosphate": 51.84,
+            "Potash": 22.62,
+            "Lime": 3.72
+          },
+          "chemicals": {
+            "Herbicide": 56.0,
+            "Insecticide": 25.0
+          },
+          "other": {
+            "Preharvest machinery fixed": 41.2,
+            "Preharvest machinery variable": 30.1,
+            "Crop insurance": 17.1,
+            "Miscellaneous": 13.7,
+            "Interest": 21.74,
+            "Harvest machinery fixed": 64.71,
+            "Harvest machinery variable": 64.65,
+            "Labor": 57.12
+          }
+        },
+        "source": {
+          "publisher": "Iowa State University Extension and Outreach (Ag Decision Maker)",
+          "document": "Estimated Costs of Crop Production in Iowa - 2026, FM 1712 / File A1-20, revised January 2026",
+          "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20.pdf",
+          "year": 2026,
+          "table": "p. 2, Corn Following Corn, middle column (193 bu/acre)",
+          "retrieved": "2026-11-14",
+          "note": "Non-land costs; land is a separate line."
+        }
+      },
+      "IL": {
+        "seed": 129,
+        "fertilizer": 239,
+        "chemicals": 122,
+        "other_operating": 358,
+        "unit": "USD/acre",
+        "data_years": "2026",
+        "line_items": {
+          "seed": {
+            "Seed": 129
+          },
+          "fertilizer": {
+            "Fertilizers": 239
+          },
+          "chemicals": {
+            "Pesticides": 122
+          },
+          "other": {
+            "Drying": 14,
+            "Storage": 14,
+            "Crop insurance": 31,
+            "Total power costs": 181,
+            "Total overhead costs": 118
+          }
+        },
+        "source": {
+          "publisher": "University of Illinois, farmdoc (Schnitkey and Paulson)",
+          "document": "2026 Crop Budgets, revised May 2026, Table 2: Central Illinois - High Productivity Farmland",
+          "url": "https://farmdoc.illinois.edu/assets/management/crop-budgets/crop_budgets_2026_May.pdf",
+          "year": 2026,
+          "table": "Table 2, Corn-after-Corn (231 bu/acre)",
+          "retrieved": "2026-11-14",
+          "note": "Non-land costs; land is a separate line."
+        }
+      },
+      "NE": {
+        "seed": 114.06,
+        "fertilizer": 139.6,
+        "chemicals": 95.49,
+        "other_operating": 189.08,
+        "unit": "USD/acre",
+        "data_years": "2026",
+        "line_items": {
+          "seed": {
+            "Seed": 114.06
+          },
+          "fertilizer": {
+            "Fertilizer": 139.6
+          },
+          "chemicals": {
+            "Pesticide": 95.49
+          },
+          "other": {
+            "Custom services": 31.9,
+            "Labor": 8.73,
+            "Fuel and energy": 8.61,
+            "Repairs and maintenance": 12.53,
+            "Other (insurance, scouting, drying)": 18.6,
+            "Interest on operating capital": 17.18,
+            "General overhead": 28.0,
+            "Equipment depreciation": 47.31,
+            "Equipment opportunity cost": 16.22
+          }
+        },
+        "source": {
+          "publisher": "University of Nebraska-Lincoln, Center for Agricultural Profitability",
+          "document": "2026 Nebraska Crop Budgets",
+          "url": "https://cap.unl.edu/sites/unl.edu.ianr.agecon.center-for-ag-profitability/files/media/file/2026-nebraska-crop-budgets-r_0.pdf",
+          "year": 2026,
+          "table": "p. 75, #020 Corn, Dryland, No Till, Continuous, Eastern Neb. (180 bu/acre)",
+          "retrieved": "2026-11-14",
+          "note": "Non-land costs; land is a separate line."
+        }
+      }
+    },
+    "Soybeans": {
+      "IA": {
+        "seed": 63.1,
+        "fertilizer": 74.88,
+        "chemicals": 75.0,
+        "other_operating": 192.13,
+        "unit": "USD/acre",
+        "data_years": "2026",
+        "line_items": {
+          "seed": {
+            "Seed": 63.1
+          },
+          "fertilizer": {
+            "Phosphate": 35.28,
+            "Potash": 35.88,
+            "Lime": 3.72
+          },
+          "chemicals": {
+            "Herbicide": 75.0
+          },
+          "other": {
+            "Preharvest machinery fixed": 37.6,
+            "Preharvest machinery variable": 26.6,
+            "Crop insurance": 9.1,
+            "Miscellaneous": 13.7,
+            "Interest": 13.07,
+            "Harvest machinery fixed": 32.42,
+            "Harvest machinery variable": 14.76,
+            "Labor": 44.88
+          }
+        },
+        "source": {
+          "publisher": "Iowa State University Extension and Outreach (Ag Decision Maker)",
+          "document": "Estimated Costs of Crop Production in Iowa - 2026, FM 1712 / File A1-20, revised January 2026",
+          "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20.pdf",
+          "year": 2026,
+          "table": "p. 5, Herbicide Tolerant Soybeans Following Corn, middle column (61 bu)",
+          "retrieved": "2026-11-14",
+          "note": "Non-land costs; land is a separate line."
+        }
+      },
+      "IL": {
+        "seed": 83,
+        "fertilizer": 66,
+        "chemicals": 70,
+        "other_operating": 292,
+        "unit": "USD/acre",
+        "data_years": "2026",
+        "line_items": {
+          "seed": {
+            "Seed": 83
+          },
+          "fertilizer": {
+            "Fertilizers": 66
+          },
+          "chemicals": {
+            "Pesticides": 70
+          },
+          "other": {
+            "Drying": 0,
+            "Storage": 8,
+            "Crop insurance": 11,
+            "Total power costs": 160,
+            "Total overhead costs": 113
+          }
+        },
+        "source": {
+          "publisher": "University of Illinois, farmdoc (Schnitkey and Paulson)",
+          "document": "2026 Crop Budgets, revised May 2026, Table 2: Central Illinois - High Productivity Farmland",
+          "url": "https://farmdoc.illinois.edu/assets/management/crop-budgets/crop_budgets_2026_May.pdf",
+          "year": 2026,
+          "table": "Table 2, Soybeans-after-Corn (76 bu/acre)",
+          "retrieved": "2026-11-14",
+          "note": "Non-land costs; land is a separate line."
+        }
+      },
+      "NE": {
+        "seed": 82.0,
+        "fertilizer": 0.0,
+        "chemicals": 61.02,
+        "other_operating": 153.26,
+        "unit": "USD/acre",
+        "data_years": "2026",
+        "line_items": {
+          "seed": {
+            "Seed": 82.0
+          },
+          "fertilizer": {
+            "Fertilizer": 0.0
+          },
+          "chemicals": {
+            "Pesticide": 61.02
+          },
+          "other": {
+            "Custom services": 10.8,
+            "Labor": 8.15,
+            "Fuel and energy": 8.42,
+            "Repairs and maintenance": 12.27,
+            "Other (insurance, scouting, materials)": 19.5,
+            "Interest on operating capital": 8.09,
+            "General overhead": 28.0,
+            "Equipment depreciation": 40.5,
+            "Equipment opportunity cost": 17.53
+          }
+        },
+        "source": {
+          "publisher": "University of Nebraska-Lincoln, Center for Agricultural Profitability",
+          "document": "2026 Nebraska Crop Budgets",
+          "url": "https://cap.unl.edu/sites/unl.edu.ianr.agecon.center-for-ag-profitability/files/media/file/2026-nebraska-crop-budgets-r_0.pdf",
+          "year": 2026,
+          "table": "p. 199, #060 Soybeans, Dryland, No Till after Corn (50 bu/acre)",
+          "retrieved": "2026-11-14",
+          "note": "Non-land costs; land is a separate line."
+        }
+      }
+    },
+    "Winter Wheat": {
+      "IA": {
+        "seed": 40,
+        "fertilizer": 90,
+        "chemicals": 35,
+        "other_operating": 110,
+        "unit": "USD/acre",
+        "placeholder": true,
+        "placeholder_reason": "NASS does not publish Iowa winter wheat yield or price (Iowa is not an estimating state) and ISU publishes no wheat budget."
+      },
+      "IL": {
+        "seed": 59,
+        "fertilizer": 143,
+        "chemicals": 43,
+        "other_operating": 272,
+        "unit": "USD/acre",
+        "data_years": "2026",
+        "line_items": {
+          "seed": {
+            "Seed": 59
+          },
+          "fertilizer": {
+            "Fertilizers": 143
+          },
+          "chemicals": {
+            "Pesticides": 43
+          },
+          "other": {
+            "Drying": 1,
+            "Storage": 9,
+            "Crop insurance": 17,
+            "Total power costs": 140,
+            "Total overhead costs": 105
+          }
+        },
+        "source": {
+          "publisher": "University of Illinois, farmdoc (Schnitkey and Paulson)",
+          "document": "2026 Crop Budgets, revised May 2026, Table 2: Central Illinois - High Productivity Farmland",
+          "url": "https://farmdoc.illinois.edu/assets/management/crop-budgets/crop_budgets_2026_May.pdf",
+          "year": 2026,
+          "table": "Table 2, Wheat (89 bu/acre)",
+          "retrieved": "2026-11-14",
+          "note": "Non-land costs; land is a separate line."
+        }
+      },
+      "NE": {
+        "seed": 36.9,
+        "fertilizer": 90.5,
+        "chemicals": 12.13,
+        "other_operating": 113.23,
+        "unit": "USD/acre",
+        "data_years": "2026",
+        "line_items": {
+          "seed": {
+            "Seed": 36.9
+          },
+          "fertilizer": {
+            "Fertilizer": 90.5
+          },
+          "chemicals": {
+            "Pesticide": 12.13
+          },
+          "other": {
+            "Custom services": 12.65,
+            "Labor": 6.25,
+            "Fuel and energy": 5.54,
+            "Repairs and maintenance": 5.39,
+            "Other (insurance, scouting)": 18.0,
+            "Interest on operating capital": 7.49,
+            "General overhead": 28.0,
+            "Equipment depreciation": 22.41,
+            "Equipment opportunity cost": 7.5
+          }
+        },
+        "source": {
+          "publisher": "University of Nebraska-Lincoln, Center for Agricultural Profitability",
+          "document": "2026 Nebraska Crop Budgets",
+          "url": "https://cap.unl.edu/sites/unl.edu.ianr.agecon.center-for-ag-profitability/files/media/file/2026-nebraska-crop-budgets-r_0.pdf",
+          "year": 2026,
+          "table": "p. 249, #075 Wheat, No Till, Southwest, after Row Crop (55 bu/acre)",
+          "retrieved": "2026-11-14",
+          "note": "Non-land costs; land is a separate line."
+        }
+      }
+    }
+  },
+  "land_rent": {
+    "IA": {
+      "value": 270,
+      "unit": "USD/acre",
+      "placeholder": true,
+      "placeholder_reason": "NASS cash rents are only in Quick Stats; set NASS_API_KEY and rerun."
+    },
+    "IL": {
+      "value": 280,
+      "unit": "USD/acre",
+      "placeholder": true,
+      "placeholder_reason": "NASS cash rents are only in Quick Stats; set NASS_API_KEY and rerun."
+    },
+    "NE": {
+      "value": 230,
+      "unit": "USD/acre",
+      "placeholder": true,
+      "placeholder_reason": "NASS cash rents are only in Quick Stats; set NASS_API_KEY and rerun."
+    }
+  },
+  "nitrogen_credit": {
+    "lb_per_acre": 45,
+    "source": {
+      "publisher": "University of Nebraska-Lincoln Extension",
+      "document": "EC117 Nutrient Management Suggestions for Corn, revised December 2023",
+      "table": "Table I, soybean, fine-medium textured soils (35 lb/acre on coarse soils)",
+      "url": "https://extensionpublications.unl.edu/assets/pdf/ec117.pdf",
+      "year": 2023,
+      "retrieved": "2026-11-14"
+    },
+    "unit": "lb N/acre"
+  },
+  "nitrogen_price": {
+    "usd_per_lb": 0.53,
+    "source": {
+      "publisher": "Iowa State University Extension and Outreach (Ag Decision Maker)",
+      "document": "Estimated Costs of Crop Production in Iowa - 2026, FM 1712 / File A1-20, revised January 2026",
+      "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20.pdf",
+      "year": 2026,
+      "table": "p. 2-3, corn budgets, line 'Nitrogen, $0.53 per pound'",
+      "retrieved": "2026-11-14"
+    },
+    "unit": "USD/lb N",
+    "data_years": "2026"
+  }
+}

@@ -1,69 +1,69 @@
-"""Static baseline tables for the profitability estimate. Edit the numbers here; no code changes needed.
+"""Static baseline tables for the profitability estimate, loaded from `baseline_data.json`.
 
-!!! PLACEHOLDER VALUES !!!
-Every number below is a rough, round placeholder, NOT sourced data. Replace each table with real
-numbers and then set `IS_PLACEHOLDER = False` and bump `BASELINE_VERSION`. Suggested sources:
-
-- DEFAULT_YIELD:  USDA NASS Quick Stats, yield per harvested acre by state (e.g. 5-year average).
-- PRICES:         USDA ERS / WASDE season-average farm price (base); low/high = a band around it.
-- COSTS:          Iowa State Ag Decision Maker (IA), Univ. of Illinois farmdoc crop budgets (IL),
-                  UNL crop budgets (NE), or USDA ERS Commodity Costs and Returns by region.
-- LAND_RENT:      USDA NASS Cash Rents survey, cropland rent per acre by state.
-- NITROGEN_CREDIT_*: state N-rate guidance (e.g. ISU / Illinois MRTN) and current N price.
+The JSON is written by `scripts/build_profit_baseline.py` from USDA NASS reports and 2026 extension crop
+budgets (ISU, farmdoc, UNL). Every entry carries its source and retrieval date, or `"placeholder": true`
+with a reason. Rerun the script to refresh; the API only reads the file, with no external calls.
 
 Units: yields in bushels per acre; prices in $ per bushel; costs in $ per acre.
 """
 
+import json
+from pathlib import Path
+
 from app.models import ProfitCrop, ProfitState
 
-BASELINE_VERSION = "placeholder-2026-11"
-IS_PLACEHOLDER = True
+DATA_FILE = Path(__file__).with_name("baseline_data.json")
+DATA = json.loads(DATA_FILE.read_text())
+
+BASELINE_VERSION: str = DATA["version"]
 
 C, S, W = ProfitCrop.corn, ProfitCrop.soybeans, ProfitCrop.winter_wheat
-IA, IL, NE = ProfitState.IA, ProfitState.IL, ProfitState.NE
-
 YIELD_UNIT = {C: "bu", S: "bu", W: "bu"}
 
-# PLACEHOLDER: default yield (bu/acre) when the ML model gives none.
+_KEYS = [(c, s) for c in ProfitCrop for s in ProfitState]
+
+
+def _entry(table: str, crop: ProfitCrop, state: ProfitState) -> dict:
+    return DATA[table][crop.value][state.value]
+
+
+# Default yield (bu/acre) when the ML model gives none.
 DEFAULT_YIELD: dict[tuple[ProfitCrop, ProfitState], float] = {
-    (C, IA): 200, (S, IA): 58, (W, IA): 65,
-    (C, IL): 205, (S, IL): 62, (W, IL): 80,
-    (C, NE): 185, (S, NE): 60, (W, NE): 50,
+    k: float(_entry("default_yield", *k)["value"]) for k in _KEYS
 }
 
-# PLACEHOLDER: price per bushel as (low, base, high). Same for all three states.
-PRICES: dict[ProfitCrop, tuple[float, float, float]] = {
-    C: (3.80, 4.30, 4.90),
-    S: (9.50, 10.50, 11.50),
-    W: (4.80, 5.50, 6.30),
+# Price per bushel as (low, base, high), per crop and state.
+PRICES: dict[tuple[ProfitCrop, ProfitState], tuple[float, float, float]] = {
+    k: tuple(float(_entry("prices", *k)[p]) for p in ("low", "base", "high")) for k in _KEYS
 }
 
-# PLACEHOLDER: operating costs ($/acre) per crop and state, without land rent.
-# "other_operating" = fuel, repairs, drying, crop insurance, interest, machinery.
+# Costs ($/acre) per crop and state, without land rent.
+# "other_operating" = machinery, fuel, repairs, drying, crop insurance, labor, interest and overhead.
+COST_KEYS = ("seed", "fertilizer", "chemicals", "other_operating")
 COSTS: dict[tuple[ProfitCrop, ProfitState], dict[str, float]] = {
-    (C, IA): {"seed": 120, "fertilizer": 150, "chemicals": 60, "other_operating": 200},
-    (S, IA): {"seed": 70, "fertilizer": 45, "chemicals": 55, "other_operating": 120},
-    (W, IA): {"seed": 40, "fertilizer": 90, "chemicals": 35, "other_operating": 110},
-    (C, IL): {"seed": 125, "fertilizer": 160, "chemicals": 65, "other_operating": 210},
-    (S, IL): {"seed": 72, "fertilizer": 45, "chemicals": 58, "other_operating": 125},
-    (W, IL): {"seed": 42, "fertilizer": 95, "chemicals": 35, "other_operating": 115},
-    (C, NE): {"seed": 115, "fertilizer": 145, "chemicals": 55, "other_operating": 230},
-    (S, NE): {"seed": 68, "fertilizer": 40, "chemicals": 50, "other_operating": 130},
-    (W, NE): {"seed": 35, "fertilizer": 70, "chemicals": 30, "other_operating": 95},
+    k: {name: float(_entry("costs", *k)[name]) for name in COST_KEYS} for k in _KEYS
 }
 
-# PLACEHOLDER: cash rent for cropland ($/acre), per state.
-LAND_RENT: dict[ProfitState, float] = {IA: 270, IL: 280, NE: 230}
+# Cash rent for cropland ($/acre), per state.
+LAND_RENT: dict[ProfitState, float] = {s: float(DATA["land_rent"][s.value]["value"]) for s in ProfitState}
 
-# PLACEHOLDER: corn after soybeans needs less nitrogen. Credit = lb N/acre x $/lb N.
-NITROGEN_CREDIT_LB_PER_ACRE = 40
-NITROGEN_PRICE_PER_LB = 0.60
+# Corn after soybeans needs less nitrogen. Credit = lb N/acre x $/lb N.
+NITROGEN_CREDIT_LB_PER_ACRE: float = float(DATA["nitrogen_credit"]["lb_per_acre"])
+NITROGEN_PRICE_PER_LB: float = float(DATA["nitrogen_price"]["usd_per_lb"])
+
+# Which inputs are still placeholders, e.g. ("prices", "Winter Wheat", "IA") or ("land_rent", "IA").
+PLACEHOLDERS: set[tuple[str, ...]] = {
+    (table, c.value, s.value)
+    for table in ("prices", "default_yield", "costs") for c, s in _KEYS
+    if _entry(table, c, s).get("placeholder")
+} | {("land_rent", s.value) for s in ProfitState if DATA["land_rent"][s.value].get("placeholder")}
+IS_PLACEHOLDER = bool(PLACEHOLDERS)
 
 COST_LABELS = {
     "seed": "Seed",
     "fertilizer": "Fertilizer",
     "chemicals": "Herbicide and pesticide",
-    "other_operating": "Fuel, repairs, insurance and other",
+    "other_operating": "Machinery, fuel, insurance and other",
     "land_rent": "Land rent",
     "total": "Total cost (farmer's figure)",
 }

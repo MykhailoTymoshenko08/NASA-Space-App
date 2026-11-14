@@ -22,12 +22,14 @@ def test_model_yield_with_rent_override_and_nitrogen_credit():
     assert by_key["land_rent"].amount_per_acre == 250 and by_key["land_rent"].source == "farmer"
 
     total = sum(c.amount_per_acre for c in est.costs)
-    low, base, high = baseline.PRICES["Corn"]
+    low, base, high = baseline.PRICES[("Corn", "IA")]
     assert est.scenarios.base.revenue_per_acre == round(205 * base, 2)
     assert est.scenarios.base.profit_per_acre == round(205 * base - total, 2)
     s = est.scenarios
     assert s.low.profit_per_acre < s.base.profit_per_acre < s.high.profit_per_acre
     assert f"Revenue = 205 bu × ${base:.2f} = ${205 * base:,.2f} (base price)." in est.assumptions
+    # Model yield, sourced IA corn price and costs, farmer's rent: nothing from a placeholder.
+    assert est.baseline.is_placeholder is False
 
 
 def test_fallback_yield_and_baseline_costs():
@@ -37,7 +39,7 @@ def test_fallback_yield_and_baseline_costs():
     assert all(c.source == "baseline" for c in est.costs)
     expected = sum(baseline.COSTS[("Soybeans", "NE")].values()) + baseline.LAND_RENT["NE"]
     assert est.scenarios.base.cost_per_acre == expected
-    assert est.baseline.is_placeholder is baseline.IS_PLACEHOLDER
+    assert est.baseline.is_placeholder is (("land_rent", "NE") in baseline.PLACEHOLDERS)
 
 
 def test_no_nitrogen_credit_for_corn_after_corn_or_for_soybeans():
@@ -54,6 +56,37 @@ def test_total_cost_override_replaces_everything():
     ))
     assert [(c.key, c.amount_per_acre, c.source) for c in est.costs] == [("total", 700, "farmer")]
     assert est.scenarios.high.cost_per_acre == 700
+
+
+def test_placeholder_flag_follows_the_inputs_used():
+    iowa_wheat = estimate_profit(req(crop="Winter Wheat", cost_overrides={"total_cost_per_acre": 300}))
+    assert iowa_wheat.baseline.is_placeholder is True
+    assert any("Placeholder values" in a for a in iowa_wheat.assumptions)
+    il_wheat = estimate_profit(req(
+        crop="Winter Wheat", state="IL", cost_overrides={"total_cost_per_acre": 300},
+    ))
+    assert il_wheat.baseline.is_placeholder is False
+
+
+def test_every_baseline_number_has_a_source_or_is_marked_placeholder():
+    data = baseline.DATA
+    entries = [(f"{t}/{c}/{s}", e) for t in ("prices", "default_yield", "costs")
+               for c, by_state in data[t].items() for s, e in by_state.items()]
+    entries += [(f"land_rent/{s}", e) for s, e in data["land_rent"].items()]
+    entries += [("nitrogen_credit", data["nitrogen_credit"]), ("nitrogen_price", data["nitrogen_price"])]
+    assert len(entries) == 3 * 9 + 3 + 2
+    for name, e in entries:
+        assert e.get("unit"), name
+        if e.get("placeholder"):
+            assert e.get("placeholder_reason"), f"{name}: placeholder without a reason"
+            continue
+        src = e.get("source") or {}
+        for field in ("publisher", "document", "url", "year", "retrieved"):
+            assert src.get(field), f"{name}: source is missing {field!r}"
+        assert e.get("data_years") or name.startswith("nitrogen_credit"), f"{name}: no data year"
+    for c, by_state in data["prices"].items():
+        for s, e in by_state.items():
+            assert e["low"] < e["base"] < e["high"], (c, s)
 
 
 def test_unsupported_input_rejected():
