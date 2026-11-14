@@ -16,6 +16,10 @@ from app.models import (
 )
 from app.profitability import baseline as default_tables
 
+_PLACEHOLDER_NAMES = {
+    "prices": "price", "default_yield": "yield", "costs": "input costs", "land_rent": "land rent",
+}
+
 
 def _money(x: float) -> str:
     sign = "-" if x < 0 else ""
@@ -31,6 +35,8 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
     key = (req.crop, req.state)
     unit = t.YIELD_UNIT[req.crop]
     notes: list[str] = []
+    crop, state = req.crop.value, req.state.value
+    used = {("prices", crop, state)}  # baseline tables this estimate reads, for the placeholder flag
 
     # Yield
     if req.predicted_yield is not None:
@@ -38,6 +44,7 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
         notes.append(f"Yield = {_num(yld)} {unit}/acre, from the yield model.")
     else:
         yld, yield_source = float(t.DEFAULT_YIELD[key]), "baseline_default"
+        used.add(("default_yield", crop, state))
         notes.append(
             f"Yield = {_num(yld)} {unit}/acre, a typical {req.crop.value} yield for {req.state.value} "
             "(no model prediction given)."
@@ -55,6 +62,7 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
         if overrides.land_rent_per_acre is not None:
             notes.append("Land rent is not added separately: it is part of the farmer's total cost.")
     else:
+        used.add(("costs", crop, state))
         credit = 0.0
         if req.crop == ProfitCrop.corn and (req.previous_crop or "").strip().lower() == "soybeans":
             credit = t.NITROGEN_CREDIT_LB_PER_ACRE * t.NITROGEN_PRICE_PER_LB
@@ -76,6 +84,7 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
             rent_note = "the farmer's figure"
         else:
             rent, rent_source = t.LAND_RENT[req.state], "baseline"
+            used.add(("land_rent", state))
             rent_note = f"a typical {req.state.value} cash rent"
         costs.append(ProfitCostItem(
             key="land_rent", label=t.COST_LABELS["land_rent"],
@@ -94,9 +103,9 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
             profit_per_acre=round(revenue - total_cost, 2),
         )
 
-    low, base, high = (scenario(p) for p in t.PRICES[req.crop])
+    low, base, high = (scenario(p) for p in t.PRICES[key])
     notes.append(
-        f"Prices are fixed reference values, not a forecast: low {_money(low.price)}, "
+        f"Prices are recent {req.state.value} history, not a forecast: low {_money(low.price)}, "
         f"base {_money(base.price)}, high {_money(high.price)} per {unit}."
     )
     notes.append(
@@ -107,11 +116,13 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
         f"{_money(base.profit_per_acre)}/acre (base price); range {_money(low.profit_per_acre)} "
         f"to {_money(high.profit_per_acre)}."
     )
-    if t.IS_PLACEHOLDER:
-        notes.append("Baseline prices, yields and costs are placeholders, not USDA data. Illustration only.")
+    placeholders = sorted(used & t.PLACEHOLDERS)
+    if placeholders:
+        names = ", ".join(_PLACEHOLDER_NAMES[p[0]] for p in placeholders)
+        notes.append(f"Placeholder values, not sourced data, are used for: {names}. Illustration only.")
 
     return ProfitEstimate(
         crop=req.crop, state=req.state, yield_per_acre=yld, yield_unit=unit, yield_source=yield_source,
         costs=costs, scenarios=ProfitScenarios(low=low, base=base, high=high), assumptions=notes,
-        baseline=ProfitBaselineInfo(version=t.BASELINE_VERSION, is_placeholder=t.IS_PLACEHOLDER),
+        baseline=ProfitBaselineInfo(version=t.BASELINE_VERSION, is_placeholder=bool(placeholders)),
     )

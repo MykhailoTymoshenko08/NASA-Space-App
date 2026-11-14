@@ -3,6 +3,16 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.6.1 (2026-11-14): sourced profitability baseline
+
+No schema change.
+
+- Baseline numbers for `POST /profitability/estimate` now come from USDA NASS and 2026 extension crop
+  budgets (`backend/app/profitability/baseline_data.json`, built by `scripts/build_profit_baseline.py`).
+- Prices are now per crop and state, not per crop.
+- `baseline.is_placeholder` is now per estimate: true only when a number this estimate used is still a
+  placeholder (Iowa winter wheat, land rent until a NASS Quick Stats key is used).
+
 ## 0.6.0 (2026-11-14): saved fields per user
 
 Additive. All new routes need `Authorization: Bearer`.
