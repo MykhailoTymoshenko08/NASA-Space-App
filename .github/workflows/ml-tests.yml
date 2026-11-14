@@ -1,0 +1,26 @@
+name: ml-tests
+
+on:
+  push:
+    paths: ["ml/**", ".github/workflows/ml-tests.yml"]
+  pull_request:
+    paths: ["ml/**", ".github/workflows/ml-tests.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # same as ml/Dockerfile
+          cache: pip
+          cache-dependency-path: |
+            ml/requirements-service.txt
+            ml/requirements-dev.txt
+      - run: pip install -r requirements-service.txt -r requirements-dev.txt
+      # tests that need the POWER cache (not in git) skip themselves; the rest uses the committed ml/data and ml/models
+      - run: python -m pytest -q
