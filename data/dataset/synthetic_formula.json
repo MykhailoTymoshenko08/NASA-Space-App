@@ -1,0 +1,43 @@
+{
+  "seed": 42,
+  "base_ndvi": {
+    "corn": 0.86,
+    "soybean": 0.83,
+    "winter_wheat": 0.8,
+    "oats": 0.74,
+    "sorghum": 0.78,
+    "alfalfa": 0.84,
+    "cereal_rye": 0.72,
+    "field_pea": 0.72
+  },
+  "heat_sens": {
+    "corn": 1.0,
+    "soybean": 0.6,
+    "winter_wheat": 0.2,
+    "oats": 0.5,
+    "sorghum": 0.1,
+    "alfalfa": 0.4,
+    "cereal_rye": 0.1,
+    "field_pea": 0.6
+  },
+  "water_sens": {
+    "corn": 1.0,
+    "soybean": 0.8,
+    "winter_wheat": 0.4,
+    "oats": 0.6,
+    "sorghum": 0.3,
+    "alfalfa": 0.5,
+    "cereal_rye": 0.3,
+    "field_pea": 0.7
+  },
+  "legume_before_cereal": 0.03,
+  "monoculture": -0.03,
+  "no_legume_4y_cereal": -0.01,
+  "diversity_per_crop": 0.008,
+  "heat35_per_day": -0.0025,
+  "dry_per_mm": 0.0002,
+  "om_static": 0.01,
+  "awc_static": 0.15,
+  "field_sd": 0.03,
+  "noise_sd": 0.02
+}

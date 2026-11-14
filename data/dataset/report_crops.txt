@@ -1,0 +1,54 @@
+model classes: ['corn', 'soybean', 'winter_wheat', 'sorghum', 'alfalfa']
+start: 14,000 field-seasons (2,000 fields x 7 years)
+label is one of the model classes: -1,117 rows (fallow, pasture, oats, barley, rye, double crops, other)
+organic soil (om_pct > 20) removed: -14 rows
+
+rows: 12,869   fields: 1,994   years: 2019-2025
+
+rows per crop (label):
+              rows  share_%  fields
+crop                               
+corn          6467     50.3    1779
+soybean       4573     35.5    1534
+winter_wheat  1096      8.5     469
+sorghum        459      3.6     249
+alfalfa        274      2.1      73
+majority class: corn = 50.3% of rows
+
+rows per year x crop:
+crop  corn  soybean  winter_wheat  sorghum  alfalfa    All
+year                                                      
+2019   917      634           164       49       40   1804
+2020   959      641           153       62       45   1860
+2021   891      710           137       85       41   1864
+2022   917      681           141       66       38   1843
+2023   919      640           175       74       38   1846
+2024   897      680           159       52       35   1823
+2025   967      587           167       71       37   1829
+All   6467     4573          1096      459      274  12869
+
+rows per state x crop:
+crop        corn  soybean  winter_wheat  sorghum  alfalfa
+state_fips                                               
+17          1728     1577            22        3        5
+19          1992     1440             2        1       37
+20           908      639           856      411       83
+31          1839      917           216       44      149
+
+what grows after what, % of rows (rows = last year's crop, columns = this year's crop):
+crop          corn  soybean  winter_wheat  sorghum  alfalfa
+prev_crop_1                                                
+alfalfa         11        1             3        1       84
+corn            31       66             2        1        0
+other           25       12            57        5        1
+sorghum         29       32             5       34        1
+soybean         87        9             3        1        0
+winter_wheat    39        4            32       25        1
+
+columns with missing values (share of rows):
+twi            1.000
+prev_crop_2    0.140
+ec_ds_m        0.004
+
+slope_pct source: {'ssurgo_slope_r': 12869}
+feature columns: 54
