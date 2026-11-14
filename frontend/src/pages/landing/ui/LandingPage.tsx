@@ -41,7 +41,7 @@ export function LandingPage() {
           back soil moisture, humidity, temperature and soil data from NASA and USDA for that spot.
         </p>
         <div className={s.heroActions}>
-          <ButtonLink to={ROUTES.pickField} variant="primary" size="lg">
+          <ButtonLink to={ROUTES.pickField} variant="primary" size="lg" className={s.heroCta}>
             Pick your field
             <Icon name="arrow-right" />
           </ButtonLink>

@@ -43,7 +43,8 @@ describe("FieldPage", () => {
     expect(within(soil).getByText("0.27")).toBeInTheDocument();
     expect(within(soil).getByText("m³/m³")).toBeInTheDocument();
     expect(within(soil).getByText("Measured")).toBeInTheDocument();
-    expect(within(soil).getByText("SMAP L3 Enhanced Soil Moisture, NASA")).toBeInTheDocument();
+    const chip = within(soil).getByRole("link", { name: "Source 1: SMAP L3 Enhanced Soil Moisture, NASA" });
+    expect(chip).toHaveTextContent("[1] SMAP L3");
     expect(within(soil).getByText(/Wider than this field/)).toBeInTheDocument();
 
     expect(within(card("Air temperature (30-day mean)")).getByText("57")).toBeInTheDocument();
@@ -51,6 +52,33 @@ describe("FieldPage", () => {
     const ndvi = card("Plant greenness (NDVI)");
     expect(within(ndvi).getAllByText("Not available")).toHaveLength(2);
     expect(within(ndvi).getByText("No cloud-free satellite pass in the last 14 days.")).toBeInTheDocument();
+  });
+
+  it("numbers each source, lists them with a glossary, and opens the NDVI hint", async () => {
+    renderAt("/field?lat=41.5868&lon=-93.625");
+    await screen.findByText("80 acres (32.4 ha)");
+
+    expect(screen.getByText("Where this data comes from", { selector: "span" })).toBeInTheDocument();
+    const sources = screen.getByRole("region", { name: "Where this data comes from" });
+    const items = within(sources).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("[1]");
+    expect(items[0]).toHaveTextContent("SMAP L3 Enhanced Soil Moisture");
+    expect(items[0]).toHaveTextContent(/Used for: Soil moisture \(surface\)/);
+    const chip = within(card("Soil moisture (surface)")).getByRole("link", { name: /^Source 1:/ });
+    expect(chip).toHaveAttribute("href", `#${items[0]!.id}`);
+    expect(screen.getByRole("link", { name: `All ${items.length} sources` })).toHaveAttribute("href", "#sources");
+
+    expect(screen.getByRole("region", { name: "Glossary" })).toHaveTextContent("NDVI (plant greenness)");
+
+    const hintBtn = within(card("Plant greenness (NDVI)")).getByRole("button", { name: "What is Plant greenness (NDVI)?" });
+    expect(hintBtn).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(hintBtn);
+    expect(hintBtn).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("note")).toHaveTextContent(/How to read it/);
+    expect(within(screen.getByRole("note")).getByRole("link", { name: "See it in the glossary" })).toHaveAttribute(
+      "href",
+      "#gl-ndvi",
+    );
   });
 
   it("shows Not available with the reason when a source has no value", async () => {

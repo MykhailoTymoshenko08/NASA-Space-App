@@ -1,27 +1,74 @@
-import type { Metric } from "@/shared/api";
+import { useMemo, useState } from "react";
+import type { DatasetRef, Metric } from "@/shared/api";
 import { Badge, Skeleton } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import { SectionTitle } from "@/shared/ui/layout";
+import { GLOSSARY, HINTS, readingFor } from "../lib/glossary";
 import { groupMetrics, presentMetric } from "../lib/present";
+import { buildSourceRegistry, type SourceEntry, type SourceRegistry } from "../lib/sources";
 import s from "./metric-card.module.css";
 
-/** One measure: label + quality pill, the value with its unit, date, source, pixel size and notes. */
-export function MetricCard({ metric, fieldSizeM }: { metric: Metric; fieldSizeM: number | null }) {
+type CardProps = {
+  metric: Metric;
+  fieldSizeM: number | null;
+  /** Numbered source for the chip. Without it, the card shows the dataset as text. */
+  source?: SourceEntry;
+  /** Plain-language reading under the value. */
+  reading?: string;
+  hintOpen?: boolean;
+  onToggleHint?: () => void;
+};
+
+/**
+ * One measure: label + quality pill (+ info hint for NDVI, ET and anomaly), the value with its unit,
+ * a reading, the source chip, date, pixel size and notes.
+ */
+export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = false, onToggleHint }: CardProps) {
   const m = presentMetric(metric, fieldSizeM);
+  const hint = HINTS[m.key];
+  const hintId = `hint-${m.key}`;
   return (
     <article className={s.card} aria-labelledby={`metric-${m.key}`}>
       <div className={s.head}>
         <h3 id={`metric-${m.key}`} className={s.label}>
           {m.label}
         </h3>
-        <Badge tone={m.quality.tone}>{m.quality.label}</Badge>
+        <span className={s.tags}>
+          {hint && onToggleHint && (
+            <button
+              type="button"
+              className={s.hintBtn}
+              aria-label={`What is ${m.label}?`}
+              aria-expanded={hintOpen}
+              aria-controls={hintId}
+              onClick={onToggleHint}
+            >
+              <Icon name="help" size={22} />
+            </button>
+          )}
+          <Badge tone={m.quality.tone}>{m.quality.label}</Badge>
+        </span>
       </div>
       <div className={s.valueRow}>
         <span className={m.available ? s.value : s.valueMissing}>{m.value}</span>
         {m.unit && <span className={s.unit}>{m.unit}</span>}
       </div>
+      {reading && <div className={s.reading}>{reading}</div>}
+      {source ? (
+        <div className={s.sourceRow}>
+          <span>Source</span>
+          <a
+            href={`#${source.anchor}`}
+            className={s.chip}
+            aria-label={`Source ${source.n}: ${source.dataset}, ${source.provider}`}
+          >
+            [{source.n}] {source.short}
+          </a>
+        </div>
+      ) : (
+        <div className={s.meta}>{m.source}</div>
+      )}
       <div className={s.meta}>{m.when}</div>
-      <div className={s.meta}>{m.source}</div>
       {m.pixel && <div className={s.meta}>{m.pixel}</div>}
       {m.coarse && (
         <div className={s.coarse}>
@@ -30,6 +77,19 @@ export function MetricCard({ metric, fieldSizeM }: { metric: Metric; fieldSizeM:
         </div>
       )}
       {m.note && <div className={s.note}>{m.note}</div>}
+      {hint && hintOpen && (
+        <div id={hintId} role="note" className={s.hint}>
+          <div>
+            <strong>What it is.</strong> {hint.what}
+          </div>
+          <div>
+            <strong>How to read it.</strong> {hint.read}
+          </div>
+          <a href={`#${hint.glossaryId}`} className={s.link}>
+            See it in the glossary
+          </a>
+        </div>
+      )}
     </article>
   );
 }
@@ -38,12 +98,17 @@ export function MetricCard({ metric, fieldSizeM }: { metric: Metric; fieldSizeM:
 export function MetricGroups({
   metrics,
   fieldSizeM,
+  registry,
   headingLevel = 2,
 }: {
   metrics: readonly Metric[];
   fieldSizeM: number | null;
+  /** Numbered sources; build once per page with `useSourceRegistry` so chips and the list agree. */
+  registry?: SourceRegistry;
   headingLevel?: 2 | 3;
 }) {
+  // One hint open at a time.
+  const [hint, setHint] = useState<string | null>(null);
   return (
     <>
       {groupMetrics(metrics).map((g) => (
@@ -51,12 +116,91 @@ export function MetricGroups({
           <SectionTitle as={headingLevel === 2 ? "h2" : "h3"}>{g.title}</SectionTitle>
           <div className={s.grid}>
             {g.metrics.map((m) => (
-              <MetricCard key={m.key} metric={m} fieldSizeM={fieldSizeM} />
+              <MetricCard
+                key={m.key}
+                metric={m}
+                fieldSizeM={fieldSizeM}
+                source={registry?.forMetric(m.key)}
+                reading={readingFor(m, metrics)}
+                hintOpen={hint === m.key}
+                onToggleHint={() => setHint((h) => (h === m.key ? null : m.key))}
+              />
             ))}
           </div>
         </section>
       ))}
     </>
+  );
+}
+
+/** Numbered source registry for one page: metric sources first, then any extra datasets. */
+export function useSourceRegistry(metrics: readonly Metric[], extra?: readonly DatasetRef[]): SourceRegistry {
+  return useMemo(() => buildSourceRegistry(metrics, extra), [metrics, extra]);
+}
+
+/** "Where this data comes from" strip above the metrics, with links to the Sources list and the Glossary. */
+export function SourcesStrip({ registry }: { registry: SourceRegistry }) {
+  if (registry.list.length === 0) return null;
+  return (
+    <div className={s.strip}>
+      <span className={s.stripTitle}>Where this data comes from</span>
+      <span className={s.stripLine}>{registry.providersLine}</span>
+      <a href="#sources" className={s.stripLink}>
+        All {registry.list.length} {registry.list.length === 1 ? "source" : "sources"}
+      </a>
+      <a href="#glossary" className={s.stripLink}>
+        Glossary
+      </a>
+    </div>
+  );
+}
+
+/** Full Sources list; each card's chip number points here. */
+export function SourcesList({ registry }: { registry: SourceRegistry }) {
+  if (registry.list.length === 0) return null;
+  return (
+    <section id="sources" aria-labelledby="sources-h" className={s.box}>
+      <SectionTitle id="sources-h">Where this data comes from</SectionTitle>
+      <p className={s.boxLead}>
+        Each number above points to one or more of these sources. The number in brackets is the same here and on the
+        card.
+      </p>
+      <ol className={s.sources}>
+        {registry.list.map((e) => (
+          <li key={e.anchor} id={e.anchor} className={s.sourceItem}>
+            <span className={s.sourceN}>[{e.n}]</span>
+            <div className={s.sourceBody}>
+              <div className={s.sourceName}>{e.dataset}</div>
+              <div className={s.sourceMeta}>{[e.provider, ...e.detail].join(" · ")}</div>
+              {e.what && <div className={s.sourceWhat}>{e.what}</div>}
+              {e.usedFor.length > 0 && <div className={s.sourceMeta}>Used for: {e.usedFor.join(", ")}</div>}
+              {e.url && (
+                <a href={e.url} target="_blank" rel="noopener noreferrer" className={s.sourceUrl}>
+                  {e.host} (opens in a new tab)
+                </a>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** Glossary of the terms the cards and hints use. */
+export function Glossary() {
+  return (
+    <section id="glossary" aria-labelledby="glossary-h" className={s.box}>
+      <SectionTitle id="glossary-h">Glossary</SectionTitle>
+      <dl className={s.glossary}>
+        {GLOSSARY.map((t) => (
+          <div key={t.id} id={t.id} className={s.term}>
+            <dt>{t.term}</dt>
+            <dd>{t.def}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

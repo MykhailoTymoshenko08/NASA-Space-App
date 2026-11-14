@@ -35,3 +35,10 @@
     display: none !important;
   }
 }
+
+@media (max-width: 760px) {
+  .h2 {
+    font-size: 26px;
+    line-height: 32px;
+  }
+}

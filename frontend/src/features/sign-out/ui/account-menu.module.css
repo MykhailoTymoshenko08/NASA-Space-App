@@ -63,3 +63,26 @@
 .item:hover {
   background: var(--color-paper-wash);
 }
+
+/* Mobile burger menu: a full-width row, the menu opens in the flow below it. */
+.wrapBlock {
+  width: 100%;
+}
+.triggerBlock {
+  width: 100%;
+  height: auto;
+  min-height: var(--control-md);
+  padding: 0 var(--s-16);
+  border-radius: var(--radius-control);
+  justify-content: flex-start;
+  gap: 10px;
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  font-weight: 500;
+}
+.menuBlock {
+  position: static;
+  margin-top: var(--s-8);
+  min-width: 0;
+  box-shadow: none;
+}

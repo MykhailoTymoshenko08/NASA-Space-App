@@ -5,8 +5,11 @@ import { ROUTES } from "@/shared/config";
 import { Icon } from "@/shared/ui/icon";
 import s from "./account-menu.module.css";
 
-/** Round account button (44 px) with a small menu: who is signed in, Change password, and Sign out (POST /auth/logout). */
-export function AccountMenu({ email }: { email: string }) {
+/**
+ * Round account button (44 px) with a small menu: who is signed in, Change password, and Sign out (POST /auth/logout).
+ * `block`: full-width 48 px row labelled "Account", for the mobile burger menu.
+ */
+export function AccountMenu({ email, block = false }: { email: string; block?: boolean }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const navigate = useNavigate();
@@ -38,19 +41,20 @@ export function AccountMenu({ email }: { email: string }) {
   };
 
   return (
-    <div className={s.wrap} ref={wrap}>
+    <div className={block ? `${s.wrap} ${s.wrapBlock}` : s.wrap} ref={wrap}>
       <button
         type="button"
-        className={s.trigger}
-        aria-label="Account"
+        className={block ? `${s.trigger} ${s.triggerBlock}` : s.trigger}
+        aria-label={block ? undefined : "Account"}
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => setOpen((v) => !v)}
       >
         <Icon name="user" />
+        {block && "Account"}
       </button>
       {open && (
-        <div id={menuId} className={s.menu}>
+        <div id={menuId} className={block ? `${s.menu} ${s.menuBlock}` : s.menu}>
           <div className={s.who}>
             <span className={s.muted}>Signed in as</span>
             <span className={s.email}>{email}</span>

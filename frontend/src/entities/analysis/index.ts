@@ -10,6 +10,5 @@ export {
   yearsText,
 } from "./config/labels";
 export { deltaText, rankLabel, sortStrategies } from "./lib/strategies";
-export { DatasetList } from "./ui/DatasetList";
 export { StrategyCard } from "./ui/StrategyCard";
 export { TimeSeriesChart } from "./ui/TimeSeriesChart";

@@ -1,5 +1,4 @@
 import type { DatasetRef, Strategy } from "@/shared/api";
-import { formatDistance } from "@/shared/lib";
 
 /** Contract: strategies come sorted by score. We sort again defensively (stable, descending). */
 export const sortStrategies = (list: readonly Strategy[]) => [...list].sort((a, b) => b.score - a.score);
@@ -18,5 +17,3 @@ export const confidenceText = (c: Strategy["confidence"]) => `Confidence: ${c.ch
 
 export const datasetSource = (d: DatasetRef) => `${d.dataset}, ${d.provider}`;
 
-export const pixelText = (resolutionM: number | null | undefined) =>
-  resolutionM ? `Pixel about ${formatDistance(resolutionM)}` : "Field outlines or point data";

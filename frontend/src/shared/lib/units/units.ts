@@ -52,6 +52,9 @@ export function toDisplay(value: number | string, unit: string): DisplayValue {
       return { value: fmt(value, 1), unit: "g/kg" };
     case "pH":
       return { value: fmt(value, 1), unit: "pH" };
+    case "sd":
+      // Standard deviations from normal (soil moisture anomaly). Signed, with a true minus.
+      return { value: `${value > 0 ? "+" : value < 0 ? "−" : ""}${fmt(Math.abs(value), 1)}`, unit: "std dev" };
     case "none":
     case "class":
       return { value: fmt(value, value % 1 === 0 ? 0 : 1), unit: "" };

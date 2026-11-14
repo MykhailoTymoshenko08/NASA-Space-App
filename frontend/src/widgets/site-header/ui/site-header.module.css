@@ -14,3 +14,55 @@
   flex-wrap: wrap;
   gap: var(--s-8);
 }
+
+/* Burger: hidden on desktop. */
+.burger {
+  display: none;
+  width: var(--control-min);
+  height: var(--control-min);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-ink);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.burger:hover,
+.burger[aria-expanded="true"] {
+  background: var(--color-paper-wash);
+}
+
+/* Menu under the header, 48 px rows. */
+.menu {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+  padding: var(--s-8) 0 var(--s-12);
+  border-top: 1px solid var(--color-line);
+}
+.menu .row {
+  width: 100%;
+  min-height: var(--control-md);
+  justify-content: flex-start;
+}
+
+@media (min-width: 761px) {
+  .menu {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .header {
+    padding: var(--s-12) var(--s-16);
+    gap: var(--s-8);
+  }
+  .nav {
+    display: none;
+  }
+  .burger {
+    display: inline-flex;
+  }
+}

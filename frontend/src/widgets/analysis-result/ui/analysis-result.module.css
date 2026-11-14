@@ -24,3 +24,10 @@
   line-height: var(--text-caption-lh);
   color: var(--color-ink-muted);
 }
+
+@media (max-width: 760px) {
+  .h2 {
+    font-size: 26px;
+    line-height: 32px;
+  }
+}

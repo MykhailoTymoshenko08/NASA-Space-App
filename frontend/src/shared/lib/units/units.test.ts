@@ -11,6 +11,12 @@ describe("toDisplay", () => {
     expect(toDisplay(910, "mm")).toEqual({ value: "35.8", unit: "in" });
   });
 
+  it("signs standard deviations with a true minus", () => {
+    expect(toDisplay(-0.7, "sd")).toEqual({ value: "−0.7", unit: "std dev" });
+    expect(toDisplay(1.25, "sd")).toEqual({ value: "+1.3", unit: "std dev" });
+    expect(toDisplay(0, "sd")).toEqual({ value: "0.0", unit: "std dev" });
+  });
+
   it("keeps m3/m3 with two decimals", () => {
     expect(toDisplay(0.27, "m3/m3")).toEqual({ value: "0.27", unit: "m³/m³" });
   });

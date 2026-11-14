@@ -5,9 +5,12 @@
   border: 1px solid var(--color-line-control);
   background: var(--color-map-ground);
 }
-@media (max-width: 600px) {
+@media (max-width: 760px) {
   .stage {
     height: 560px !important;
+  }
+  .card {
+    width: 100%;
   }
 }
 

@@ -9,9 +9,9 @@ import {
   selectionSearch,
   useFieldSnapshot,
 } from "@/entities/field";
-import { MetricGridSkeleton, MetricGroups } from "@/entities/metric";
+import { Glossary, MetricGridSkeleton, MetricGroups, SourcesList, SourcesStrip, useSourceRegistry } from "@/entities/metric";
 import { SaveFieldButton } from "@/features/save-field";
-import { ApiError, friendlyMessage } from "@/shared/api";
+import { ApiError, friendlyMessage, type Snapshot } from "@/shared/api";
 import { analysisSetupPath, ROUTES } from "@/shared/config";
 import { useDocumentTitle } from "@/shared/lib";
 import { Button, ButtonLink } from "@/shared/ui/button";
@@ -75,13 +75,7 @@ export function FieldPage() {
         />
       )}
 
-      {snapshot && (
-        <>
-          <FieldOverview selection={snapshot.selection} />
-          <MetricGroups metrics={snapshot.metrics} fieldSizeM={fieldSizeM(snapshot.selection.area_ha)} />
-          <p className={s.fine}>Values from the API are metric and shown here in US units.</p>
-        </>
-      )}
+      {snapshot && <FieldConditions snapshot={snapshot} />}
     </>
   );
 
@@ -111,6 +105,21 @@ export function FieldPage() {
         {query.isPending ? "Loading base conditions." : query.isError ? "Base conditions could not be loaded." : "Base conditions loaded."}
       </div>
       <PageColumns main={main} aside={aside} asideLabel="Next step" />
+    </>
+  );
+}
+
+/** Loaded state: the field, the source strip, metric groups, then the full Sources list and Glossary. */
+function FieldConditions({ snapshot }: { snapshot: Snapshot }) {
+  const registry = useSourceRegistry(snapshot.metrics);
+  return (
+    <>
+      <FieldOverview selection={snapshot.selection} />
+      <SourcesStrip registry={registry} />
+      <MetricGroups metrics={snapshot.metrics} fieldSizeM={fieldSizeM(snapshot.selection.area_ha)} registry={registry} />
+      <p className={s.fine}>Values from the API are metric and shown here in US units.</p>
+      <SourcesList registry={registry} />
+      <Glossary />
     </>
   );
 }

@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { DatasetList, priorityText, sortStrategies, StrategyCard, TimeSeriesChart, yearsText } from "@/entities/analysis";
+import { priorityText, sortStrategies, StrategyCard, TimeSeriesChart, yearsText } from "@/entities/analysis";
 import { fieldSizeM } from "@/entities/field";
-import { MetricGroups } from "@/entities/metric";
-import type { AnalysisResult, Priority } from "@/shared/api";
+import { Glossary, MetricGroups, SourcesList, SourcesStrip, useSourceRegistry } from "@/entities/metric";
+import type { AnalysisResult, Priority, TimeSeries } from "@/shared/api";
 import { formatDateTime } from "@/shared/lib";
 import { Note } from "@/shared/ui/feedback";
 import s from "./analysis-result.module.css";
@@ -21,6 +21,8 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>(() => (strategies[0] ? { [strategies[0].id]: true } : {}));
   const size = fieldSizeM(result.selection.area_ha);
   const series = result.time_series ?? [];
+  // Metric sources first, then datasets the analysis used without a card (crop history, charts...).
+  const registry = useSourceRegistry(result.current_conditions, result.datasets_used);
 
   const choices = [
     horizon ? `Looking ahead ${yearsText(horizon)}.` : null,
@@ -64,7 +66,7 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
       {series.length > 0 && (
         <section className={s.section} aria-labelledby="history-title">
           <h2 id="history-title" className={s.h2}>
-            Recent history
+            {historyTitle(series)}
           </h2>
           <div className={s.charts}>
             {series.map((ts) => (
@@ -78,10 +80,12 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
         <h2 id="conditions-title" className={s.h2}>
           Current conditions
         </h2>
-        <MetricGroups metrics={result.current_conditions} fieldSizeM={size} headingLevel={3} />
+        <SourcesStrip registry={registry} />
+        <MetricGroups metrics={result.current_conditions} fieldSizeM={size} registry={registry} headingLevel={3} />
       </section>
 
-      <DatasetList datasets={result.datasets_used} />
+      <SourcesList registry={registry} />
+      <Glossary />
 
       <Note>
         <div>{result.disclaimer}</div>
@@ -91,4 +95,14 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
       </Note>
     </>
   );
+}
+
+const DAY_MS = 86_400_000;
+
+/** "The last 6 months" (design copy) when the charts span about that; otherwise a neutral title. */
+function historyTitle(series: readonly TimeSeries[]): string {
+  const dates = series.flatMap((ts) => ts.points.map((p) => Date.parse(p.t))).filter((d) => !Number.isNaN(d));
+  if (dates.length < 2) return "Recent history";
+  const days = (Math.max(...dates) - Math.min(...dates)) / DAY_MS;
+  return days >= 150 && days <= 200 ? "The last 6 months" : "Recent history";
 }
