@@ -1,0 +1,95 @@
+.base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-8);
+  min-height: var(--control-min);
+  padding: 0 var(--s-16);
+  border: 0;
+  border-radius: var(--radius-control);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+.base:disabled,
+.base[aria-disabled="true"] {
+  background: var(--color-line);
+  color: var(--color-ink-muted);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+/* Sizes */
+.lg {
+  min-height: var(--control-lg);
+  padding: 0 var(--s-24);
+  font-size: var(--text-button-lg);
+  font-weight: 600;
+  gap: 10px;
+}
+.md {
+  min-height: var(--control-md);
+  padding: 0 var(--s-20);
+}
+.sm {
+  min-height: var(--control-min);
+}
+.block {
+  display: flex;
+  width: 100%;
+}
+
+/* Variants */
+.primary {
+  background: var(--color-green-700);
+  color: var(--color-white);
+  font-weight: 600;
+}
+.primary:hover:not(:disabled) {
+  background: var(--color-green-900);
+}
+
+/* Wheat 500 fill, ink text — only on Green 700 bands. */
+.amber {
+  background: var(--color-wheat-500);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.amber:hover:not(:disabled) {
+  background: var(--color-wheat-300);
+}
+
+.secondary {
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-line-control);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--color-paper-wash);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-ink);
+}
+.ghost:hover:not(:disabled),
+.current {
+  background: var(--color-paper-wash);
+}
+.current {
+  font-weight: 600;
+}
+
+/* Inline text link that still meets the 44 px target. */
+.link {
+  min-height: var(--control-min);
+  padding: 0;
+  background: transparent;
+  color: var(--color-green-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
