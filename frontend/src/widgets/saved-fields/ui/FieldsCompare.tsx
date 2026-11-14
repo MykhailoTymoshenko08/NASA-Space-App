@@ -13,7 +13,7 @@ import s from "./saved-fields.module.css";
 
 /** Rows of the comparison: metric keys from the contract, with a bar color per measure. */
 const METRIC_ROWS: { key: string; label: string; color: string; decimals: number }[] = [
-  { key: "soil_moisture_surface", label: "Soil moisture (surface)", color: "var(--color-data-soil)", decimals: 2 },
+  { key: "soil_wetness_surface", label: "Surface soil wetness (0–1)", color: "var(--color-data-soil)", decimals: 2 },
   { key: "soil_organic_matter_pct", label: "Soil organic matter", color: "var(--color-data-soil-chem)", decimals: 1 },
   { key: "soil_ph", label: "Soil pH", color: "var(--color-data-soil-chem)", decimals: 1 },
   { key: "precip_30d_total", label: "Rain, last 30 days", color: "var(--color-data-rain)", decimals: 1 },

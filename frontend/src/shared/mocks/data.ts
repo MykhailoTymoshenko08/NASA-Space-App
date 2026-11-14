@@ -174,6 +174,7 @@ export function metricsFor(p: LatLon): S["Metric"][] {
         })
       : m("soil_moisture_surface", "Soil moisture (surface)", "moisture", 0.27, "m3/m3", "measured", "SMAP L3 Enhanced Soil Moisture", NASA, 9000),
     m("soil_moisture_rootzone", "Soil moisture (root zone)", "moisture", 0.31, "m3/m3", "modeled", "SMAP L4 Soil Moisture", NASA, 9000),
+    m("soil_wetness_surface", "Surface soil wetness (modeled, 30-day mean)", "moisture", 0.64, "fraction", "modeled", "NASA POWER", NASA, 55000),
     m("relative_humidity_2m", "Relative humidity", "atmosphere", 68, "%", "modeled", "NASA POWER", NASA, 50000),
     m("air_temp_mean_2m", "Air temperature (30-day mean)", "temperature", 13.9, "degC", "modeled", "NASA POWER", NASA, 50000),
     m("precip_30d_total", "Rain, last 30 days", "precipitation", 41, "mm", "modeled", "NASA POWER", NASA, 50000),
