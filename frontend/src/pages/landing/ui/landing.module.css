@@ -43,36 +43,6 @@
 }
 
 /* Map stage (placeholder until the map API exists) */
-.mapStage {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 720px;
-  padding: var(--s-24);
-  overflow: hidden;
-  border-radius: var(--radius-stage);
-  border: 1px solid var(--color-line-control);
-  background: var(--color-map-ground);
-}
-.mapNotice {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-12);
-  max-width: 440px;
-  padding: var(--s-24);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  box-shadow: var(--shadow-1);
-  color: var(--color-ink);
-}
-.mapTitle {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--text-title-4);
-  line-height: var(--text-title-4-lh);
-}
 
 /* How it works */
 .how {

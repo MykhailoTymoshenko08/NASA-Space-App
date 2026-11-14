@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { ExploreMap } from "@/widgets/explore-map";
 import { APP_NAME, ROUTES } from "@/shared/config";
 import { ButtonLink } from "@/shared/ui/button";
 import { Icon } from "@/shared/ui/icon";
@@ -9,17 +10,17 @@ const STEPS = [
   {
     n: "01",
     title: "Find your land",
-    body: "Zoom from the country down to your county and pick a field. Or skip the map: type a county, paste a pin from Google or Apple Maps, or enter coordinates.",
+    body: "Zoom from the country down to your county and pick a field. Or skip the map: choose a county, or paste a Google or Apple Maps link or coordinates. Field outlines cover Iowa, Illinois and Nebraska for now.",
   },
   {
     n: "02",
     title: "See base conditions",
-    body: "We send the field's location to our server and bring back humidity, soil moisture, temperature and a nitrogen index built from NASA datasets.",
+    body: "We send the field's location to our server and bring back soil moisture, humidity, temperature, rain and soil data. Each value says if it was measured, modeled or estimated.",
   },
   {
     n: "03",
     title: "Get your analysis",
-    body: "Request an analysis and we send you a package of datasets our data science team selected for that field.",
+    body: "Create an analysis to compare crop rotations for the field, with the reasons behind each one. Read it on screen or export it to PDF.",
   },
 ] as const;
 
@@ -36,8 +37,8 @@ export function LandingPage() {
           Know your field before you plant.
         </h1>
         <p className={s.heroLead}>
-          Zoom from the whole country down to one field, or drop in a map pin or coordinates. We bring back humidity,
-          soil moisture and a nitrogen index from NASA datasets for that exact spot.
+          Zoom from the whole country down to one estimated field area, or paste a map link or coordinates. We bring
+          back soil moisture, humidity, temperature and soil data from NASA and USDA for that spot.
         </p>
         <div className={s.heroActions}>
           <ButtonLink to={ROUTES.pickField} variant="primary" size="lg">
@@ -50,7 +51,9 @@ export function LandingPage() {
         </div>
       </Container>
 
-      <MapPlaceholder />
+      <Container as="section" id="map" aria-label="Field map">
+        <ExploreMap />
+      </Container>
 
       <Container as="section" id="how" className={s.how} aria-labelledby="how-title">
         <h2 id="how-title" className={s.sectionTitle}>
@@ -81,32 +84,5 @@ export function LandingPage() {
         </div>
       </Container>
     </>
-  );
-}
-
-/**
- * Stage for the interactive map. The map itself waits for the backend's map API
- * (boundary + segment tiles). Until then this keeps the layout and offers the other way in.
- */
-function MapPlaceholder() {
-  return (
-    <Container as="section" id="map" aria-labelledby="map-title">
-      <div className={s.mapStage}>
-        <div className={s.mapNotice}>
-          <Icon name="layers" size={32} />
-          <h2 id="map-title" className={s.mapTitle}>
-            The field map is on its way
-          </h2>
-          <p className={s.muted}>
-            Soon you will zoom from the whole country down to one field here. For now, pick your field by county, map
-            pin or coordinates.
-          </p>
-          <ButtonLink to={ROUTES.pickField} variant="secondary" size="md">
-            Pick a field
-            <Icon name="arrow-right" />
-          </ButtonLink>
-        </div>
-      </div>
-    </Container>
   );
 }

@@ -13,6 +13,8 @@ const FRIENDLY: Record<ErrorCode, string> = {
   UPSTREAM_DATA_UNAVAILABLE: "A data source we rely on is not answering right now. Try again in a few minutes.",
   VALIDATION_ERROR: "Something in that request wasn't valid. Check the location and try again.",
   INTERNAL_ERROR: "Something went wrong on our side. Try again in a moment.",
+  UNAUTHORIZED: "Your email or password is not right, or your session ended. Sign in again.",
+  EMAIL_TAKEN: "An account with this email already exists. Sign in instead.",
 };
 
 const NETWORK_MESSAGE = "We couldn't reach our server. Check your connection and try again.";
@@ -24,6 +26,8 @@ export class ApiError extends Error {
   readonly requestId: string | null;
   readonly details: Record<string, unknown> | null;
   readonly retryAfterSeconds: number | null;
+  /** True when `message` came from the backend's error envelope (safe to show, per contract). */
+  readonly fromServer: boolean;
 
   constructor(init: {
     code: ErrorCode | "NETWORK";
@@ -32,6 +36,7 @@ export class ApiError extends Error {
     requestId?: string | null;
     details?: Record<string, unknown> | null;
     retryAfterSeconds?: number | null;
+    fromServer?: boolean;
   }) {
     super(init.message);
     this.name = "ApiError";
@@ -40,6 +45,7 @@ export class ApiError extends Error {
     this.requestId = init.requestId ?? null;
     this.details = init.details ?? null;
     this.retryAfterSeconds = init.retryAfterSeconds ?? null;
+    this.fromServer = init.fromServer ?? false;
   }
 }
 
@@ -63,18 +69,26 @@ export function toApiError(response: Response, body: unknown): ApiError {
     requestId: env?.request_id ?? response.headers.get("X-Request-Id"),
     details: env?.details ?? null,
     retryAfterSeconds: Number.isFinite(retry) && retry > 0 ? retry : null,
+    fromServer: typeof env?.message === "string" && env.message.length > 0,
   });
 }
 
 export const networkError = (cause: unknown) =>
   Object.assign(new ApiError({ code: "NETWORK", message: NETWORK_MESSAGE }), { cause });
 
-/** What to show the user. Our own wording per code; rate limits include the wait time. */
+/**
+ * What to show the user. The contract says `error.message` is safe to show, so the backend's own
+ * message wins; our wording per code is the fallback. Rate limits include the wait time.
+ */
 export function friendlyMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return FRIENDLY.INTERNAL_ERROR;
   if (error.code === "NETWORK") return NETWORK_MESSAGE;
   if (error.code === "RATE_LIMITED" && error.retryAfterSeconds) {
     return `Too many requests right now. Try again in ${error.retryAfterSeconds} seconds.`;
   }
+  if (error.fromServer) return error.message;
   return FRIENDLY[error.code];
 }
+
+/** Our own wording for a code, ignoring the server message (for codes the UI words itself). */
+export const messageForCode = (code: ErrorCode) => FRIENDLY[code];

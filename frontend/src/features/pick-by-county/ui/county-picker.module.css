@@ -1,0 +1,10 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+}
+.help {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}

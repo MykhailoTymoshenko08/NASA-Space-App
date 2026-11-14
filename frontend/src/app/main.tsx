@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router";
+import { restoreSession } from "@/entities/session";
 import { env } from "@/shared/config";
 import { QueryProvider } from "./query/QueryProvider";
 import { router } from "./router/router";
@@ -20,6 +21,8 @@ async function start() {
       </QueryProvider>
     </StrictMode>,
   );
+  // Restore a session from the refresh cookie; the header updates when it settles.
+  void restoreSession();
 }
 
 void start();

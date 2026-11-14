@@ -1,0 +1,26 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-3);
+  line-height: var(--text-title-3-lh);
+}
+.muted {
+  margin-top: var(--s-4);
+  color: var(--color-ink-muted);
+}
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: var(--s-16);
+}
+.fine {
+  margin-top: 6px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}

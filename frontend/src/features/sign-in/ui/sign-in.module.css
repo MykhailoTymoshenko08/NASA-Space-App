@@ -1,0 +1,30 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-20);
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+}
+.row > label {
+  padding-top: 0;
+  align-items: center;
+}
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-min);
+  font-size: 15px;
+  font-weight: 500;
+}
+.foot {
+  text-align: center;
+  color: var(--color-ink-muted);
+}
+.strong {
+  font-weight: 600;
+}

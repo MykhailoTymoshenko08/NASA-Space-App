@@ -1,98 +1,126 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useSearchParams } from "react-router";
-import { areaLine, countyLine, fieldTitle, FieldSketch, parseFieldSearch, useFieldSnapshot } from "@/entities/field";
-import { GetAnalysisButton } from "@/features/request-analysis";
-import type { SelectionRef } from "@/shared/api";
-import { APP_NAME, ROUTES } from "@/shared/config";
-import { formatLatLon } from "@/shared/lib";
-import { ButtonLink } from "@/shared/ui/button";
-import { Message, Skeleton } from "@/shared/ui/feedback";
+import {
+  buildFieldSearch,
+  fieldSizeM,
+  FieldOverview,
+  parseFieldSearch,
+  placeLine,
+  selectionSearch,
+  useFieldSnapshot,
+} from "@/entities/field";
+import { MetricGridSkeleton, MetricGroups } from "@/entities/metric";
+import { SaveFieldButton } from "@/features/save-field";
+import { ApiError, friendlyMessage } from "@/shared/api";
+import { analysisSetupPath, ROUTES } from "@/shared/config";
+import { useDocumentTitle } from "@/shared/lib";
+import { Button, ButtonLink } from "@/shared/ui/button";
+import { ErrorPanel, Message } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
-import { Card, Container } from "@/shared/ui/layout";
-import { BaseConditions } from "@/widgets/base-conditions";
+import { Container, PageColumns, PageIntro, Panel, SectionTitle } from "@/shared/ui/layout";
+import { IndeterminateBar } from "@/shared/ui/progress";
 import s from "./field-page.module.css";
 
 /**
- * /field?lat=..&lon=.. (or ?field_id=..). Reads the location from the URL, asks our backend
- * for a snapshot (POST /snapshots), and shows the field with its base conditions.
+ * /field?field_id=.. (or ?lat=..&lon=..). One POST /snapshots returns the resolved field and its metrics,
+ * grouped by category. Every value shows its quality, source and pixel size.
  */
 export function FieldPage() {
+  useDocumentTitle("Base conditions");
   const [params] = useSearchParams();
   const parsed = useMemo(() => parseFieldSearch(params), [params]);
   const query = useFieldSnapshot(parsed.ok ? parsed.request.ref : null);
-  const selection = query.data?.selection ?? null;
-
-  const title = selection
-    ? fieldTitle(selection)
-    : parsed.ok && "field_id" in parsed.request.ref
-      ? `Field ${parsed.request.ref.field_id}`
-      : "Your field";
-
-  useEffect(() => {
-    document.title = `${title} · ${APP_NAME}`;
-  }, [title]);
 
   if (!parsed.ok) return <MissingLocation problem={parsed.problem} />;
 
-  const point = selection?.anchor ?? parsed.request.point;
-  const area = selection ? areaLine(selection) : null;
-  // Analyse the backend-resolved field: its id when it has one, otherwise its anchor point.
-  const analysisRef: SelectionRef | null = selection
-    ? selection.field_id
-      ? { field_id: selection.field_id }
-      : { point: selection.anchor }
-    : null;
+  const snapshot = query.data;
+  const selection = snapshot?.selection ?? null;
+  // Before the snapshot loads, the URL already identifies the field for "Get analysis".
+  const search = selection
+    ? selectionSearch(selection)
+    : buildFieldSearch({
+        fieldId: "field_id" in parsed.request.ref ? parsed.request.ref.field_id : null,
+        point: parsed.request.point,
+      });
+
+  const main = (
+    <>
+      {query.isPending && (
+        <>
+          <Panel gap={14} role="status">
+            <SectionTitle>Reading NASA data for this field</SectionTitle>
+            <IndeterminateBar />
+            <p className={s.muted}>This usually takes under 2 seconds.</p>
+          </Panel>
+          <MetricGridSkeleton />
+        </>
+      )}
+
+      {query.isError && (
+        <ErrorPanel
+          title="We could not get conditions for this point"
+          message={friendlyMessage(query.error)}
+          code={query.error instanceof ApiError ? query.error.code : null}
+          requestId={query.error instanceof ApiError ? query.error.requestId : null}
+          actions={
+            <>
+              <Button variant="primary" size="md" onClick={() => void query.refetch()} disabled={query.isFetching}>
+                {query.isFetching ? "Trying again…" : "Try again"}
+              </Button>
+              <ButtonLink to={ROUTES.pickField} variant="secondary" size="md">
+                Pick another field
+              </ButtonLink>
+            </>
+          }
+        />
+      )}
+
+      {snapshot && (
+        <>
+          <FieldOverview selection={snapshot.selection} />
+          <MetricGroups metrics={snapshot.metrics} fieldSizeM={fieldSizeM(snapshot.selection.area_ha)} />
+          <p className={s.fine}>Values from the API are metric and shown here in US units.</p>
+        </>
+      )}
+    </>
+  );
+
+  const aside = (
+    <Panel gap={14}>
+      <SectionTitle>Want the full picture?</SectionTitle>
+      <p className={s.muted}>Get an analysis that compares crop rotations for this field and shows why each one fits or not.</p>
+      <ButtonLink to={analysisSetupPath(search)} variant="primary" size="lg" block>
+        Get analysis
+        <Icon name="arrow-right" />
+      </ButtonLink>
+      {selection && <SaveFieldButton selection={selection} />}
+      <p className={s.fine}>
+        Each value says if it was measured, modeled or estimated. The nitrogen figure is an estimate, not a soil lab test.
+      </p>
+    </Panel>
+  );
 
   return (
     <>
-      <Container as="section" className={s.intro} aria-labelledby="field-title">
-        <ButtonLink to={ROUTES.pickField} variant="link" className={s.back}>
-          <Icon name="arrow-left" size={18} />
-          Choose a different field
-        </ButtonLink>
-        <h1 id="field-title" className={s.title}>
-          {title}
-        </h1>
-        <p className={s.meta}>
-          {selection ? <span>{countyLine(selection)}</span> : query.isPending && <Skeleton width={160} height={20} />}
-          {area && <span>{area}</span>}
-          {point && <span className={s.coords}>{formatLatLon(point)}</span>}
-        </p>
-      </Container>
-
-      <Container as="div" className={s.columns}>
-        <div className={s.main}>
-          <BaseConditions query={query} />
-        </div>
-
-        <aside className={s.aside} aria-label="Field outline and next step">
-          {!query.isError && <FieldSketch selection={selection} />}
-          <Card compact className={s.cta}>
-            <h2 className={s.ctaTitle}>Want the full picture?</h2>
-            <p className={s.muted}>
-              Request an analysis and we send you a package of datasets our data science team selected for this field.
-            </p>
-            <GetAnalysisButton
-              selection={analysisRef}
-              disabledReason={
-                query.isError ? "Available once this field's base conditions load." : "Available once the field has loaded."
-              }
-            />
-            <p className={s.small}>The nitrogen index is an estimate. It is not a soil lab test.</p>
-          </Card>
-        </aside>
-      </Container>
+      <PageIntro
+        back={{ to: ROUTES.pickField, label: "Back to pick a field" }}
+        title="Base conditions"
+        lead={selection ? placeLine(selection) : "Estimated field area."}
+      />
+      <div aria-live="polite" className="visually-hidden">
+        {query.isPending ? "Loading base conditions." : query.isError ? "Base conditions could not be loaded." : "Base conditions loaded."}
+      </div>
+      <PageColumns main={main} aside={aside} asideLabel="Next step" />
     </>
   );
 }
 
 function MissingLocation({ problem }: { problem: "missing" | "invalid" }) {
   return (
-    <Container as="section" className={s.intro} aria-labelledby="field-title">
-      <h1 id="field-title" className={s.title}>
-        Pick a field first
-      </h1>
-      <div className={s.missing}>
+    <>
+      <PageIntro title="Pick a field first" />
+      <Container>
+        <div className={s.missing}>
         <Message tone="error" role="alert">
           {problem === "missing"
             ? "This link doesn't say which field to show."
@@ -102,7 +130,8 @@ function MissingLocation({ problem }: { problem: "missing" | "invalid" }) {
           Pick your field
           <Icon name="arrow-right" />
         </ButtonLink>
-      </div>
-    </Container>
+        </div>
+      </Container>
+    </>
   );
 }

@@ -1,0 +1,141 @@
+.crumbs {
+  padding: 4px;
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+}
+.crumbList {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crumbItem {
+  display: flex;
+  align-items: center;
+  color: var(--color-ink-muted);
+}
+.crumb {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-control-inner);
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+  font-weight: 500;
+  cursor: pointer;
+}
+.crumb:hover {
+  background: var(--color-paper-wash);
+}
+.crumb[aria-current] {
+  font-weight: 600;
+}
+.jump {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-height: 46px;
+  padding: 0 var(--s-8) 0 var(--s-12);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+}
+.jumpLabel {
+  font-size: var(--text-small);
+  color: var(--color-ink-muted);
+}
+.jumpSelect {
+  min-height: 36px;
+  padding: 0 var(--s-8);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-control-inner);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-8);
+}
+.cardTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 26px;
+}
+.cardTitleSmall {
+  font-weight: 600;
+}
+.close {
+  width: 44px;
+  height: 44px;
+  margin: -6px -10px -6px 0;
+  border: 0;
+  border-radius: var(--radius-control-inner);
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.close:hover {
+  background: var(--color-paper-wash);
+}
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-8);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.mono12 {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  overflow-wrap: anywhere;
+}
+.mono13 {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-ink);
+}
+.open {
+  margin-top: var(--s-16);
+}
+.fine {
+  margin-top: var(--s-12);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+.muted {
+  margin-top: var(--s-4);
+  color: var(--color-ink-muted);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+}
+.strongLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-min);
+  font-weight: 600;
+}
+.error {
+  margin-top: var(--s-8);
+  color: var(--color-error-fg);
+  font-size: var(--text-small);
+}

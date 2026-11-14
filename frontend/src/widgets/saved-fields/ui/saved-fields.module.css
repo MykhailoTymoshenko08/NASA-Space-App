@@ -1,0 +1,208 @@
+.muted {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.small {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+
+/* Empty state */
+.empty {
+  max-width: 560px;
+  padding: var(--s-32);
+  border-radius: var(--radius-stage);
+  border: 1px dashed var(--color-line-control);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+}
+.emptyTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 30px;
+}
+.emptyCta {
+  align-self: flex-start;
+}
+
+/* Selection bar */
+.selBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-16);
+  padding: var(--s-16) var(--s-20);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+.selText {
+  font-weight: 600;
+}
+
+/* Cards */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: var(--s-20);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+.cardOn {
+  border: 2px solid var(--color-green-700);
+}
+.sketch {
+  background: var(--color-map-ground);
+  display: flex;
+  justify-content: center;
+}
+.sketch svg {
+  width: 100%;
+}
+.body {
+  padding: var(--s-16) 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-12);
+}
+.title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-4);
+  line-height: var(--text-title-4-lh);
+}
+.coords {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+}
+.id {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  color: var(--color-ink-muted);
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-8);
+  margin-top: var(--s-8);
+}
+.actions label {
+  padding-top: 0;
+  align-items: center;
+  font-size: var(--text-small);
+  font-weight: 500;
+}
+.right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+.remove {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.remove:hover {
+  background: var(--color-paper-wash);
+}
+
+/* Compare table */
+.tableWrap {
+  overflow-x: auto;
+  border-radius: var(--radius-stage);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+.table {
+  min-width: 640px;
+}
+.row {
+  display: grid;
+  border-top: 1px solid var(--color-line-soft);
+}
+.headRow {
+  border-top: 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.colHeadLabel {
+  padding: var(--s-16) var(--s-20);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.colHead {
+  padding: var(--s-16) var(--s-20);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.colTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 26px;
+}
+.rowHead {
+  padding: var(--s-16) var(--s-20);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rowLabel {
+  font-weight: 600;
+}
+.cell {
+  padding: var(--s-16) var(--s-20);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-8);
+  min-width: 0;
+}
+.cellText {
+  font-weight: 500;
+  font-size: var(--text-body);
+  line-height: 22px;
+}
+.cellBig {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 28px;
+}
+.cellNa {
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}

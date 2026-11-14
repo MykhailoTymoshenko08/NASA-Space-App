@@ -1,0 +1,88 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.label {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  font-weight: 500;
+}
+.input {
+  width: 100%;
+  min-height: var(--control-md);
+  padding: 0 var(--s-12);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-control);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+}
+.input.invalid {
+  border: 2px solid var(--color-error-fg);
+}
+.select {
+  padding-right: var(--s-8);
+}
+.inputPadded {
+  padding-right: 96px;
+}
+.withButton {
+  position: relative;
+}
+.reveal {
+  position: absolute;
+  right: 4px;
+  top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-min);
+  padding: 0 var(--s-12);
+  border: 0;
+  border-radius: var(--radius-control-inner);
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+  font-weight: 500;
+  cursor: pointer;
+}
+.reveal:hover {
+  background: var(--color-paper-wash);
+}
+.hint {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-error-fg);
+}
+.error > svg {
+  margin-top: 1px;
+}
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: var(--control-min);
+  padding-top: 11px;
+  font-size: 15px;
+  line-height: 22px;
+  cursor: pointer;
+}
+.checkBox {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-green-700);
+}

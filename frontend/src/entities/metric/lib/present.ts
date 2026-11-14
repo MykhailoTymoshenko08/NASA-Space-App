@@ -1,89 +1,81 @@
 import type { Metric } from "@/shared/api";
-import { formatDistance, toDisplay } from "@/shared/lib";
+import { formatDate, formatDistance, toDisplay } from "@/shared/lib";
 
-export type QualityBadge = { tone: "info" | "neutral"; text: string };
+export type QualityTone = "success" | "info" | "warning" | "neutral";
 
-export type PresentedMetric =
-  | {
-      status: "ok";
-      value: string;
-      unit: string;
-      badge: QualityBadge | null;
-      when: string | null;
-      sourceName: string;
-      note: string | null;
-      coarseWarning: string | null;
-    }
-  | { status: "unavailable"; sourceName: string; reason: string };
-
-/** A metric is "much coarser" than the field when its grid cell is this many times the field's side. */
-export const COARSE_FACTOR = 3;
-
-const dateFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-const shortFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-const parseDate = (iso: string) => new Date(`${iso}T00:00:00Z`);
-
-export const sourceName = (m: Metric) => {
-  const { dataset, provider } = m.source;
-  return dataset.toLowerCase().startsWith(provider.toLowerCase()) ? dataset : `${provider} ${dataset}`;
+/** Every metric shows how it was obtained. Text carries the meaning; tone only supports it. */
+export const QUALITY: Record<Metric["quality"], { label: string; tone: QualityTone }> = {
+  measured: { label: "Measured", tone: "success" },
+  modeled: { label: "Modeled", tone: "info" },
+  estimated: { label: "Estimate", tone: "warning" },
+  unavailable: { label: "Not available", tone: "neutral" },
 };
 
-function whenText(m: Metric): string | null {
+export type PresentedMetric = {
+  key: string;
+  label: string;
+  available: boolean;
+  value: string;
+  unit: string;
+  quality: { label: string; tone: QualityTone };
+  when: string;
+  source: string;
+  pixel: string | null;
+  /** The data cell is wider than this field: one reading covers many fields. */
+  coarse: boolean;
+  /** Backend note, or the reason a value is unavailable. */
+  note: string | null;
+};
+
+const shortFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+function whenText(m: Metric): string {
   if (m.period?.start && m.period.end) {
-    return `Average, ${shortFmt.format(parseDate(m.period.start))} to ${dateFmt.format(parseDate(m.period.end))}`;
+    return `${shortFmt.format(new Date(`${m.period.start}T00:00:00Z`))} to ${formatDate(m.period.end)}`;
   }
-  return m.as_of ? `As of ${dateFmt.format(parseDate(m.as_of))}` : null;
+  return m.as_of ? `As of ${formatDate(m.as_of)}` : "Long-term value";
 }
 
-function badgeFor(m: Metric): QualityBadge | null {
-  if (m.quality === "estimated") return { tone: "info", text: "Estimate" };
-  if (m.quality === "modeled") return { tone: "neutral", text: "Modeled" };
-  return null;
-}
+/** Warn when the data cell is larger than the field (contract: resolution_m vs field size). */
+export const isCoarse = (resolutionM: number | null | undefined, fieldSizeM: number | null) =>
+  resolutionM != null && fieldSizeM != null && resolutionM > fieldSizeM;
 
-/** Warn when the data grid is much bigger than the field, so the value is a regional average. */
-export function coarseWarning(resolutionM: number | null, fieldAreaHa: number | null): string | null {
-  if (resolutionM == null || fieldAreaHa == null || fieldAreaHa <= 0) return null;
-  const fieldSideM = Math.sqrt(fieldAreaHa * 10_000);
-  if (resolutionM < fieldSideM * COARSE_FACTOR) return null;
-  return `Coarse data: a regional average over about ${formatDistance(resolutionM)}, not just your field.`;
-}
-
-/** Turn one contract Metric into what a card shows. Never invents a value. */
-export function presentMetric(m: Metric, fieldAreaHa: number | null): PresentedMetric {
-  const name = sourceName(m);
-  if (m.quality === "unavailable" || m.value === null) {
-    return { status: "unavailable", sourceName: name, reason: m.unavailable_reason || "No reason was given." };
-  }
-  const display = toDisplay(m.value, m.unit);
+/** One contract Metric as a card shows it. Never hides or invents a value. */
+export function presentMetric(m: Metric, fieldSizeM: number | null): PresentedMetric {
+  const available = m.quality !== "unavailable" && m.value !== null;
+  const display = available ? toDisplay(m.value as number | string, m.unit) : { value: "Not available", unit: "" };
   return {
-    status: "ok",
+    key: m.key,
+    label: m.label,
+    available,
     value: display.value,
     unit: display.unit,
-    badge: badgeFor(m),
+    quality: QUALITY[m.quality] ?? { label: "Unknown", tone: "neutral" },
     when: whenText(m),
-    sourceName: name,
-    note: m.note ?? null,
-    coarseWarning: coarseWarning(m.resolution_m, fieldAreaHa),
+    source: `${m.source.dataset}, ${m.source.provider}`,
+    pixel: m.resolution_m ? `Pixel about ${formatDistance(m.resolution_m)}` : null,
+    coarse: available && isCoarse(m.resolution_m, fieldSizeM),
+    note: available ? (m.note ?? null) : m.unavailable_reason || "Not available right now.",
   };
 }
 
-export type SourceStatus = "done" | "partial" | "no-answer";
-export type SourceRow = { name: string; url: string | null; measures: string[]; status: SourceStatus };
+const GROUPS: { category: string; title: string }[] = [
+  { category: "moisture", title: "Moisture" },
+  { category: "atmosphere", title: "Air" },
+  { category: "temperature", title: "Temperature" },
+  { category: "precipitation", title: "Rain" },
+  { category: "soil", title: "Soil" },
+  { category: "terrain", title: "Terrain" },
+  { category: "vegetation", title: "Plants" },
+];
 
-/** Group metrics by data source for the "Where the numbers come from" list. */
-export function groupSources(metrics: readonly Metric[]): SourceRow[] {
-  const rows = new Map<string, SourceRow & { ok: number; total: number }>();
-  for (const m of metrics) {
-    const name = sourceName(m);
-    const row = rows.get(name) ?? { name, url: m.source.url ?? null, measures: [], status: "done", ok: 0, total: 0 };
-    row.measures.push(m.label.toLowerCase());
-    row.total += 1;
-    if (m.quality !== "unavailable" && m.value !== null) row.ok += 1;
-    rows.set(name, row);
-  }
-  return [...rows.values()].map(({ ok, total, ...row }) => ({
-    ...row,
-    status: ok === total ? "done" : ok === 0 ? "no-answer" : "partial",
-  }));
+export type MetricGroup = { category: string; title: string; metrics: Metric[] };
+
+/** Metrics grouped by category in the design's order. Unknown categories go last, never dropped. */
+export function groupMetrics(metrics: readonly Metric[]): MetricGroup[] {
+  const known = GROUPS.map((g) => ({ ...g, metrics: metrics.filter((m) => m.category === g.category) }));
+  const knownSet = new Set(GROUPS.map((g) => g.category));
+  const others = metrics.filter((m) => !knownSet.has(m.category));
+  const extra = others.length ? [{ category: "other", title: "Other", metrics: others }] : [];
+  return [...known, ...extra].filter((g) => g.metrics.length > 0);
 }

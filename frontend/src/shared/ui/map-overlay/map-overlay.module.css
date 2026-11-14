@@ -1,0 +1,177 @@
+.stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-stage);
+  border: 1px solid var(--color-line-control);
+  background: var(--color-map-ground);
+}
+@media (max-width: 600px) {
+  .stage {
+    height: 560px !important;
+  }
+}
+
+.controls {
+  position: absolute;
+  top: var(--s-16);
+  right: var(--s-16);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-8);
+}
+.zoom {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+}
+.ctl {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ctl:last-child {
+  border-bottom: 0;
+}
+.ctl:hover {
+  background: var(--color-paper-wash);
+}
+.scale {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-8) var(--s-12);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+}
+.scaleStep {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-line);
+}
+.scaleOn {
+  background: var(--color-green-700);
+}
+
+.top {
+  position: absolute;
+  top: var(--s-16);
+  left: var(--s-16);
+  right: 80px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-8);
+  pointer-events: none;
+}
+.top > * {
+  pointer-events: auto;
+}
+
+.bottom {
+  position: absolute;
+  left: var(--s-16);
+  right: var(--s-16);
+  bottom: var(--s-16);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-12);
+  pointer-events: none;
+}
+.bottom > * {
+  pointer-events: auto;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: var(--s-12) 14px;
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+}
+.legendTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+}
+.swatch {
+  width: 18px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+.legendNote {
+  max-width: 240px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+
+.hint {
+  padding: 10px var(--s-16);
+  border-radius: var(--radius-pill);
+  background: var(--color-ink);
+  color: var(--color-white);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  box-shadow: var(--shadow-2);
+}
+
+.card {
+  width: 320px;
+  max-width: 100%;
+  padding: var(--s-16);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-control);
+  box-shadow: var(--shadow-2);
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-12);
+  padding: var(--s-32);
+  text-align: center;
+  color: var(--color-ink-muted);
+  background: var(--color-map-ground);
+}
+.emptyText {
+  max-width: 320px;
+}

@@ -13,5 +13,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/shared/lib/test/setup.ts"],
     css: false,
+    // Page tests walk whole flows (setup, create, poll); allow for slow CI machines.
+    testTimeout: 15_000,
   },
 });

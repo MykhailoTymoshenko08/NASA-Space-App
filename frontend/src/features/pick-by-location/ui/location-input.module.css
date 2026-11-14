@@ -1,0 +1,22 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+}
+.invalid input {
+  border: 2px solid var(--color-error-fg);
+}
+.tips {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.pending {
+  font-size: var(--text-small);
+  color: var(--color-ink-muted);
+}

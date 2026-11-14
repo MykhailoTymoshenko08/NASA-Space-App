@@ -1,0 +1,43 @@
+.pad {
+  padding-top: var(--s-48);
+  padding-bottom: var(--s-96);
+}
+.signedOut {
+  max-width: 560px;
+  padding: var(--s-32);
+  border-radius: var(--radius-stage);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+}
+.h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 36px;
+  line-height: 40px;
+  letter-spacing: -0.02em;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-20);
+  padding-bottom: var(--s-64);
+}
+.compareBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-12);
+}
+.muted {
+  font-size: var(--text-small);
+  color: var(--color-ink-muted);
+}
+.fine {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}

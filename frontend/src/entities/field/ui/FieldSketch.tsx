@@ -1,42 +1,36 @@
 import type { FieldSelection } from "@/shared/api";
 import { projectToBox } from "@/shared/lib";
-import { Skeleton } from "@/shared/ui/feedback";
-import { boundaryNote, fieldTitle } from "../lib/describe";
-import s from "./field-sketch.module.css";
-
-const W = 320;
-const H = 200;
+import { fieldKind, isBuffered } from "../lib/describe";
+import s from "./field.module.css";
 
 /**
- * The selected field drawn from its own geometry. Neighbours are not drawn:
- * fields come only from vector tiles, never as bulk GeoJSON.
+ * The selected field drawn from its own geometry (one feature from the API, never bulk GeoJSON).
+ * Polygon: solid outline. Buffered circle: dashed outline, because it is not a field.
  */
-export function FieldSketch({ selection }: { selection: FieldSelection | null }) {
-  if (!selection) {
-    return (
-      <figure className={s.figure}>
-        <div className={s.stage}>
-          <Skeleton height={H} soft />
-        </div>
-        <figcaption className={s.caption}>Loading the field outline…</figcaption>
-      </figure>
-    );
-  }
-
-  const { paths, point } = projectToBox(selection.geometry.coordinates, W, H, 24, selection.anchor);
-  const buffered = selection.resolved_by === "buffered_point";
-
+export function FieldSketch({
+  selection,
+  width = 220,
+  height = 160,
+}: {
+  selection: FieldSelection;
+  width?: number;
+  height?: number;
+}) {
+  const { paths, point } = projectToBox(selection.geometry.coordinates, width, height, 20, selection.anchor);
+  const buffered = isBuffered(selection);
   return (
-    <figure className={s.figure}>
-      <div className={s.stage}>
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`${fieldTitle(selection)}, drawn as a sketch`}>
-          {paths.length > 0 && (
-            <path d={paths.join(" ")} className={buffered ? s.buffer : s.field} fillRule="evenodd" />
-          )}
-          {point && <circle cx={point.x} cy={point.y} r={6} className={s.anchor} />}
-        </svg>
-      </div>
-      <figcaption className={s.caption}>{boundaryNote(selection)}</figcaption>
-    </figure>
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width={width}
+      height={height}
+      role="img"
+      aria-label={`Sketch of the ${fieldKind(selection).toLowerCase()}`}
+      className={s.sketch}
+    >
+      {paths.length > 0 && (
+        <path d={paths.join(" ")} className={buffered ? s.buffer : s.polygon} fillRule="evenodd" />
+      )}
+      {point && <circle cx={point.x} cy={point.y} r={6} className={s.anchor} />}
+    </svg>
   );
 }

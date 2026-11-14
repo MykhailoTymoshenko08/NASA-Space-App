@@ -73,3 +73,17 @@ p {
 .skip-link:focus {
   top: var(--s-16);
 }
+
+/* Export to PDF prints the result page: drop site chrome and interactive-only controls. */
+@media print {
+  body {
+    background: var(--color-white);
+  }
+  .skip-link,
+  body > #root > header,
+  #root > header,
+  #root > footer,
+  #root [role="note"][data-mock-banner] {
+    display: none !important;
+  }
+}
