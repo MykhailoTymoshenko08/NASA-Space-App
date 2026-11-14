@@ -20,23 +20,26 @@ Frontend → Backend → ML service (FastAPI, this repo). Frontend never calls M
 Full API contract: `docs/api_contract.md`. Endpoints: `GET /ml/health`, `GET /ml/v1/meta/crops`, `POST /ml/v1/analyze`.
 
 ## my scope (ML)
-1. ML model — predicts seasonal crop condition for a field given crop sequence, season climate, soil, terrain
+1. ML model — classifier: how well each candidate crop fits a field, given previous crops, season climate, soil, terrain
 2. agro calculator — water use (Kc × ET0, FAO-56), N fixation, bare days, simplified RUSLE erosion
-3. ranking — candidate rotations (current, + cover crop, + legume, drought-tolerant, perennial), 3 layers:
-   1. filters — agronomic rules from `config/crop_rules.yaml` (Lina): `hard_block` removes a candidate,
-      `penalty` / `bonus` shift its scores (soil pH/EC/clay/SOC, slope, TWI, regional GDD, SMAP, precipitation)
-   2. ML forecast — LightGBM seasonal crop condition (p10/p50/p90)
-   3. calculator + priorities — agro calculator metrics → scores 0-100 → weighted by farmer priority
-      sliders → top 3 + explanations
-   rules file is a draft (thresholds, points and sources are TODO); nothing loads it yet
+3. ranking — which crop to grow next, then rotations built from the ranking (final plan):
+   rules (`config/crop_rules.yaml`) drop forbidden crops with a reason → ML classifier gives each remaining crop
+   a score → multiply by predecessor→crop transitions (`config/transition_matrix.yaml`) → top 3 of different
+   groups (cereal / legume / other) → rotations. candidates: `config/candidate_crops.yaml`
+   model classes: corn, soybean, winter_wheat, sorghum, alfalfa (`model: true`). oats, barley and cereal_rye (cover)
+   are rules-only (`rule_score`, no `model_prob`): too rare in the training states (oats 35 rows, barley 2)
+   rules and transition values are drafts (TODO sources); calculator + priority sliders (old layer 3) stay for the strategy scores
 4. ML service implementing the contract (mock first, then real)
 
-## model plan
-- LightGBM, quantile regression (p10/p50/p90) → `confidence` from interval width
-- target: seasonal peak NDVI (Landsat, from Lina) as deviation from the field's own mean
-- features: crop this year + previous 1-2 crops (CSB), season climate (NASA POWER), soil (SSURGO), slope + TWI (NASADEM), SMAP anomalies
-- validation: leave-one-year-out, compare against baseline (field mean of previous years); report metrics for judges
-- explanations: SHAP top features → template text for `why` / `evidence`
+## model plan (final)
+- LightGBM multiclass classifier, 5 classes, class weights for imbalance
+- table: field × year 2019-2025 (`scripts/04_build_dataset.py`): label = crop this year; features = only what is known
+  before sowing: crop 1 and 2 years ago, climate NORMAL of the POWER cell (one fixed mean per field; a leave-one-year-out mean leaks the current season) + previous season's
+  weather, soil (SSURGO), slope, location. the weather of the season itself is NOT a feature
+- validation: (a) MAIN: grouped by field (fields the model has not seen), (b) leave-one-year-out (same fields).
+  metrics top-1/top-3, macro-F1, log-loss; baselines: corn↔soybean alternation, same as last year, state's most common
+- the NDVI regression idea (Landsat target, quantiles, SHAP) is parked until Lina's data arrives;
+  its dataset script is kept in `scripts/legacy/04_build_ndvi_dataset.py`
 - climate scenario sliders: shift temperature / precipitation features, recompute ET0 (Hargreaves) → re-predict
 
 ## data decisions (agreed)
@@ -67,7 +70,9 @@ put them into `data/lina/`
 - `scripts/02_power_climate.py` — POWER climate features → `data/features/` (climate_season.parquet, climate_monthly.parquet) ✅ written, tested with mocked api
 - `scripts/03_soil_ssurgo.py` — SSURGO topsoil (0-30 cm) via SDA REST → `data/features/soil.parquet` (clay, sand, om, soc, pH, EC, awc, kw, hydgrp, drainage, texture, slope_r) ✅ run on real api, 2000/2000 fields
 - `config/crop_rules.yaml` — agronomic rules + crop parameters from Lina, draft, no loader yet
-- `scripts/04_build_dataset.py`, `scripts/05_train.py` — after Lina's NDVI arrives (can start on synthetic target)
+- `scripts/04_build_dataset.py` — field × year crop table → `data/dataset/crops_train.parquet` (label = crop this year) ✅
+- `scripts/05_train.py` — LightGBM crop classifier, leave-one-year-out, top-3 accuracy, next
+- `ml_service/ranking.py` — rules → model → transitions → top-3 crops, after 05
 - `ml_service/` — FastAPI, mock first
 
 ## conventions

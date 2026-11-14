@@ -1,0 +1,21 @@
+# crops the ranking works with (scripts/04_build_dataset.py, 05_train.py, ml_service/ranking.py).
+#
+# model: true   -> a class of the ML classifier (gets model_prob)
+# model: false  -> rules-only: ranked by the agronomic rules alone (rule_score), no model probability.
+#                  these crops are too rare in the training states (oats 35 rows, barley 2) to learn from;
+#                  cereal_rye is a cover crop and only ever comes from the rules.
+# group  : used to pick a top-3 of different kinds (cereal / legume / other)
+# legume : counts as "legume" for transitions (preceding crop) and for the legume rules
+# cdl codes must match config/crop_rules.yaml (04_build_dataset.py checks).
+version: 1
+status: draft
+
+crops:
+  corn:         {cdl_code: 1,  group: cereal, legume: false, model: true}
+  soybean:      {cdl_code: 5,  group: legume, legume: true,  model: true}
+  winter_wheat: {cdl_code: 24, group: cereal, legume: false, model: true}
+  sorghum:      {cdl_code: 4,  group: cereal, legume: false, model: true}
+  alfalfa:      {cdl_code: 36, group: other,  legume: true,  model: true}    # perennial forage, so its own group
+  oats:         {cdl_code: 28, group: cereal, legume: false, model: false}
+  barley:       {cdl_code: 21, group: cereal, legume: false, model: false}
+  cereal_rye:   {cdl_code: 27, group: cereal, legume: false, model: false, role: cover}

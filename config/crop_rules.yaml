@@ -48,6 +48,8 @@ gdd_base_c: 10   # gdd_to_maturity below uses this base, same as gdd_grow
 dataset_exclusions:
   organic_soil_om_pct_above: 20
 
+# the crop list matches config/candidate_crops.yaml. `rules_only: true` = not a class of the ML model, the crop
+# is ranked by rules alone (rule_score, no model probability): oats, barley, cereal_rye (cover crop).
 # tags used by rules: row_crop, cereal, legume, winter_annual, drought_tolerant, salt_tolerant, root_crop
 # sensitivities: low | medium | high
 crops:
@@ -81,6 +83,7 @@ crops:
   oats:
     cdl_code: 28
     type: cash
+    rules_only: true
     gdd_to_maturity: 900
     min_ph: 5.0
     salinity_sensitivity: medium
@@ -108,21 +111,23 @@ crops:
   cereal_rye:
     cdl_code: 27
     type: cover
+    rules_only: true
     gdd_to_maturity: null      # cover crop, terminated before maturity
     min_ph: 4.5
     salinity_sensitivity: low
     clay_sensitivity: low
     row_crop: false
     tags: [winter_annual, salt_tolerant]
-  field_pea:
-    cdl_code: 53
-    type: legume
-    gdd_to_maturity: 800
-    min_ph: 5.5
-    salinity_sensitivity: high
-    clay_sensitivity: medium
+  barley:                      # rules-only, like oats and cereal_rye
+    cdl_code: 21
+    type: cash
+    rules_only: true
+    gdd_to_maturity: 900       # spring barley, deg C-days; TODO confirm
+    min_ph: 6.0                # barley is more acid-sensitive than other small grains; TODO confirm
+    salinity_sensitivity: low
+    clay_sensitivity: low
     row_crop: false
-    tags: [legume]
+    tags: [cereal, salt_tolerant]
 
 rules:
   - id: monoculture
@@ -216,7 +221,6 @@ rules:
 
   - id: high_salinity_tolerant_crops
     description: high soil salinity favours salt-tolerant crops
-    # barley is not in the candidate list yet; kept here so the rule works once it is added
     applies_to: {crops: [cereal_rye, barley]}
     when:
       - {var: soil.ec_ds_m, op: ">", value: 4}
