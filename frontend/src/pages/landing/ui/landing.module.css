@@ -50,7 +50,17 @@
   color: var(--color-green-700);
 }
 
-/* Map stage (placeholder until the map API exists) */
+/*
+ * Map. Desktop: inside the page container and one window tall minus a margin, so once centered
+ * (LandingPage: useCenterOnApproach) only the map shows. The wheel keeps scrolling the page over the
+ * map (ExploreMap: Ctrl + wheel zooms). Phones keep the map from shared/ui/map-overlay.
+ */
+@media (min-width: 761px) {
+  .mapStage.mapStage {
+    height: calc(100vh - 2 * var(--s-24)) !important;
+    height: calc(100dvh - 2 * var(--s-24)) !important;
+  }
+}
 
 /* How it works */
 .how {

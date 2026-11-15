@@ -113,7 +113,7 @@ const legendFor = (
  * Landing map: country, state, county, then estimated field areas (zoom 12+ from the PMTiles file).
  * Clicking a field calls GET /fields/{id} and offers "Open field".
  */
-export function ExploreMap() {
+export function ExploreMap({ className }: { className?: string } = {}) {
   const coverage = useCoverage();
   const states = useStates();
   const config = useMemo(() => mapConfigFrom(coverage.data), [coverage.data]);
@@ -349,7 +349,7 @@ export function ExploreMap() {
     : null;
 
   return (
-    <MapStage height={720}>
+    <MapStage height={720} className={className}>
       <FieldMap
         ref={mapRef}
         config={config}
@@ -361,6 +361,7 @@ export function ExploreMap() {
         townshipsFollowFocus
         outerBBox={CONUS_BBOX}
         bounds={bounds}
+        pageScrollsOverMap
         ariaLabel="Map of the contiguous United States. Zoom from states to counties and estimated field areas."
         onClick={onClick}
         onHover={onHover}
