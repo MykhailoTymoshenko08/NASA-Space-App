@@ -9,7 +9,15 @@ import {
   selectionSearch,
   useFieldSnapshot,
 } from "@/entities/field";
-import { Glossary, MetricGridSkeleton, MetricGroups, SourcesList, SourcesStrip, useSourceRegistry } from "@/entities/metric";
+import {
+  Glossary,
+  MetricGridSkeleton,
+  MetricGroups,
+  QualitySummary,
+  SourcesList,
+  SourcesStrip,
+  useSourceRegistry,
+} from "@/entities/metric";
 import { SaveFieldButton } from "@/features/save-field";
 import { ApiError, friendlyMessage, type Snapshot } from "@/shared/api";
 import { analysisSetupPath, ROUTES } from "@/shared/config";
@@ -17,13 +25,14 @@ import { useDocumentTitle } from "@/shared/lib";
 import { Button, ButtonLink } from "@/shared/ui/button";
 import { ErrorPanel, Message } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
-import { Container, PageColumns, PageIntro, Panel, SectionTitle } from "@/shared/ui/layout";
+import { Container, PageIntro, Panel, SectionTitle } from "@/shared/ui/layout";
 import { IndeterminateBar } from "@/shared/ui/progress";
 import s from "./field-page.module.css";
 
 /**
  * /field?field_id=.. (or ?lat=..&lon=..). One POST /snapshots returns the resolved field and its metrics,
  * grouped by category. Every value shows its quality, source and pixel size.
+ * Layout: the field card beside the "Get analysis" panel, then full-width metric tiles, sources and glossary.
  */
 export function FieldPage() {
   useDocumentTitle("Base conditions");
@@ -43,17 +52,14 @@ export function FieldPage() {
         point: parsed.request.point,
       });
 
-  const main = (
+  const head = (
     <>
       {query.isPending && (
-        <>
-          <Panel gap={14} role="status">
-            <SectionTitle>Reading NASA data for this field</SectionTitle>
-            <IndeterminateBar />
-            <p className={s.muted}>This usually takes under 2 seconds.</p>
-          </Panel>
-          <MetricGridSkeleton />
-        </>
+        <Panel gap={14} role="status" className={s.loading}>
+          <SectionTitle>Reading NASA data for this field</SectionTitle>
+          <IndeterminateBar />
+          <p className={s.muted}>This usually takes under 2 seconds.</p>
+        </Panel>
       )}
 
       {query.isError && (
@@ -75,13 +81,19 @@ export function FieldPage() {
         />
       )}
 
-      {snapshot && <FieldConditions snapshot={snapshot} />}
+      {snapshot && <FieldOverview selection={snapshot.selection} />}
     </>
   );
 
-  const aside = (
-    <Panel gap={14}>
-      <SectionTitle>Want the full picture?</SectionTitle>
+  // Next step sits beside the field card, so on phones it comes right after it, not under every metric.
+  const next = (
+    <Panel gap={14} className={s.cta}>
+      <div className={s.ctaHead}>
+        <span className={s.ctaIcon} aria-hidden="true">
+          <Icon name="layers" size={22} />
+        </span>
+        <SectionTitle>Want the full picture?</SectionTitle>
+      </div>
       <p className={s.muted}>Get an analysis that compares crop rotations for this field and shows why each one fits or not.</p>
       <ButtonLink to={analysisSetupPath(search)} variant="primary" size="lg" block>
         Get analysis
@@ -104,18 +116,31 @@ export function FieldPage() {
       <div aria-live="polite" className="visually-hidden">
         {query.isPending ? "Loading base conditions." : query.isError ? "Base conditions could not be loaded." : "Base conditions loaded."}
       </div>
-      <PageColumns main={main} aside={aside} asideLabel="Next step" stickyAside />
+      <Container className={s.top}>
+        <div className={s.head}>{head}</div>
+        <aside className={s.next} aria-label="Next step">
+          {next}
+        </aside>
+      </Container>
+      {(query.isPending || snapshot) && (
+        <Container className={s.body}>
+          {query.isPending && <MetricGridSkeleton />}
+          {snapshot && <FieldConditions snapshot={snapshot} />}
+        </Container>
+      )}
     </>
   );
 }
 
-/** Loaded state: the field, the source strip, metric groups, then the full Sources list and Glossary. */
+/** Loaded state: quality summary and sources, metric groups, then the full Sources list and Glossary. */
 function FieldConditions({ snapshot }: { snapshot: Snapshot }) {
   const registry = useSourceRegistry(snapshot.metrics);
   return (
     <>
-      <FieldOverview selection={snapshot.selection} />
-      <SourcesStrip registry={registry} />
+      <div className={s.overviewRow}>
+        <QualitySummary metrics={snapshot.metrics} />
+        <SourcesStrip registry={registry} />
+      </div>
       <MetricGroups metrics={snapshot.metrics} fieldSizeM={fieldSizeM(snapshot.selection.area_ha)} registry={registry} />
       <p className={s.fine}>Values from the API are metric and shown here in US units.</p>
       <SourcesList registry={registry} />

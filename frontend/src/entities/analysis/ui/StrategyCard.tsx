@@ -36,12 +36,11 @@ export function StrategyCard({ strategy: st, index, baselineScore, open, onToggl
           <p>{st.summary}</p>
         </div>
         <div className={s.score}>
-          <div className={s.scoreValue}>
-            {Math.round(st.score)}
-            <span className={s.scoreMax}> / 100</span>
+          <ScoreRing score={st.score} best={index === 0} />
+          <div className={s.scoreText}>
+            <div className={s.delta}>{deltaText(st, baselineScore)}</div>
+            <div className={s.confidence}>{confidenceText(st.confidence)}</div>
           </div>
-          <div className={s.muted}>{deltaText(st, baselineScore)}</div>
-          <div className={s.confidence}>{confidenceText(st.confidence)}</div>
         </div>
       </div>
 
@@ -50,7 +49,7 @@ export function StrategyCard({ strategy: st, index, baselineScore, open, onToggl
           {[...st.rotation]
             .sort((a, b) => a.season_index - b.season_index)
             .map((r) => (
-              <li key={r.season_index} className={s.season}>
+              <li key={r.season_index} className={s.season} data-role={r.role}>
                 <span className={s.seasonWhen}>Season {r.season_index + 1}</span>
                 <span className={s.seasonCrop}>{r.crop}</span>
                 <span className={s.seasonRole}>{ROLE_LABEL[r.role] ?? r.role}</span>
@@ -102,6 +101,33 @@ export function StrategyCard({ strategy: st, index, baselineScore, open, onToggl
         )}
       </div>
     </article>
+  );
+}
+
+/** Score out of 100 as a ring; the number inside is the text, the ring only supports it. */
+function ScoreRing({ score, best }: { score: number; best: boolean }) {
+  const value = Math.round(score);
+  const pct = Math.max(0, Math.min(100, score)) / 100;
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className={`${s.ring} ${best ? s.ringBest : ""}`}>
+      <svg viewBox="0 0 72 72" aria-hidden="true" className={s.ringSvg}>
+        <circle cx="36" cy="36" r={r} className={s.ringTrack} />
+        <circle
+          cx="36"
+          cy="36"
+          r={r}
+          className={s.ringValue}
+          strokeDasharray={`${(c * pct).toFixed(1)} ${c.toFixed(1)}`}
+          transform="rotate(-90 36 36)"
+        />
+      </svg>
+      <div className={s.scoreValue}>
+        {value}
+        <span className={s.scoreMax}> / 100</span>
+      </div>
+    </div>
   );
 }
 

@@ -4,7 +4,7 @@ import { Badge, Skeleton } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import { SectionTitle } from "@/shared/ui/layout";
 import { GLOSSARY, HINTS, readingFor } from "../lib/glossary";
-import { groupMetrics, presentMetric } from "../lib/present";
+import { groupMetrics, presentMetric, QUALITY } from "../lib/present";
 import { buildSourceRegistry, type SourceEntry, type SourceRegistry } from "../lib/sources";
 import s from "./metric-card.module.css";
 
@@ -20,46 +20,62 @@ type CardProps = {
 };
 
 /**
- * One measure as a row (DS "Base conditions"): label (+ info hint for NDVI, ET and anomaly) and a reading,
- * the quality pill over the value with its unit, then date · source · pixel size, coarse warning and notes.
- * Stacks to one column on narrow screens.
+ * One measure as a tile: label (+ info hint for NDVI, ET and anomaly) with the quality pill, the value with its
+ * unit, a plain-language reading, then date · source · pixel size, coarse warning and notes in the footer.
+ * Tiles sit in a responsive grid: three across on wide screens, one on phones.
  */
 export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = false, onToggleHint }: CardProps) {
   const m = presentMetric(metric, fieldSizeM);
   const hint = HINTS[m.key];
   const hintId = `hint-${m.key}`;
   return (
-    <article className={s.card} aria-labelledby={`metric-${m.key}`}>
-      <div className={s.labelCol}>
-        <div className={s.head}>
-          <h3 id={`metric-${m.key}`} className={s.label}>
-            {m.label}
-          </h3>
-          {hint && onToggleHint && (
-            <button
-              type="button"
-              className={s.hintBtn}
-              aria-label={`What is ${m.label}?`}
-              aria-expanded={hintOpen}
-              aria-controls={hintId}
-              onClick={onToggleHint}
-            >
-              <Icon name="help" size={20} />
-            </button>
-          )}
-        </div>
-        {reading && <div className={s.reading}>{reading}</div>}
+    <article className={s.card} data-quality={metric.quality} aria-labelledby={`metric-${m.key}`}>
+      <div className={s.head}>
+        <h3 id={`metric-${m.key}`} className={s.label}>
+          {m.label}
+        </h3>
+        {hint && onToggleHint && (
+          <button
+            type="button"
+            className={s.hintBtn}
+            aria-label={`What is ${m.label}?`}
+            aria-expanded={hintOpen}
+            aria-controls={hintId}
+            onClick={onToggleHint}
+          >
+            <Icon name="help" size={20} />
+          </button>
+        )}
       </div>
-      <div className={s.valueCol}>
+      <div className={s.valueRow}>
+        <span className={m.available ? s.value : s.valueMissing}>{m.value}</span>
+        {m.unit && <span className={s.unit}>{m.unit}</span>}
         <span className={s.quality}>
           <Badge tone={m.quality.tone}>{m.quality.label}</Badge>
         </span>
-        <div className={s.valueRow}>
-          <span className={m.available ? s.value : s.valueMissing}>{m.value}</span>
-          {m.unit && <span className={s.unit}>{m.unit}</span>}
-        </div>
       </div>
+      {reading && <div className={s.reading}>{reading}</div>}
+      {hint && hintOpen && (
+        <div id={hintId} role="note" className={s.hint}>
+          <div>
+            <strong>What it is.</strong> {hint.what}
+          </div>
+          <div>
+            <strong>How to read it.</strong> {hint.read}
+          </div>
+          <a href={`#${hint.glossaryId}`} className={s.link}>
+            See it in the glossary
+          </a>
+        </div>
+      )}
       <div className={s.metaCol}>
+        {m.note && <div className={s.note}>{m.note}</div>}
+        {m.coarse && (
+          <div className={s.coarse}>
+            <Icon name="warning" size={16} />
+            <span>Wider than this field. One reading covers many fields around it.</span>
+          </div>
+        )}
         <div className={s.metaLine}>
           <span>{m.when}</span>
           <span aria-hidden="true">·</span>
@@ -81,32 +97,17 @@ export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = fal
             </>
           )}
         </div>
-        {m.coarse && (
-          <div className={s.coarse}>
-            <Icon name="warning" size={16} />
-            <span>Wider than this field. One reading covers many fields around it.</span>
-          </div>
-        )}
-        {m.note && <div className={s.note}>{m.note}</div>}
       </div>
-      {hint && hintOpen && (
-        <div id={hintId} role="note" className={s.hint}>
-          <div>
-            <strong>What it is.</strong> {hint.what}
-          </div>
-          <div>
-            <strong>How to read it.</strong> {hint.read}
-          </div>
-          <a href={`#${hint.glossaryId}`} className={s.link}>
-            See it in the glossary
-          </a>
-        </div>
-      )}
     </article>
   );
 }
 
-/** Metrics in category sections ("Moisture", "Air", ...), as on the Field and Analysis pages. */
+const groupId = (category: string) => `metrics-${category}`;
+
+/**
+ * Metrics in category sections ("Moisture", "Air", ...), as on the Field and Analysis pages.
+ * A row of chips above them jumps to each group, which saves a long scroll on phones.
+ */
 export function MetricGroups({
   metrics,
   fieldSizeM,
@@ -121,29 +122,76 @@ export function MetricGroups({
 }) {
   // One hint open at a time.
   const [hint, setHint] = useState<string | null>(null);
+  const groups = groupMetrics(metrics);
   return (
     <>
-      {groupMetrics(metrics).map((g) => (
-        <section key={g.category} className={s.group} aria-label={g.title}>
-          <SectionTitle as={headingLevel === 2 ? "h2" : "h3"} className={s.groupTitle}>
-            {g.title}
-          </SectionTitle>
-          <div className={s.rows}>
-            {g.metrics.map((m) => (
-              <MetricCard
-                key={m.key}
-                metric={m}
-                fieldSizeM={fieldSizeM}
-                source={registry?.forMetric(m.key)}
-                reading={readingFor(m, metrics)}
-                hintOpen={hint === m.key}
-                onToggleHint={() => setHint((h) => (h === m.key ? null : m.key))}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      {groups.length > 1 && (
+        <nav className={s.jump} aria-label="Jump to a group of values">
+          {groups.map((g) => (
+            <a key={g.category} href={`#${groupId(g.category)}`} className={s.jumpLink}>
+              <span className={s.dot} data-category={g.category} aria-hidden="true" />
+              {g.title}
+              <span className={s.jumpCount} aria-hidden="true">
+                {g.metrics.length}
+              </span>
+            </a>
+          ))}
+        </nav>
+      )}
+      <div className={s.groups}>
+        {groups.map((g) => (
+          <section key={g.category} id={groupId(g.category)} className={s.group} aria-label={g.title}>
+            <div className={s.groupHead}>
+              <span className={s.dot} data-category={g.category} aria-hidden="true" />
+              <SectionTitle as={headingLevel === 2 ? "h2" : "h3"} className={s.groupTitle}>
+                {g.title}
+              </SectionTitle>
+              <span className={s.groupCount}>
+                {g.metrics.length} {g.metrics.length === 1 ? "value" : "values"}
+              </span>
+            </div>
+            <div className={s.rows}>
+              {g.metrics.map((m) => (
+                <MetricCard
+                  key={m.key}
+                  metric={m}
+                  fieldSizeM={fieldSizeM}
+                  source={registry?.forMetric(m.key)}
+                  reading={readingFor(m, metrics)}
+                  hintOpen={hint === m.key}
+                  onToggleHint={() => setHint((h) => (h === m.key ? null : m.key))}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
     </>
+  );
+}
+
+/** "14 values: 6 measured, 7 modeled, 1 estimate": how much of the page is read directly. */
+export function QualitySummary({ metrics }: { metrics: readonly Metric[] }) {
+  if (metrics.length === 0) return null;
+  const order: Metric["quality"][] = ["measured", "modeled", "estimated", "unavailable"];
+  const counts = order
+    .map((q) => ({ q, n: metrics.filter((m) => m.quality === q).length }))
+    .filter((c) => c.n > 0);
+  return (
+    <div className={s.summary}>
+      <div className={s.summaryTotal}>
+        <span className={s.summaryN}>{metrics.length}</span>
+        <span className={s.summaryLabel}>values for this field</span>
+      </div>
+      <ul className={s.summaryList} aria-label="Values by how they were obtained">
+        {counts.map(({ q, n }) => (
+          <li key={q} className={s.summaryItem}>
+            <Badge tone={QUALITY[q].tone}>{QUALITY[q].label}</Badge>
+            <span className={s.summaryCount}>{n}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -223,7 +271,7 @@ export function MetricGridSkeleton() {
   return (
     <div className={s.grid} aria-hidden="true">
       {Array.from({ length: 6 }, (_, i) => (
-        <Skeleton key={i} height={150} />
+        <Skeleton key={i} height={168} />
       ))}
     </div>
   );

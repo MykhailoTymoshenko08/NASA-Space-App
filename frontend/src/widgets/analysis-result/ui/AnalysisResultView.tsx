@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { priorityText, sortStrategies, StrategyCard, TimeSeriesChart, yearsText } from "@/entities/analysis";
 import { fieldSizeM } from "@/entities/field";
-import { Glossary, MetricGroups, SourcesList, SourcesStrip, useSourceRegistry } from "@/entities/metric";
+import { Glossary, MetricGroups, QualitySummary, SourcesList, SourcesStrip, useSourceRegistry } from "@/entities/metric";
 import type { AnalysisResult, Priority, TimeSeries } from "@/shared/api";
 import { formatDateTime } from "@/shared/lib";
 import { Note } from "@/shared/ui/feedback";
@@ -72,7 +72,10 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
         <h2 id="conditions-title" className={s.h2}>
           Current conditions
         </h2>
-        <SourcesStrip registry={registry} />
+        <div className={s.overviewRow}>
+          <QualitySummary metrics={result.current_conditions} />
+          <SourcesStrip registry={registry} />
+        </div>
         <MetricGroups metrics={result.current_conditions} fieldSizeM={size} registry={registry} headingLevel={3} />
       </section>
 
