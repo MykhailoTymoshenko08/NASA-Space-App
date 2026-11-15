@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { buildFieldSearch, FieldFacts, parseFieldSearch, useFieldSnapshot } from "@/entities/field";
+import { MetricGridSkeleton } from "@/entities/metric";
 import { AnalysisSetupSections, CreateAnalysisPanel, useAnalysisSetup } from "@/features/configure-analysis";
 import { CropBudgetInputs, parseCropBudgets, type CropBudgetDraft } from "@/features/configure-budget";
 import { ApiError, friendlyMessage } from "@/shared/api";
 import { analysisPath, fieldPath, ROUTES } from "@/shared/config";
 import { useDocumentTitle } from "@/shared/lib";
 import { ButtonLink } from "@/shared/ui/button";
-import { ErrorPanel, Skeleton } from "@/shared/ui/feedback";
+import { ErrorPanel } from "@/shared/ui/feedback";
 import { PageColumns, PageIntro, Panel, SectionTitle } from "@/shared/ui/layout";
+import { IndeterminateBar } from "@/shared/ui/progress";
 import { choicesSearch, withParams } from "../lib/choices-url";
 import s from "./analysis-page.module.css";
 
@@ -58,11 +60,15 @@ export function AnalysisSetupPage() {
   const main = (
     <>
       {snapshot.isPending && (
-        <Panel role="status">
-          <SectionTitle>Reading this field</SectionTitle>
-          <Skeleton height={44} />
-          <Skeleton height={44} soft />
-        </Panel>
+        <>
+          {/* Same loading look as the Field page: status panel with a sliding bar, then grey tiles. */}
+          <Panel gap={14} role="status">
+            <SectionTitle>Reading NASA data for this field</SectionTitle>
+            <IndeterminateBar />
+            <p className={s.muted}>This usually takes under 2 seconds.</p>
+          </Panel>
+          <MetricGridSkeleton />
+        </>
       )}
       {snapshot.isError && (
         <ErrorPanel

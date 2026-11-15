@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAnalysisJob } from "@/entities/analysis";
 import { buildFieldSearch, FieldFacts, parseFieldSearch, selectionSearch } from "@/entities/field";
+import { MetricGridSkeleton } from "@/entities/metric";
 import { useSession } from "@/entities/session";
 import { ExportPdfButton } from "@/features/export-pdf";
 import { SaveFieldButton } from "@/features/save-field";
@@ -10,8 +11,8 @@ import { analysisSetupPath, fieldPath, ROUTES } from "@/shared/config";
 import { useDocumentTitle } from "@/shared/lib";
 import { ButtonLink } from "@/shared/ui/button";
 import { ErrorPanel } from "@/shared/ui/feedback";
-import { PageColumns, PageIntro, Panel } from "@/shared/ui/layout";
-import { ProgressBar } from "@/shared/ui/progress";
+import { PageColumns, PageIntro, Panel, SectionTitle } from "@/shared/ui/layout";
+import { IndeterminateBar } from "@/shared/ui/progress";
 import { AnalysisResultView } from "@/widgets/analysis-result";
 import s from "./analysis-page.module.css";
 
@@ -54,12 +55,16 @@ export function AnalysisPage() {
   let main;
   if (phase === "running") {
     main = (
-      <Panel gap={16} role="status" className={s.running}>
-        <h2 className={s.h2}>Creating your analysis</h2>
-        <ProgressBar percent={job.data?.progress.percent ?? 0} label="Analysis progress" />
-        <p className={s.muted}>{job.data?.progress.stage ?? "Queued"}</p>
-        <p className={s.small}>You can stay on this page. It usually takes under a minute.</p>
-      </Panel>
+      <>
+        {/* Same loading look as the Field page: status panel with a sliding bar, then grey tiles. */}
+        <Panel gap={14} role="status">
+          <SectionTitle>Creating your analysis</SectionTitle>
+          <IndeterminateBar />
+          <p className={s.muted}>{job.data?.progress.stage ?? "Queued"}</p>
+          <p className={s.small}>You can stay on this page. It usually takes under a minute.</p>
+        </Panel>
+        <MetricGridSkeleton />
+      </>
     );
   } else if (phase === "failed") {
     const err = job.data?.error;

@@ -1,15 +1,6 @@
 .page {
   display: block;
 }
-.running {
-  padding: var(--s-32);
-}
-.h2 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--text-title-3);
-  line-height: var(--text-title-3-lh);
-}
 .muted {
   color: var(--color-ink-muted);
 }
@@ -33,12 +24,5 @@
 @media print {
   .noPrint {
     display: none !important;
-  }
-}
-
-@media (max-width: 760px) {
-  .h2 {
-    font-size: 26px;
-    line-height: 32px;
   }
 }
