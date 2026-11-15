@@ -18,9 +18,12 @@ from app.models import (
     Priority,
     Quality,
     ResolvedBy,
+    RotationBudget,
+    RotationSeason,
     Strategy,
     TimeSeries,
 )
+from app.profitability.money import money
 from app.report import plain
 from app.report.charts import chart
 from app.report.units import acres, display, fmt, lat_lon, long_date, resolution, short_date, source_text
@@ -101,6 +104,7 @@ class StrategyView:
     risks: list[str]
     gaps: list[str]
     checks: list[str]
+    budget: RotationBudget | None
 
 
 @dataclass
@@ -157,7 +161,7 @@ def strategy_views(strategies: list[Strategy], said: set[str] | None = None) -> 
                 is_current=st.is_current,
                 needs_local_review=st.needs_local_review,
                 seasons=[
-                    Season(f"Season {r.season_index + 1}", r.crop, ROLE_LABEL.get(r.role, str(r.role)))
+                    Season(season_label(r), r.crop, ROLE_LABEL.get(r.role, str(r.role)))
                     for r in sorted(st.rotation, key=lambda r: r.season_index)
                 ],
                 topics=[
@@ -175,9 +179,37 @@ def strategy_views(strategies: list[Strategy], said: set[str] | None = None) -> 
                 risks=[plain.clean(r) for r in st.risks],
                 gaps=notes.unknown,
                 checks=notes.check,
+                budget=st.budget,
             )
         )
     return views
+
+
+def season_label(season: RotationSeason) -> str:
+    if season.year is None:
+        return f"Season {season.season_index + 1}"
+    kind = "cover crop" if season.season == "cover" or season.role == "cover_crop" else "main crop"
+    return f"Year {season.year} · {kind}"
+
+
+def money_text(value: float | None, loss: bool = False) -> str:
+    """USD cents, preserving negative signs and leaving missing amounts unknown."""
+    if value is None:
+        return "Not available"
+    rounded = money(value)
+    sign = "-" if rounded < 0 else ""
+    suffix = " (loss)" if loss and rounded < 0 else ""
+    return f"{sign}${abs(rounded):,.2f}{suffix}"
+
+
+def budget_complete(budget: RotationBudget) -> bool:
+    return (
+        budget.status == "estimated"
+        and budget.annual_average is not None
+        and budget.horizon_total is not None
+        and not budget.missing_inputs
+        and not budget.uses_placeholders
+    )
 
 
 def field_size_m(area_ha: float | None) -> float | None:
@@ -298,6 +330,8 @@ def report_context(result: AnalysisResult, options: AnalysisOptions | None, job_
         ],
         "best": strategies[0],
         "strategies": strategies,
+        "money_text": money_text,
+        "budget_complete": budget_complete,
         "charts": [chart(ts) for ts in result.time_series],
         "history_title": history_title(result.time_series),
         "conditions": condition_groups(result.current_conditions, field_size_m(sel.area_ha)),

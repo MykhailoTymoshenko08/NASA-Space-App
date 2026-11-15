@@ -5,11 +5,13 @@ import { setupServer } from "msw/node";
 import { renderRoutes } from "@/shared/lib/test";
 import { handlers } from "@/shared/mocks";
 import { env } from "@/shared/config";
+import { clearSession } from "@/entities/session";
 import { AnalysisPage } from "./AnalysisPage";
 import { AnalysisSetupPage } from "./AnalysisSetupPage";
 
 const server = setupServer(...handlers);
 beforeAll(() => server.listen());
+beforeEach(() => clearSession());
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 

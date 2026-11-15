@@ -49,6 +49,7 @@ def make_settings(data_dir, tmp_path, **kw) -> Settings:
         log_level="WARNING",
         database_url="",
         analysis_engine="stub",
+        state_backend="memory",
     )
     return Settings(**{**base, **kw})
 

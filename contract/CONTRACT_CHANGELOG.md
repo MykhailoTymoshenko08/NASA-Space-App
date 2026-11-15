@@ -3,6 +3,18 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.15.0 (2026-11-15): reliable analysis state and planning context
+
+Additive response/request fields; existing anonymous analysis links remain supported.
+
+- Jobs echo their original `options`; planning labels no longer depend on editable URL parameters.
+- Rotation plantings optionally include `year` and `season` (`main` or `cover`). Existing `season_index`
+  remains available for older clients and legacy cycle-only results.
+- Analysis options accept optional `irrigated` and `has_livestock` farmer confirmations.
+- Signed-in jobs are scoped to their creator and return 404 to other callers; guest links remain bearer
+  links. Dedupe is scoped to the owner. PostgreSQL-backed jobs and PDF caching survive worker changes.
+- Comparison context refreshes stale/incomplete snapshots and retains dated available fallbacks.
+
 ## 0.14.0 (2026-11-15): PDF analysis report
 
 Additive.

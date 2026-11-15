@@ -35,6 +35,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.services = Services(settings)
+        from app.analyses.store import PostgresJobStore
+        from app.core.ratelimit import PostgreSQLRateLimiter
+
+        store = app.state.services.analyses.store
+        if isinstance(store, PostgresJobStore):
+            app.state.limiters = {
+                name: PostgreSQLRateLimiter(store.pool, name, limiter.limit, limiter.window_s)
+                for name, limiter in app.state.limiters.items()
+            }
         try:
             yield
         finally:
@@ -43,7 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         lifespan=lifespan,
         title="Field Shift API",
-        version="0.14.0",
+        version="0.15.0",
         docs_url=f"{API_PREFIX}/docs",
         openapi_url=f"{API_PREFIX}/openapi-generated.json",
     )
@@ -66,6 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # ETag, Content-Range, Content-Length: needed by the PMTiles client reading fields.pmtiles.
         expose_headers=[
             "X-Request-Id", "Location", "Retry-After", "ETag", "Content-Range", "Content-Length",
+            "Content-Disposition",
         ],
     )
     # Added last so it is outermost: every response, including CORS preflight, gets an id.

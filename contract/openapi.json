@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Field Shift API",
-    "version": "0.14.0",
+    "version": "0.15.0",
     "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it). ML analysis covers IA/IL/NE/KS and requires crop history\n  outside its precomputed fields; unavailable coverage or inputs are reported as failed jobs.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one PMTiles file read with HTTP\n  Range requests; its URL is `coverage.field_tiles.url_template`. By default the backend serves it at\n  `GET /tiles/fields.pmtiles`; a deployment may point the URL at external static hosting instead.\n"
   },
   "servers": [
@@ -650,6 +650,12 @@
             }
           }
         },
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "202": {
             "description": "Job accepted",
@@ -668,6 +674,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -706,6 +715,12 @@
             }
           }
         ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Job state. `result` is present only when `status = succeeded`; `error` only when `status = failed`.\nA failed JOB still returns HTTP 200; HTTP errors are for failed REQUESTS.\n",
@@ -716,6 +731,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -730,7 +748,7 @@
         ],
         "operationId": "getAnalysisReport",
         "summary": "The finished analysis as a printable PDF report",
-        "description": "\"Export to PDF\" on the Analysis page. An A4 portrait report rendered by the backend from the same\n`AnalysisResult` as `GET /analyses/{job_id}`, plus the priorities and horizon of the request: a summary\npage, one card per strategy (sorted by score), current conditions and history charts, then the datasets\nand the disclaimer. Values in US units; a missing metric prints \"Not available\" with its reason.\nSent as an attachment. Available only once the job has `status = succeeded`; the same job always gives the\nsame report. No sign-in needed (job ids are unguessable UUIDs, like the job itself).\n",
+        "description": "\"Export to PDF\" on the Analysis page. An A4 portrait report rendered by the backend from the same\n`AnalysisResult` as `GET /analyses/{job_id}`, plus the priorities and horizon of the request: a summary\npage, one card per strategy (sorted by score), current conditions and history charts, then the datasets\nand the disclaimer. Values in US units; a missing metric prints \"Not available\" with its reason.\nSent as an attachment. Available only once the job has `status = succeeded`; the same job always gives the\nsame report. Guest links are bearer links. Jobs created while signed in require the same account;\nother callers receive 404. Invalid supplied bearer tokens receive 401.\n",
         "parameters": [
           {
             "name": "job_id",
@@ -740,6 +758,12 @@
               "type": "string",
               "format": "uuid"
             }
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -761,6 +785,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -2952,6 +2979,20 @@
               },
               "budget": {
                 "$ref": "#/components/schemas/RotationBudgetOptions"
+              },
+              "irrigated": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Farmer confirms whether the field is irrigated; null means unknown."
+              },
+              "has_livestock": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Farmer confirms a need for livestock forage; null means unknown."
               }
             }
           }
@@ -2975,6 +3016,14 @@
           "progress"
         ],
         "properties": {
+          "options": {
+            "description": "Original choices stored with this job. Use these instead of editable URL labels.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisRequest/properties/options"
+              }
+            ]
+          },
           "job_id": {
             "type": "string",
             "format": "uuid"
@@ -3213,7 +3262,7 @@
           },
           "rotation": {
             "type": "array",
-            "description": "Ordered seasons of one rotation cycle.",
+            "description": "Ordered plantings. Explicit year and season preserve main and cover crops in the same year.",
             "items": {
               "type": "object",
               "required": [
@@ -3226,6 +3275,19 @@
                   "type": "integer",
                   "minimum": 0,
                   "description": "0 = first season of the horizon."
+                },
+                "year": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5,
+                  "description": "Planning year; omitted for older cycle-only results."
+                },
+                "season": {
+                  "type": "string",
+                  "enum": [
+                    "main",
+                    "cover"
+                  ]
                 },
                 "crop": {
                   "type": "string",

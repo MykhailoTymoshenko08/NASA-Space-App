@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Field Shift API
-  version: 0.14.0
+  version: 0.15.0
   description: |
     Contract between the frontend and backend of the Field Shift farmer map
     (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
@@ -466,6 +466,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AnalysisRequest'
+      security:
+      - {}
+      - bearerAuth: []
       responses:
         '202':
           description: Job accepted
@@ -478,6 +481,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnalysisJob'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -501,6 +506,9 @@ paths:
         schema:
           type: string
           format: uuid
+      security:
+      - {}
+      - bearerAuth: []
       responses:
         '200':
           description: |
@@ -510,6 +518,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnalysisJob'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
   /analyses/{job_id}/report.pdf:
@@ -524,7 +534,8 @@ paths:
         page, one card per strategy (sorted by score), current conditions and history charts, then the datasets
         and the disclaimer. Values in US units; a missing metric prints "Not available" with its reason.
         Sent as an attachment. Available only once the job has `status = succeeded`; the same job always gives the
-        same report. No sign-in needed (job ids are unguessable UUIDs, like the job itself).
+        same report. Guest links are bearer links. Jobs created while signed in require the same account;
+        other callers receive 404. Invalid supplied bearer tokens receive 401.
       parameters:
       - name: job_id
         in: path
@@ -532,6 +543,9 @@ paths:
         schema:
           type: string
           format: uuid
+      security:
+      - {}
+      - bearerAuth: []
       responses:
         '200':
           description: The PDF report.
@@ -545,6 +559,8 @@ paths:
               schema:
                 type: string
                 format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -2045,6 +2061,12 @@ components:
               description: Number of future years evaluated by the rotation planner.
             budget:
               $ref: '#/components/schemas/RotationBudgetOptions'
+            irrigated:
+              type: [boolean, 'null']
+              description: Farmer confirms whether the field is irrigated; null means unknown.
+            has_livestock:
+              type: [boolean, 'null']
+              description: Farmer confirms a need for livestock forage; null means unknown.
     JobStatus:
       type: string
       enum:
@@ -2060,6 +2082,10 @@ components:
       - created_at
       - progress
       properties:
+        options:
+          description: Original choices stored with this job. Use these instead of editable URL labels.
+          allOf:
+          - $ref: '#/components/schemas/AnalysisRequest/properties/options'
         job_id:
           type: string
           format: uuid
@@ -2236,7 +2262,7 @@ components:
           description: True for the baseline (the farmer's existing rotation).
         rotation:
           type: array
-          description: Ordered seasons of one rotation cycle.
+          description: Ordered plantings. Explicit year and season preserve main and cover crops in the same year.
           items:
             type: object
             required:
@@ -2248,6 +2274,14 @@ components:
                 type: integer
                 minimum: 0
                 description: 0 = first season of the horizon.
+              year:
+                type: integer
+                minimum: 1
+                maximum: 5
+                description: Planning year; omitted for older cycle-only results.
+              season:
+                type: string
+                enum: [main, cover]
               crop:
                 type: string
                 example: Soybean

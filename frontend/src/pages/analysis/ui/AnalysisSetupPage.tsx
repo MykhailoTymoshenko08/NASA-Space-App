@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { buildFieldSearch, FieldFacts, parseFieldSearch, useFieldSnapshot } from "@/entities/field";
 import { AnalysisSetupSections, CreateAnalysisPanel, useAnalysisSetup } from "@/features/configure-analysis";
+import { CropBudgetInputs, parseCropBudgets, type CropBudgetDraft } from "@/features/configure-budget";
 import { ApiError, friendlyMessage } from "@/shared/api";
 import { analysisPath, fieldPath, ROUTES } from "@/shared/config";
 import { useDocumentTitle } from "@/shared/lib";
@@ -21,6 +22,8 @@ export function AnalysisSetupPage() {
   const snapshot = useFieldSnapshot(parsed.ok ? parsed.request.ref : null);
   const selection = snapshot.data?.selection ?? null;
   const setup = useAnalysisSetup(selection);
+  const [cropBudgets, setCropBudgets] = useState<CropBudgetDraft[]>([]);
+  const cropOverrides = useMemo(() => parseCropBudgets(cropBudgets), [cropBudgets]);
 
   const fieldSearch = parsed.ok
     ? buildFieldSearch({
@@ -73,7 +76,14 @@ export function AnalysisSetupPage() {
           }
         />
       )}
-      {selection && <AnalysisSetupSections setup={setup} />}
+      {selection && (
+        <>
+          <AnalysisSetupSections setup={setup} />
+          <Panel>
+            <CropBudgetInputs rows={cropBudgets} onChange={setCropBudgets} />
+          </Panel>
+        </>
+      )}
     </>
   );
 
@@ -82,6 +92,7 @@ export function AnalysisSetupPage() {
       <CreateAnalysisPanel
         setup={setup}
         disabled={!selection}
+        cropOverrides={cropOverrides}
         onCreated={(jobId) =>
           navigate(analysisPath(jobId, withParams(fieldSearch, choicesSearch(setup.priorities, setup.horizon))))
         }

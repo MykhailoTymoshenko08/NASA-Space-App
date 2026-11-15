@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     source_timeout_s: float = 4.0
     snapshot_cache_ttl_s: int = 24 * 3600
     analysis_dedupe_ttl_s: int = 600
+    # Auto shares jobs, PDFs and rate limits in PostgreSQL; memory is for disposable tests/demos.
+    state_backend: Literal["auto", "memory"] = "auto"
+    analysis_retention_s: int = Field(default=86400, ge=60)
+    analysis_max_jobs: int = Field(default=1000, ge=1)
+    analysis_pdf_cache_bytes: int = Field(default=8 * 1024 * 1024, ge=0)
 
     # Rate limiting (per client IP, sliding window).
     rate_limit_requests: int = 30

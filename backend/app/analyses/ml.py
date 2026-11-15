@@ -31,6 +31,7 @@ from app.models import (
     Strategy,
 )
 from app.profitability.rotation import compare_budgets, estimate_rotation_budget
+from app.report import plain
 
 # Names stored by prepare_csb.py come from scripts/cdl_codes.json. Retain CDL codes for
 # fallow and double crops: reducing these to an arbitrary slug changes rotation detection.
@@ -166,6 +167,11 @@ def ml_request(selection: FieldSelection, options: AnalysisOptions) -> dict:
         weights[PRIORITIES[priority]] = 1.0
     return {
         "request_id": str(uuid.uuid4()), "field": field, "priorities": weights,
+        "farmer_input": {
+            key: value for key, value in {
+                "irrigated": options.irrigated, "has_livestock": options.has_livestock,
+            }.items() if value is not None
+        },
         "options": {"n_strategies": 3, "language": "en", "horizon_years": options.horizon_years},
     }
 
@@ -195,6 +201,10 @@ def _result(
         for s in data.sources
     }
     strategies = []
+    shared = plain.shared_gaps([s.data_gaps for s in data.strategies])
+    warnings, said = plain.keep_in_mind(
+        [*data.warnings, "Income is a relative 0-100 index, not a profit estimate."], shared,
+    )
     history = options.crop_history if options.crop_history is not None else selection.crop_history
     previous = max(history, key=lambda h: h.year).crop if history else None
     for s in data.strategies:
@@ -203,20 +213,22 @@ def _result(
             if any(ref not in sources for ref in item.source_ids):
                 raise ValueError("ML evidence refers to an unknown source")
             evidence.append(Evidence(
-                statement=item.text, source=sources[item.source_ids[0]] if item.source_ids else None,
+                statement=plain.clean(item.text), source=sources[item.source_ids[0]] if item.source_ids else None,
             ))
         strategies.append(Strategy(
             id=s.id, name=s.name, is_current=s.is_current,
             rotation=[RotationSeason(
                 season_index=i, crop=CROP_NAMES.get(season.crop, season.crop.replace("_", " ")),
-                role=_role(season),
+                role=_role(season), year=season.year, season=season.season,
             ) for i, season in enumerate(s.sequence)],
             score=s.scores.overall,
             score_breakdown=[CriterionScore(criterion=c, score=getattr(s.scores, key))
                              for key, c in CRITERIA.items()],
             confidence="high" if s.confidence >= 0.8 else "medium" if s.confidence >= 0.5 else "low",
-            summary=s.why, benefits=s.benefits, risks=s.risks, evidence=evidence,
-            information_gaps=[*s.data_gaps, *(f"Check with a local agronomist: {x}"
+            summary=plain.summary(s.why), benefits=[plain.clean(x) for x in s.benefits],
+            risks=[plain.clean(x) for x in s.risks], evidence=evidence,
+            information_gaps=[*plain.gap_notes(s.data_gaps, said).unknown,
+                              *(f"Check with a local agronomist: {plain.clean(x)}"
                                             for x in s.check_with_agronomist)],
             needs_local_review=True,
             budget=estimate_rotation_budget(
@@ -234,7 +246,6 @@ def _result(
                 dataset=m.source.dataset, provider=m.source.provider, url=m.source.url,
                 resolution_m=m.resolution_m,
             ))
-    warnings = [*data.warnings, "Income is a relative 0-100 index, not a profit estimate."]
     if "mock" in data.model_version.lower():
         warnings.append("ML mock mode: these are demonstration results, not real model predictions.")
     if selection.boundary_type == BoundaryType.buffered_point:

@@ -6,7 +6,6 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "argon2-cffi>=25.1.0",
     "cachetools>=8.0.0",
-    "diskcache>=5.6.3",
     "email-validator>=2.3.0",
     "fastapi>=0.162.7",
     "geopandas>=1.2.0",

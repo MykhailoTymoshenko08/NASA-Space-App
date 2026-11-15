@@ -1,8 +1,8 @@
 """Validate a saved field's GeoJSON and derive its centroid, area and state.
 
-Coverage uses the same rough state envelopes as `/fields/info` (no GIS data needed). Where two
-envelopes overlap (the Missouri and Mississippi borders), the county boundaries break the tie when
-they are loaded.
+Coverage first uses the same rough state envelopes as `/fields/info`. Loaded county boundaries
+determine the state whenever the county lookup succeeds, including unsupported states inside an
+envelope. When prepared boundaries or a county are unavailable, the envelope remains the fallback.
 """
 
 import math
@@ -66,9 +66,11 @@ def state_at(lat: float, lon: float, boundaries: Boundaries | None) -> str:
     cands = _candidates(lat, lon)
     if not cands:
         raise outside_coverage(lat, lon)
-    if len(cands) > 1 and boundaries is not None:
+    if boundaries is not None:
         county = boundaries.county_at(*lonlat_to_5070(lon, lat))
-        if county is not None and county.state_postal in cands:
+        if county is not None:
+            if county.state_postal not in STATE_BOUNDS:
+                raise outside_coverage(lat, lon)
             return county.state_postal
     return cands[0]
 

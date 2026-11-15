@@ -109,6 +109,46 @@ def test_create_point_without_info(api):
     assert r.json()["info"]["metrics"][0]["value"] == 290.0
 
 
+@pytest.mark.parametrize("lat,lon,state", [(38.5, -87.6, "IN"), (42.5, -96.5, "SD")])
+def test_create_uses_county_state_to_reject_unsupported_points(api, monkeypatch, lat, lon, state):
+    boundaries = api.app.state.services.boundaries
+    county = boundaries.county("19153").model_copy(update={"state_postal": state})
+    monkeypatch.setattr(boundaries, "county_at", lambda x, y: county)
+
+    r = create(api, login(api), geometry={"type": "Point", "coordinates": [lon, lat]})
+
+    assert r.status_code == 422, r.text
+    assert_matches_contract(r)
+    assert r.json()["error"]["code"] == "OUTSIDE_COVERAGE"
+
+
+def test_create_uses_supported_county_state_in_overlapping_envelopes(api, monkeypatch):
+    boundaries = api.app.state.services.boundaries
+    county = boundaries.county("19153").model_copy(update={"state_postal": "NE"})
+    monkeypatch.setattr(boundaries, "county_at", lambda x, y: county)
+
+    r = create(api, login(api), geometry={"type": "Point", "coordinates": [-96.5, 42.5]})
+
+    assert r.status_code == 201, r.text
+    assert_matches_contract(r)
+    assert r.json()["state"] == "NE"
+
+
+@pytest.mark.parametrize("missing_boundaries", [False, True])
+def test_create_falls_back_to_state_envelope_when_county_is_unavailable(api, monkeypatch, missing_boundaries):
+    svc = api.app.state.services
+    if missing_boundaries:
+        monkeypatch.setattr(svc, "_boundaries", None)
+    else:
+        monkeypatch.setattr(svc.boundaries, "county_at", lambda x, y: None)
+
+    r = create(api, login(api), geometry={"type": "Point", "coordinates": [-96.7, 40.8]})
+
+    assert r.status_code == 201, r.text
+    assert_matches_contract(r)
+    assert r.json()["state"] == "NE"
+
+
 def test_update(api):
     auth = login(api)
     f = create(api, auth, crop_history=[{"year": 2025, "crop": "Corn"}]).json()

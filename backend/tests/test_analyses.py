@@ -6,6 +6,7 @@ import pytest
 import respx
 
 from tests.contract import assert_matches_contract
+from tests.test_auth import SECRET, bearer, register
 from tests.test_snapshots import mock_all
 
 pytestmark = pytest.mark.contract
@@ -14,10 +15,10 @@ F1 = {"field_id": "csb2025_190000000001"}
 F2 = {"field_id": "csb2025_190000000002"}
 
 
-def wait_done(client, job_id, timeout=5.0):
+def wait_done(client, job_id, timeout=5.0, headers=None):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        r = client.get(f"/v1/analyses/{job_id}")
+        r = client.get(f"/v1/analyses/{job_id}", headers=headers)
         assert_matches_contract(r)
         if r.json()["status"] in ("succeeded", "failed"):
             return r
@@ -25,13 +26,13 @@ def wait_done(client, job_id, timeout=5.0):
     raise AssertionError("job did not finish")
 
 
-def run(client, body):
+def run(client, body, headers=None):
     with respx.mock(assert_all_called=False) as router:
         mock_all(router)
-        r = client.post("/v1/analyses", json=body)
+        r = client.post("/v1/analyses", json=body, headers=headers)
         assert r.status_code == 202, r.text
         assert_matches_contract(r)
-        done = wait_done(client, r.json()["job_id"])
+        done = wait_done(client, r.json()["job_id"], headers=headers)
     return r, done
 
 
@@ -112,6 +113,63 @@ def test_identical_request_reuses_job(client):
     assert r1.json()["job_id"] == r2.json()["job_id"]
     r3, _ = run(client, {"selection": F1, "options": {"horizon_years": 5}})
     assert r3.json()["job_id"] != r1.json()["job_id"]
+
+
+def test_private_jobs_and_deduplication_are_scoped_to_the_owner(client):
+    alice = register(client)
+    bob = register(client)
+    assert alice.status_code == bob.status_code == 201
+    alice_auth, bob_auth = bearer(alice.json()["access_token"]), bearer(bob.json()["access_token"])
+    body = {"selection": F1, "options": {"horizon_years": 4}}
+    alice_created, _ = run(client, body, headers=alice_auth)
+    bob_created, _ = run(client, body, headers=bob_auth)
+    guest_created, _ = run(client, body)
+    job_id = alice_created.json()["job_id"]
+    assert len({job_id, bob_created.json()["job_id"], guest_created.json()["job_id"]}) == 3
+    repeated, _ = run(client, body, headers=alice_auth)
+    assert repeated.json()["job_id"] == job_id
+    for headers in (None, bob_auth):
+        hidden = client.get(f"/v1/analyses/{job_id}", headers=headers)
+        assert hidden.status_code == 404
+        assert hidden.json()["error"]["code"] == "NOT_FOUND"
+        assert_matches_contract(hidden)
+    owner = client.get(f"/v1/analyses/{job_id}", headers=alice_auth)
+    assert owner.status_code == 200 and owner.json()["status"] == "succeeded"
+    assert_matches_contract(owner)
+
+
+def test_jobs_echo_the_original_options_without_url_parameters(client):
+    options = {
+        "priorities": ["soil_health", "erosion_control"],
+        "crop_history": [{"year": 2025, "crop": "Oats"}],
+        "horizon_years": 5,
+        "irrigated": True, "has_livestock": False,
+        "budget": {"land_rent_per_acre": 0, "cover_cost_per_acre": 42, "crop_overrides": []},
+    }
+    created, done = run(client, {"selection": F1, "options": options})
+    assert created.json()["options"] == options
+    assert done.json()["options"] == options
+    # A result URL may carry arbitrary display parameters; they must never alter server-owned choices.
+    retrieved = client.get(f"/v1/analyses/{created.json()['job_id']}?h=1&p=extra_income")
+    assert retrieved.status_code == 200 and retrieved.json()["options"] == options
+    assert_matches_contract(retrieved)
+
+
+def test_finished_private_job_is_shared_by_independent_database_workers(make_client, data_dir):
+    first = make_client(data_dir, state_backend="auto", jwt_secret=SECRET)
+    second = make_client(data_dir, state_backend="auto", jwt_secret=SECRET)
+    account = register(first)
+    assert account.status_code == 201
+    headers = bearer(account.json()["access_token"])
+    body = {"selection": F1, "options": {"horizon_years": 5, "priorities": ["water_conservation"]}}
+    created, done = run(first, body, headers=headers)
+    other = second.get(f"/v1/analyses/{created.json()['job_id']}", headers=headers)
+    assert other.status_code == 200
+    assert_matches_contract(other)
+    assert other.json() == done.json()
+    assert other.json()["options"]["horizon_years"] == 5
+    assert other.json()["options"]["priorities"] == ["water_conservation"]
+    assert first.app.state.services.analyses.store is not second.app.state.services.analyses.store
 
 
 def test_point_selection_buffered(client):

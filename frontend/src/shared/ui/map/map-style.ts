@@ -718,10 +718,15 @@ export function buildMapStyle(input: MapStyleInput): StyleSpecification {
     LAYER.stateLabelsSmall,
     LAYER.stateLabels,
   ]);
+  // A selected field or buffer may cross the focused boundary: keep its full outline and pin visible.
+  const selectionLayers = new Set<string>([
+    LAYER.selectionFill, LAYER.selectionLine, LAYER.selectionDashed, LAYER.pin,
+  ]);
   const savedLabel = style.layers.filter((l) => l.id === LAYER.savedLabel);
   style.layers = [
-    ...style.layers.filter((l) => !placeLabels.has(l.id) && l.id !== LAYER.savedLabel),
+    ...style.layers.filter((l) => !placeLabels.has(l.id) && !selectionLayers.has(l.id) && l.id !== LAYER.savedLabel),
     ...masks,
+    ...style.layers.filter((l) => selectionLayers.has(l.id)),
     ...style.layers.filter((l) => placeLabels.has(l.id)),
     ...savedLabel,
   ];
