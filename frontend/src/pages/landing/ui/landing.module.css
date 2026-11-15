@@ -130,12 +130,12 @@
     padding-bottom: var(--s-24);
   }
   .heroTitle {
-    font-size: 34px;
-    line-height: 40px;
+    font-size: 40px;
+    line-height: 44px;
   }
   .heroLead {
-    font-size: 17px;
-    line-height: 26px;
+    font-size: 15px;
+    line-height: 23px;
   }
   /* Pick your field: centered, full width up to 360 px, 60 px tall; the map link sits under it. */
   .heroActions {
