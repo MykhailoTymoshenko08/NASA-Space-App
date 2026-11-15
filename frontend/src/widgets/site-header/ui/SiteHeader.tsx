@@ -7,8 +7,11 @@ import { ButtonLink } from "@/shared/ui/button";
 import { Wordmark } from "@/shared/ui/wordmark";
 import s from "./site-header.module.css";
 
+const AUTH_PAGES: readonly string[] = [ROUTES.signIn, ROUTES.signUp, ROUTES.resetPassword];
+
 /**
- * Top bar. The current page gets the wash fill and weight 600. Signed in: My fields + account menu.
+ * Top bar, as in the desktop design. Landing: "How it works" (its #how section); other pages: "Explore the map".
+ * The current page gets the wash fill and weight 600. Signed in: My fields + account menu. Auth pages: map links only.
  * At 760 px and narrower the links move into a burger menu that opens under the header (48 px rows).
  */
 export function SiteHeader() {
@@ -27,11 +30,21 @@ export function SiteHeader() {
     return () => document.removeEventListener("keydown", onKey);
   }, [menuOpen]);
 
+  const onLanding = here(ROUTES.home);
+  // Sign-in, sign-up and reset-password pages show only the two map links (design: boards 5 to 7).
+  const authPage = AUTH_PAGES.some(here);
+
   const links = (row: boolean) => (
     <>
-      <ButtonLink to={{ pathname: ROUTES.home, hash: "how" }} variant="ghost" className={row ? s.row : undefined}>
-        How it works
-      </ButtonLink>
+      {onLanding ? (
+        <ButtonLink to={{ pathname: ROUTES.home, hash: "how" }} variant="ghost" className={row ? s.row : undefined}>
+          How it works
+        </ButtonLink>
+      ) : (
+        <ButtonLink to={ROUTES.home} variant="ghost" className={row ? s.row : undefined}>
+          Explore the map
+        </ButtonLink>
+      )}
       <ButtonLink
         to={ROUTES.pickField}
         variant="ghost"
@@ -40,7 +53,7 @@ export function SiteHeader() {
       >
         Pick a field
       </ButtonLink>
-      {session.status === "authenticated" ? (
+      {authPage ? null : session.status === "authenticated" ? (
         <>
           <ButtonLink
             to={ROUTES.myFields}
@@ -56,7 +69,6 @@ export function SiteHeader() {
         <ButtonLink
           to={ROUTES.signIn}
           variant="secondary"
-          current={here(ROUTES.signIn)}
           className={row ? s.row : undefined}
         >
           Sign in
