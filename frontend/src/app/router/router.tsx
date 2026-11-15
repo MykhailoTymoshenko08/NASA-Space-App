@@ -31,6 +31,7 @@ export const router = createBrowserRouter([
       { path: ROUTES.resetPassword, element: <ResetPasswordPage /> },
       { path: ROUTES.myFields, element: <MyFieldsPage /> },
       { path: ROUTES.areaRanking, lazy: () => import("@/pages/area-ranking").then((m) => ({ Component: m.AreaRankingPage })) },
+      { path: ROUTES.modelMetrics, lazy: () => import("@/pages/model-metrics").then((m) => ({ Component: m.ModelMetricsPage })) },
       { path: ROUTES.changePassword, element: <ChangePasswordPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],

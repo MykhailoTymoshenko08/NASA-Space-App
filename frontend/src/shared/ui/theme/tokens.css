@@ -53,6 +53,11 @@
   --color-data-rain: #2a78d6;
   --color-data-soil-chem: #6b4a00;
 
+  /* Model metrics charts: our model vs a simple rule (validated pair: CVD ΔE 12.6, both >= 3:1 on surface) */
+  --color-chart-model: #18774a;
+  --color-chart-baseline: #c4881c;
+  --color-chart-muted: #a7b2a2; /* other baselines, reference marks */
+
   /* Map (DS-Map) */
   --color-map-field-1: #b7c48e;
   --color-map-field-2: #cdbe86;

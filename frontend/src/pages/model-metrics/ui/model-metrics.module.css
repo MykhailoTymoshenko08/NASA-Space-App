@@ -1,0 +1,1090 @@
+/* Model accuracy page. Site tokens only (shared/ui/theme/tokens.css); chart colors are --color-chart-*. */
+
+/* ---------- Hero ---------- */
+.hero {
+  padding-top: var(--s-32);
+  padding-bottom: var(--s-32);
+}
+.heroTitle {
+  margin-top: var(--s-16);
+  max-width: 900px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(38px, 5.4vw, var(--text-title-1) + 12px);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.heroLead {
+  margin-top: var(--s-20);
+  max-width: 700px;
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-lh);
+  color: var(--color-ink-muted);
+  text-wrap: pretty;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  margin: var(--s-24) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.meta li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px var(--s-12);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.meta li:first-child {
+  border-color: transparent;
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+  font-weight: 500;
+}
+
+/* Stat tiles */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-16);
+  margin-top: var(--s-32);
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-20) var(--s-20) 18px;
+  border-radius: var(--radius-stage);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+.statValue {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-stat);
+  line-height: var(--text-stat-lh);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.statLabel {
+  font-weight: 600;
+}
+.statSub {
+  margin-top: var(--s-8);
+  padding-top: var(--s-8);
+  border-top: 1px solid var(--color-line-soft);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.statAccent {
+  border-color: var(--color-button);
+  background: var(--color-button);
+  color: var(--color-white);
+}
+.statAccent .statSub {
+  border-top-color: rgba(255, 255, 255, 0.22);
+  color: var(--color-green-100);
+}
+
+/* ---------- On this page ---------- */
+.toc {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-paper) 92%, transparent);
+  backdrop-filter: blur(6px);
+}
+.tocInner {
+  display: flex;
+  gap: var(--s-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tocInner a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-min);
+  padding: 0 var(--s-12);
+  border-radius: var(--radius-control);
+  font-size: var(--text-small);
+  font-weight: 500;
+  color: var(--color-ink-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tocInner a:hover {
+  background: var(--color-paper-wash);
+  color: var(--color-ink);
+}
+
+/* ---------- Sections ---------- */
+.section {
+  padding-top: 72px;
+  scroll-margin-top: 48px;
+}
+.sectionHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-20);
+  align-items: start;
+  margin-bottom: var(--s-24);
+}
+.sectionNum {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-wheat-100);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--text-small);
+  color: var(--color-wheat-700);
+}
+.sectionTitle {
+  max-width: 820px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-3);
+  line-height: var(--text-title-3-lh);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+.sectionLead {
+  margin-top: var(--s-8);
+  max-width: 760px;
+  color: var(--color-ink-muted);
+  text-wrap: pretty;
+}
+.sectionGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--s-20);
+  align-items: start;
+}
+.chartPanel {
+  min-width: 0;
+  padding: var(--s-24);
+  border-radius: var(--radius-stage);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+  min-width: 0;
+}
+.note {
+  padding: 18px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+.noteTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  margin: 0 0 var(--s-8);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 24px;
+}
+.noteBody {
+  font-size: 15px;
+  line-height: 23px;
+  color: var(--color-ink-muted);
+}
+.noteBody strong {
+  color: var(--color-ink);
+}
+.info {
+  border-color: transparent;
+  background: var(--color-info-bg);
+}
+.info .noteTitle,
+.info .noteBody {
+  color: var(--color-info-fg);
+}
+.warning {
+  border-color: transparent;
+  background: var(--color-warning-bg);
+}
+.warning .noteTitle {
+  color: var(--color-warning-fg);
+}
+.warning .noteBody {
+  color: var(--color-warning-ink);
+}
+
+/* ---------- Chart scaffolding ---------- */
+.chartBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-12);
+}
+.chartHelp {
+  min-height: 48px;
+  max-width: 640px;
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.frame {
+  position: relative;
+}
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.grid {
+  stroke: var(--color-line-soft);
+  stroke-width: 1;
+}
+.axisText {
+  font-size: 12px;
+  fill: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.axisTitle {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--color-ink-muted);
+}
+.diagonal {
+  stroke: var(--color-line-control);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+}
+.zoneLabel {
+  font-size: 12px;
+  font-style: italic;
+  fill: var(--color-ink-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8) var(--s-20);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  color: var(--color-ink-muted);
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+.legendKey {
+  display: inline-block;
+  flex: none;
+  background: var(--key);
+}
+.bar {
+  width: 14px;
+  height: 10px;
+  border-radius: var(--radius-swatch);
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.dash {
+  width: 18px;
+  height: 0;
+  background: none;
+  border-top: 2px dashed var(--key);
+}
+
+/* Tooltip */
+.tip {
+  position: absolute;
+  z-index: 4;
+  min-width: 180px;
+  max-width: 260px;
+  padding: 10px var(--s-12);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-2);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  pointer-events: none;
+}
+.tipTitle {
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.tipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink-muted);
+}
+.tipSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.tipLabel {
+  flex: 1;
+}
+.tipValue {
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tipNote {
+  margin-top: 6px;
+  color: var(--color-ink-muted);
+}
+
+/* Table view */
+.tableView {
+  border-top: 1px solid var(--color-line-soft);
+  padding-top: var(--s-12);
+  font-size: var(--text-small);
+}
+.tableView summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-min);
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-green-700);
+}
+.tableScroll {
+  overflow-x: auto;
+}
+.tableView table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.tableView th,
+.tableView td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-line-soft);
+  text-align: right;
+  white-space: nowrap;
+}
+.tableView thead th {
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+.tableView th[scope="row"],
+.tableView thead th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+/* ---------- 1. Method bars ---------- */
+.hbars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hbarRow {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: var(--s-16);
+}
+.hbarHead {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.hbarName,
+.hbarNameModel {
+  font-weight: 500;
+}
+.hbarNameModel {
+  font-weight: 700;
+  color: var(--color-chart-model);
+}
+.hbarNote {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+.hbarTrack {
+  position: relative;
+  height: 28px;
+  border-radius: 0 4px 4px 0;
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(25% - 1px),
+    var(--color-line-soft) calc(25% - 1px) 25%
+  );
+  border-left: 1px solid var(--color-line-control);
+}
+.hbar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 0 4px 4px 0;
+  transition: width 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.hbarValue,
+.hbarValueModel {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+.hbarValueModel {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--color-ink);
+}
+.hbarAxis,
+.dbAxis {
+  position: relative;
+  height: 18px;
+  margin-top: var(--s-8);
+  margin-left: calc(220px + var(--s-16));
+  margin-right: calc(64px + var(--s-16));
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hbarAxis span,
+.dbAxis span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+/* ---------- 2. State dumbbells ---------- */
+.dumbbells {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dbRow {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: var(--s-16);
+  min-height: 56px;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.dbRow:last-child {
+  border-bottom: 0;
+}
+.dbName {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  font-weight: 600;
+}
+.dbCode {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-muted);
+}
+.dbTrack {
+  position: relative;
+  height: 28px;
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(25% - 1px),
+    var(--color-line-soft) calc(25% - 1px) 25%
+  );
+}
+.dbLine {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--color-chart-baseline), var(--color-chart-model));
+  opacity: 0.45;
+}
+.dbDot {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--color-surface);
+  transform: translate(-50%, -50%);
+  box-shadow: var(--shadow-1);
+}
+.dbGain,
+.dbGainBig {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+.dbGainBig {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--color-chart-model);
+}
+.dbAxis {
+  margin-right: calc(96px + var(--s-16));
+}
+
+/* ---------- 3. Calibration side table ---------- */
+.compare {
+  padding: 18px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+.compareTitle {
+  margin-bottom: var(--s-12);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 24px;
+}
+.compareTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.compareTable th,
+.compareTable td {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-line-soft);
+  text-align: right;
+}
+.compareTable th[scope="row"] {
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--text-small);
+}
+.compareTable thead th {
+  font-size: var(--text-micro);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.compareTable td {
+  width: 64px;
+  color: var(--color-ink-muted);
+}
+.compareTable td.better {
+  font-weight: 700;
+  color: var(--color-chart-model);
+}
+.compareFoot {
+  margin-top: var(--s-12);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+
+/* ---------- 4. Confusion matrix ---------- */
+.cmScroll {
+  overflow-x: auto;
+}
+.cm {
+  display: grid;
+  grid-template-columns: 150px repeat(5, minmax(64px, 1fr));
+  gap: 2px;
+  min-width: 480px;
+}
+.cmCorner {
+  align-self: end;
+  padding: 0 0 var(--s-8);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.cmColHead {
+  align-self: end;
+  padding: 0 4px var(--s-8);
+  text-align: center;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.cmRowHead {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-right: var(--s-12);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.cmRowN {
+  font-size: var(--text-micro);
+  font-weight: 400;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cmCell {
+  display: grid;
+  place-items: center;
+  height: 60px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--color-chart-model) var(--share), var(--color-paper-warm));
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: default;
+}
+.cmDiag {
+  font-weight: 700;
+  font-size: 17px;
+  box-shadow: inset 0 0 0 2px var(--color-ink);
+}
+
+/* Training mix */
+.mix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+}
+.mixBar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+}
+.mixSeg {
+  flex-basis: 0;
+  min-width: 4px;
+  background: color-mix(in oklab, var(--color-chart-model) var(--shade), var(--color-paper-warm));
+}
+.mixSeg:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.mixSeg:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.mixLegend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mixLegend li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+.mixKey {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-swatch);
+  background: color-mix(in oklab, var(--color-chart-model) var(--shade), var(--color-paper-warm));
+}
+.mixName {
+  flex: 1;
+  color: var(--color-ink);
+}
+.mixNum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 5. Year columns ---------- */
+.cols {
+  padding-left: 40px;
+}
+.colsPlot {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--s-12);
+  height: 260px;
+  margin-top: 28px;
+  border-bottom: 1px solid var(--color-line-control);
+}
+.colsGrid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--color-line-soft);
+}
+.colsGrid span {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: -9px;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.colsRef {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed var(--color-chart-baseline);
+  pointer-events: none;
+}
+.colsRef span {
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--color-surface);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-wheat-700);
+}
+.colSlot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+}
+.col {
+  width: min(100%, 56px);
+  border-radius: 4px 4px 0 0;
+  background: var(--color-chart-model);
+  transition: filter 120ms;
+}
+.colSlot:hover .col {
+  filter: brightness(1.12);
+}
+.colValue {
+  margin-bottom: 6px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.colsLabels {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--s-12);
+  padding-top: var(--s-8);
+  text-align: center;
+  font-size: var(--text-small);
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Folds */
+.folds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.folds li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: var(--s-8);
+  font-size: var(--text-small);
+}
+.foldTrack {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-paper-wash);
+  overflow: hidden;
+}
+.foldTrack span {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: var(--color-chart-model);
+}
+.foldValue {
+  text-align: right;
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 6. Drivers ---------- */
+.drivers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--s-32);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.driver {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--s-12);
+  padding: var(--s-12) 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.driverRank {
+  padding-top: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-wheat-700);
+}
+.driverBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.driverHead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-12);
+}
+.driverName {
+  font-weight: 600;
+}
+.driverValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.driverTrack {
+  height: 10px;
+}
+.driverBar {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--color-chart-model);
+}
+.driver:first-child .driverBar {
+  background: var(--color-button);
+}
+.driverHint {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+
+/* ---------- 7. Limits ---------- */
+.limitsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--s-20);
+  align-items: stretch;
+}
+.limits {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--s-8) var(--s-24);
+  border-radius: var(--radius-stage);
+  background: var(--color-warning-bg);
+  list-style: none;
+}
+.limits li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: var(--s-12);
+  padding: 14px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-warning-fg) 18%, transparent);
+  color: var(--color-warning-ink);
+}
+.limits li:last-child {
+  border-bottom: 0;
+}
+.limits li > svg {
+  margin-top: 3px;
+  color: var(--color-warning-fg);
+}
+.literature {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-12);
+  padding: var(--s-24);
+  border-radius: var(--radius-stage);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+}
+.literatureValue {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-stat);
+  line-height: var(--text-stat-lh);
+  letter-spacing: -0.03em;
+  color: var(--color-chart-model);
+}
+
+/* ---------- CTA band (as on the landing page) ---------- */
+.ctaWrap {
+  padding-top: 72px;
+  padding-bottom: 56px;
+}
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-24);
+  padding: var(--s-32);
+  border-radius: var(--radius-band);
+  background: var(--color-button);
+  color: var(--color-white);
+}
+.ctaTitle {
+  max-width: 560px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-2);
+  line-height: var(--text-title-2-lh);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sectionGrid,
+  .limitsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .notes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  }
+}
+@media (max-width: 860px) {
+  .drivers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .hero {
+    padding-top: var(--s-24);
+  }
+  .heroTitle {
+    font-size: 36px;
+    line-height: 40px;
+  }
+  .heroLead {
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .stats {
+    gap: var(--s-12);
+  }
+  .stat {
+    padding: var(--s-16);
+  }
+  .statValue {
+    font-size: 34px;
+    line-height: 38px;
+  }
+  .section {
+    padding-top: 48px;
+  }
+  .sectionHead {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-12);
+  }
+  .sectionNum {
+    width: 36px;
+    height: 36px;
+  }
+  .sectionTitle {
+    font-size: 24px;
+    line-height: 30px;
+  }
+  .chartPanel {
+    padding: var(--s-16);
+  }
+  .hbarRow {
+    grid-template-columns: minmax(0, 1fr) 56px;
+    gap: 6px var(--s-12);
+  }
+  .hbarHead {
+    grid-column: 1 / -1;
+  }
+  .hbarAxis {
+    margin-left: 0;
+    margin-right: calc(56px + var(--s-12));
+  }
+  .dbRow {
+    grid-template-columns: minmax(0, 1fr) 84px;
+    gap: 4px var(--s-12);
+    padding: var(--s-8) 0;
+  }
+  .dbName {
+    grid-column: 1 / -1;
+  }
+  .dbAxis {
+    margin-left: 0;
+    margin-right: calc(84px + var(--s-12));
+  }
+  .cols {
+    padding-left: 34px;
+  }
+  .colsPlot,
+  .colsLabels {
+    gap: 4px;
+  }
+  .colValue {
+    font-size: 11px;
+  }
+  .colsLabels {
+    font-size: 11px;
+  }
+  .colsRef span {
+    font-size: 11px;
+  }
+  .ctaTitle {
+    font-size: 26px;
+    line-height: 32px;
+  }
+  .cta {
+    padding: var(--s-32) var(--s-24);
+  }
+}
+@media (max-width: 420px) {
+  .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media print {
+  .toc,
+  .tableView summary {
+    display: none;
+  }
+}

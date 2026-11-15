@@ -53,6 +53,16 @@ export function SiteHeader() {
       >
         Pick a field
       </ButtonLink>
+      {!authPage && (
+        <ButtonLink
+          to={ROUTES.modelMetrics}
+          variant="ghost"
+          current={here(ROUTES.modelMetrics)}
+          className={row ? s.row : undefined}
+        >
+          Model accuracy
+        </ButtonLink>
+      )}
       {authPage ? null : session.status === "authenticated" ? (
         <>
           <ButtonLink
