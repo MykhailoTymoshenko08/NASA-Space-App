@@ -47,6 +47,23 @@ _KNOWN: list[tuple[str, re.Pattern[str], str | None]] = [
         re.compile(r"^organic soil", re.I),
         "Organic soil (over 20% organic matter): estimates for peat or muck soils are less reliable.",
     ),
+    (
+        "smap_near",
+        re.compile(r"^SMAP \(9 km pixel\): the soil moisture of the nearest field"),
+        "Soil moisture for this field is borrowed from the nearest field with satellite data, "
+        "so the soil-moisture checks are approximate.",
+    ),
+    (
+        "noncrop",
+        re.compile(r"^the CDL shows land that is not cropland in (\d+) of the last (\d+) years \(([\d, ]+):"),
+        r"Crop maps show grass, pasture or buildings here in \1 of the last \2 years (\3). "
+        "Check that this is a working field before relying on the plan.",
+    ),
+    (
+        "uncatalogued",
+        re.compile(r"^crops not in the catalog were treated as 'other': (.+)$"),
+        r"Some past years show land uses the model does not plan for (\1). They count as other land.",
+    ),
     ("source", re.compile(r"^Field features (come from precomputed data|were computed on the fly)"), None),
 ]
 
@@ -93,8 +110,9 @@ def summary(text: str) -> str:
 def _known(text: str) -> tuple[str | None, str | None]:
     """(key, farmer text) for a known phrase; (None, cleaned text) for anything else."""
     for key, pattern, plain in _KNOWN:
-        if pattern.search(text):
-            return key, plain
+        if m := pattern.search(text):
+            # Farmer texts may carry the ML message's numbers and names (\1, \2 ...).
+            return key, m.expand(plain) if plain else None
     return None, clean(text)
 
 

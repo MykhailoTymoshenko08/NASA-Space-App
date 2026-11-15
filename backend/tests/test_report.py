@@ -9,6 +9,7 @@ import pytest
 import respx
 
 from app.models import TimeSeries
+from app.report import plain
 from app.report.charts import chart, nice_step
 from app.report.present import report_context
 from app.report.render import ASSETS_URI, local_fetcher, report_html
@@ -335,6 +336,28 @@ def test_ml_wording_in_farmer_words():
     for raw in ("->", "irrigated=true", "Lina", "RUSLE", "SDA + POWER", "Check with a local agronomist:"):
         assert raw not in page
     assert "Check with a local agronomist Hybrid choice for your region" in page
+
+
+def test_field_data_notes_in_farmer_words():
+    # Notes the ML service adds for borrowed SMAP and non-cropland history (model 0.2.0, Nov 2026).
+    warnings, _ = plain.keep_in_mind(
+        [
+            "the CDL shows land that is not cropland in 4 of the last 5 years (2022, 2023, 2024, 2025: "
+            "grass, pasture or developed): check that this is a working field before relying on the plan",
+            "crops not in the catalog were treated as 'other': Grassland/Pasture",
+            "SMAP (9 km pixel): the soil moisture of the nearest field with data is used for this field "
+            "(temporary), the moisture rules are approximate",
+        ],
+        [],
+    )
+    assert warnings == [
+        "Crop maps show grass, pasture or buildings here in 4 of the last 5 years (2022, 2023, 2024, 2025). "
+        "Check that this is a working field before relying on the plan.",
+        "Some past years show land uses the model does not plan for (Grassland/Pasture). "
+        "They count as other land.",
+        "Soil moisture for this field is borrowed from the nearest field with satellite data, "
+        "so the soil-moisture checks are approximate.",
+    ]
 
 
 def test_unknown_ml_text_still_prints():
