@@ -62,6 +62,7 @@
 .jump {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--s-8);
 }
 .jumpLink {
@@ -96,6 +97,7 @@
 @media (max-width: 760px) {
   .jump {
     flex-wrap: nowrap;
+    justify-content: flex-start;
     overflow-x: auto;
     margin: 0 calc(-1 * var(--page-gutter));
     padding: 2px var(--page-gutter) 6px;
@@ -106,10 +108,10 @@
   }
 }
 
-/* Tiles: at most two per row inside a group, one on phones. */
+/* Tiles: at most two per row inside a group, one on phones. A lone tile fills the whole row (auto-fit). */
 .rows {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(220px, calc((100% - var(--s-12)) / 2))), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(220px, calc((100% - var(--s-12)) / 2))), 1fr));
   gap: var(--s-12);
 }
 .grid {
