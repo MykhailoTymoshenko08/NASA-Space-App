@@ -21,6 +21,7 @@ from app.models import (
     Strategy,
     TimeSeries,
 )
+from app.report import plain
 from app.report.charts import chart
 from app.report.units import acres, display, fmt, lat_lon, long_date, resolution, short_date, source_text
 
@@ -99,6 +100,7 @@ class StrategyView:
     benefits: list[str]
     risks: list[str]
     gaps: list[str]
+    checks: list[str]
 
 
 @dataclass
@@ -125,12 +127,17 @@ class DatasetRow:
     period: str
 
 
-def strategy_views(strategies: list[Strategy]) -> list[StrategyView]:
-    """Sorted by score (stable), like the web page: index 0 is the best fit."""
+def strategy_views(strategies: list[Strategy], said: set[str] | None = None) -> list[StrategyView]:
+    """Sorted by score (stable), like the web page: index 0 is the best fit.
+
+    `said`: what "Keep in mind" already says (plain.keep_in_mind), left off the cards.
+    """
     ordered = sorted(strategies, key=lambda s: -s.score)
+    said = said or set()
     baseline = next((s.score for s in ordered if s.is_current), None)
     views = []
     for i, st in enumerate(ordered):
+        notes = plain.gap_notes(list(st.information_gaps), said)
         if st.is_current:
             delta = "Baseline"
         elif baseline is None:
@@ -142,7 +149,7 @@ def strategy_views(strategies: list[Strategy]) -> list[StrategyView]:
             StrategyView(
                 rank="Best fit" if i == 0 else f"Option {i + 1}",
                 name=st.name,
-                summary=st.summary,
+                summary=plain.summary(st.summary),
                 score=round(st.score),
                 delta=delta,
                 confidence=f"Confidence: {st.confidence.capitalize()}",
@@ -159,13 +166,15 @@ def strategy_views(strategies: list[Strategy]) -> list[StrategyView]:
                 ],
                 evidence=[
                     EvidenceLine(
-                        e.statement, source_text(e.source.dataset, e.source.provider) if e.source else None
+                        plain.clean(e.statement),
+                        source_text(e.source.dataset, e.source.provider) if e.source else None,
                     )
                     for e in st.evidence
                 ],
-                benefits=list(st.benefits),
-                risks=list(st.risks),
-                gaps=list(st.information_gaps),
+                benefits=[plain.clean(b) for b in st.benefits],
+                risks=[plain.clean(r) for r in st.risks],
+                gaps=notes.unknown,
+                checks=notes.check,
             )
         )
     return views
@@ -204,19 +213,44 @@ def condition_row(m: Metric, size_m: float | None) -> ConditionRow:
 
 
 def condition_groups(metrics: list[Metric], size_m: float | None) -> list[ConditionGroup]:
+    """Rows in the design's groups. A note shared by several rows (same source) prints on the first only."""
     groups = [ConditionGroup(title) for title, _ in GROUPS]
     other = ConditionGroup("Other")
     for m in metrics:
         i = next((i for i, (_, cats) in enumerate(GROUPS) if m.category in cats), None)
         (groups[i] if i is not None else other).rows.append(condition_row(m, size_m))
-    return [g for g in [*groups, other] if g.rows]
+    kept = [g for g in [*groups, other] if g.rows]
+    seen: set[str] = set()
+    for row in (r for g in kept for r in g.rows):
+        if row.note in seen:
+            row.note = None
+        elif row.note:
+            seen.add(row.note)
+    return kept
+
+
+# Names that are one dataset, however the ML service and the backend spell them.
+DATASET_FAMILY = ["SSURGO", "Crop Sequence Boundaries", "3DEP", "SoilGrids", "SMAP", "Landsat", "NASADEM"]
+
+
+def _family(name: str) -> str:
+    return next((f for f in DATASET_FAMILY if f.lower() in name.lower()), name.lower())
 
 
 def dataset_rows(datasets: list[DatasetRef]) -> list[DatasetRow]:
-    return [
-        DatasetRow(d.dataset, d.provider, resolution(d.resolution_m) or "", d.coverage_period or "")
-        for d in datasets
-    ]
+    """One row per dataset: duplicates (same family) merge, keeping the longer name and any known detail."""
+    rows: dict[str, DatasetRow] = {}
+    for d in datasets:
+        row = DatasetRow(d.dataset, d.provider, resolution(d.resolution_m) or "", d.coverage_period or "")
+        old = rows.get(key := _family(d.dataset))
+        if old is None:
+            rows[key] = row
+            continue
+        if len(row.dataset) > len(old.dataset):
+            old.dataset, old.provider = row.dataset, row.provider
+        old.resolution = old.resolution or row.resolution
+        old.period = old.period or row.period
+    return list(rows.values())
 
 
 def crop_history(result: AnalysisResult, options: AnalysisOptions | None) -> tuple[str, str]:
@@ -242,7 +276,9 @@ def report_context(result: AnalysisResult, options: AnalysisOptions | None, job_
     area = (
         f"{acres(sel.area_ha)} acres ({fmt(sel.area_ha, 1)} ha)" if sel.area_ha is not None else "Not known"
     )
-    strategies = strategy_views(result.strategies)
+    shared = plain.shared_gaps([list(s.information_gaps) for s in result.strategies])
+    warnings, said = plain.keep_in_mind(list(result.warnings), shared)
+    strategies = strategy_views(result.strategies, said)
     generated = result.generated_at
     history_label, history = crop_history(result, options)
     data_dates = [m.as_of for m in result.current_conditions if m.as_of]
@@ -266,7 +302,7 @@ def report_context(result: AnalysisResult, options: AnalysisOptions | None, job_
         "history_title": history_title(result.time_series),
         "conditions": condition_groups(result.current_conditions, field_size_m(sel.area_ha)),
         "datasets": dataset_rows(result.datasets_used),
-        "warnings": list(result.warnings),
+        "warnings": warnings,
         "disclaimer": result.disclaimer,
         "model_version": result.model_version,
         "generated": long_date(generated.date()),

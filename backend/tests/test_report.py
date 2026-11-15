@@ -201,11 +201,115 @@ def test_pdf_layout_and_fonts():
 
     html = report_html(sample_result(), sample_options(), JOB_ID)
     doc = HTML(string=html, base_url=f"{ASSETS_URI}/", url_fetcher=local_fetcher()).render()
-    # Summary, strategy cards (none split across pages), conditions, data and disclaimer.
+    # Summary, strategy cards (a long card breaks only between its blocks), conditions, data and disclaimer.
     assert 5 <= len(doc.pages) <= 7
     # Every glyph, chart labels included, comes from the bundled Open Sans: no system fallback font.
     doc.write_pdf()
     assert {f.family for f in doc.fonts.values()} == {"Open Sans"}
+
+
+# ---------- ML wording ----------
+
+ML_GAPS = [
+    "If the field is irrigated, set irrigated=true \u2014 the recommendation will change",
+    "Livestock / forage demand unknown",
+    "No NDVI from Lina: the last-season stress rule is off",
+]
+
+
+def ml_result():
+    """The sample with the ML service's own English text (ml_service/rotations.py, real.py)."""
+    result = sample_result(
+        warnings=[
+            "No Landsat NDVI: bare soil in the timeline comes from the crop calendar "
+            "and the last-season stress rule is off",
+            "Field features were computed on the fly (SDA + POWER)",
+            "Income is a relative 0-100 index, not a profit estimate.",
+        ]
+    )
+    best = result.strategies[0].model_copy(
+        update={
+            "summary": "Sorghum instead of the thirstiest crops: better with heat and drought. "
+            "Bare days 174->90 a year, erosion 0.6->0.4 t/ha, nitrogen -110->+0 kg/ha.",
+            "evidence": [
+                result.strategies[0]
+                .evidence[0]
+                .model_copy(
+                    update={
+                        "statement": "Erosion 0.6 -> 0.4 t/ha/yr (RUSLE: rain 650 mm/yr, K=0.05, slope 2.0%)"
+                    }
+                )
+            ],
+            "information_gaps": [*ML_GAPS, "Check with a local agronomist: Hybrid choice for your region"],
+        }
+    )
+    rest = [
+        s.model_copy(update={"information_gaps": [*ML_GAPS, "Income is a relative index, not money"]})
+        for s in result.strategies[1:]
+    ]
+    return result.model_copy(update={"strategies": [best, *rest]})
+
+
+def test_ml_wording_in_farmer_words():
+    ctx = report_context(ml_result(), sample_options(), JOB_ID)
+    best = ctx["best"]
+    assert best.summary == "Sorghum instead of the thirstiest crops: better with heat and drought."
+    assert best.evidence[0].statement == "Erosion 0.6 to 0.4 t/ha/yr"
+    assert best.checks == ["Hybrid choice for your region"]
+    # Gaps every strategy lists print once, with the warnings, merged by meaning and in farmer words.
+    # ...and a card leaves out what "Keep in mind" already says (the income note, from a warning).
+    assert [s.gaps for s in ctx["strategies"]] == [[], [], [], []]
+    assert ctx["warnings"] == [
+        "No recent satellite plant-health data, so last season's crop stress was not checked.",
+        "Income is a score from 0 to 100 that compares options. It is not a profit estimate.",
+        "We do not know if this field is irrigated. If it is, the advice would change.",
+        "We do not know if you need hay or forage for livestock.",
+    ]
+    page = text(report_html(ml_result(), sample_options(), JOB_ID))
+    for raw in ("->", "irrigated=true", "Lina", "RUSLE", "SDA + POWER", "Check with a local agronomist:"):
+        assert raw not in page
+    assert "Check with a local agronomist Hybrid choice for your region" in page
+
+
+def test_unknown_ml_text_still_prints():
+    result = sample_result(warnings=["A new model note -> keep it"])
+    assert report_context(result, None, JOB_ID)["warnings"] == ["A new model note to keep it"]
+
+
+def test_baseline_summary_in_farmer_words():
+    from app.report.plain import summary
+
+    raw = (
+        "Baseline read from the CSB history 2020-2025 (cycle of 4 years, 100% match), continued for 3 years."
+    )
+    assert (
+        summary(raw) == "Your rotation as mapped in 2020 to 2025 (a 4-year cycle), carried forward 3 years."
+    )
+
+
+def test_many_seasons_share_one_row():
+    result = sample_result()
+    seasons = [("Soybeans", "nitrogen_fixer"), ("Cereal rye", "cover_crop")] * 3
+    rotation = [{"season_index": i, "crop": c, "role": r} for i, (c, r) in enumerate(seasons)]
+    best = result.strategies[0].model_validate({**result.strategies[0].model_dump(), "rotation": rotation})
+    html = report_html(result.model_copy(update={"strategies": [best, *result.strategies[1:]]}), None, JOB_ID)
+    assert "seasons seasons-many" in html and "repeat(6, minmax(0, 1fr))" in html
+
+
+def test_repeated_notes_and_datasets_print_once():
+    result = sample_result()
+    metrics = [m.model_copy(update={"note": "Same source note."}) for m in result.current_conditions[:3]]
+    datasets = [
+        *result.datasets_used,
+        {"dataset": "SSURGO (Soil Survey Geographic Database) via Soil Data Access", "provider": "USDA NRCS"},
+    ]
+    result = sample_result(current_conditions=[m.model_dump() for m in metrics], datasets_used=datasets)
+    ctx = report_context(result, None, JOB_ID)
+    notes = [r.note for g in ctx["conditions"] for r in g.rows]
+    assert notes == ["Same source note.", None, None]
+    names = [d.dataset for d in ctx["datasets"]]
+    assert sum("SSURGO" in n for n in names) == 1
+    assert "SSURGO (Soil Survey Geographic Database) via Soil Data Access" in names
 
 
 # ---------- charts ----------

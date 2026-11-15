@@ -65,6 +65,9 @@ li + li { margin-top: 3px; }
 
 /* ---------- sections and blocks ---------- */
 section + section { break-before: page; }
+/* Strategy cards follow the summary on the same page when they fit: no near-empty pages. */
+section.summary + section.strategies { break-before: auto; margin-top: 18px; }
+section.conditions + section.data { break-before: auto; margin-top: 28px; }
 section > * + * { margin-top: 18px; }
 h1 { font-size: 34px; line-height: 40px; font-weight: 600; letter-spacing: -0.02em; }
 h2 { font-size: 20px; line-height: 26px; font-weight: 600; break-after: avoid; }
@@ -111,13 +114,18 @@ h2 { font-size: 20px; line-height: 26px; font-weight: 600; break-after: avoid; }
 .score-large .score-value { font-size: 44px; line-height: 48px; }
 .score-large .score-max { font-size: 16px; }
 
-.seasons { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.card > .seasons { margin-top: 10px; }
+/* One row of equal columns (up to 6 a row; columns set inline from the season count). */
+.seasons { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.card .seasons { margin-top: 10px; }
 .seasons li {
-  flex: 1 1 0; min-width: 120px; margin: 0;
+  min-width: 0; margin: 0;
   display: flex; flex-direction: column;
   padding: 6px 10px; border: 1px solid #1F4D38; border-radius: 5px; background: #DCEBD8;
 }
+.seasons li + li { margin-top: 0; }
+.seasons-many { gap: 6px; }
+.seasons-many li { padding: 5px 8px; }
+.seasons-many li .strong { font-size: 13px; line-height: 18px; }
 
 /* ---------- ranking and topic bars ---------- */
 .ranking > * + * { margin-top: 8px; }
@@ -143,9 +151,17 @@ h2 { font-size: 20px; line-height: 26px; font-weight: 600; break-after: avoid; }
 
 /* ---------- strategy details ---------- */
 .strategies > .card + .card { margin-top: 14px; }
-.details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; }
-.details ul.plain { list-style: none; padding: 0; }
-.details ul.plain li + li { margin-top: 6px; }
+/* A strategy card may break across pages, but only between its blocks; each part keeps its border. */
+.card.strategy { break-inside: auto; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.card-top, .pair { break-inside: avoid; }
+.card-top { break-after: avoid; }
+/* No lone last block on a new page: it goes over together with the block before it. */
+.card.strategy > .pair:last-child { break-before: avoid; }
+.card.strategy > * + * { margin-top: 12px; }
+.pair { display: flex; gap: 24px; }
+.pair > div { flex: 1 1 0; min-width: 0; }
+ul.plain { list-style: none; padding: 0; }
+ul.plain li + li { margin-top: 6px; }
 .topics { margin-top: 6px; }
 .topic-row {
   display: grid; grid-template-columns: 92px 1fr 28px; align-items: center; gap: 8px;

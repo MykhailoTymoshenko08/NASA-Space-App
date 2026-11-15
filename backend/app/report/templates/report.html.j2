@@ -19,7 +19,8 @@
 
 {%- macro seasons(st) %}
 {%- if st.seasons %}
-<ol class="seasons">
+{%- set n = st.seasons | length %}
+<ol class="seasons{% if n > 4 %} seasons-many{% endif %}" style="grid-template-columns: repeat({{ [n, 6] | min }}, minmax(0, 1fr))">
   {%- for s in st.seasons %}
   <li><span class="small muted">{{ s.label }}</span><span class="strong">{{ s.crop }}</span><span class="small muted">{{ s.role }}</span></li>
   {%- endfor %}
@@ -33,6 +34,15 @@
   <div class="label">{{ title }}</div>
   <ul>{% for t in items %}<li>{{ t }}</li>{% endfor %}</ul>
 </div>
+{%- endif %}
+{%- endmacro %}
+
+{#- Two columns that stay together; a long card breaks between pairs, never inside one. -#}
+{%- macro pair(left, right) %}
+{%- if left | trim and right | trim %}
+<div class="pair"><div>{{ left }}</div><div>{{ right }}</div></div>
+{%- elif left | trim or right | trim %}
+<div class="pair"><div>{{ left if left | trim else right }}</div><div></div></div>
 {%- endif %}
 {%- endmacro %}
 <!doctype html>
@@ -95,37 +105,37 @@
   {%- endif %}
 </section>
 
-{#- Strategy details: as many whole cards per page as fit (two for typical results) -#}
+{#- Strategy details: cards follow each other; a card taller than the space left breaks between its pairs. -#}
 <section class="strategies">
   {%- for st in strategies %}
   <article class="card strategy{% if st.is_best %} best{% endif %}">
-    {{ head(st, large=False) }}
-    {{ seasons(st) }}
-    <div class="details">
+    <div class="card-top">
+      {{ head(st, large=False) }}
+      {{ seasons(st) }}
+    </div>
+    {%- set why %}
       {%- if st.evidence %}
-      <div>
         <div class="label">Why we suggest it</div>
         <ul class="plain">
           {%- for e in st.evidence %}
           <li><div>{{ e.statement }}</div>{% if e.source %}<div class="small muted">{{ e.source }}</div>{% endif %}</li>
           {%- endfor %}
         </ul>
-      </div>
       {%- endif %}
+    {%- endset %}
+    {%- set fit %}
       {%- if st.topics %}
-      <div>
         <div class="label">Fit by topic</div>
         <div class="topics">
           {%- for t in st.topics %}
           <div class="topic-row"><span>{{ t.label }}</span><div class="track thin"><div class="fill fill-best" style="width: {{ t.score }}%"></div></div><span class="topic-score">{{ t.score }}</span></div>
           {%- endfor %}
         </div>
-      </div>
       {%- endif %}
-      {{ bullets("Good for", st.benefits) }}
-      {{ bullets("Watch out for", st.risks) }}
-      {{ bullets("What we do not know", st.gaps) }}
-    </div>
+    {%- endset %}
+    {{ pair(why, fit) }}
+    {{ pair(bullets("Good for", st.benefits), bullets("Watch out for", st.risks)) }}
+    {{ pair(bullets("What we do not know", st.gaps), bullets("Check with a local agronomist", st.checks)) }}
   </article>
   {%- endfor %}
 </section>
