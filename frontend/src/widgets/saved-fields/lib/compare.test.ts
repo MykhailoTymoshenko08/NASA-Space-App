@@ -1,5 +1,5 @@
 import type { ComparisonRow } from "@/entities/comparison";
-import { barPercents, compareValue, planText, sharedCellNote, usd } from "./compare";
+import { barPercents, compareValue, sharedCellNote, usd } from "./compare";
 
 const row = (better: ComparisonRow["better"], values: (number | null)[], unit = "index"): ComparisonRow => ({
   key: "k",
@@ -54,12 +54,5 @@ describe("sharedCellNote", () => {
     const missing = row("higher", [null, null]);
     missing.cells.forEach((c) => (c.note = "Soil source is down."));
     expect(sharedCellNote(missing)).toBeNull();
-  });
-});
-
-describe("planText", () => {
-  it("reads the plan as a sentence", () => {
-    expect(planText({ rotation: ["corn", "soybean"], horizon_years: 2 })).toBe("Corn, then soybeans, over 2 years");
-    expect(planText({ rotation: ["corn"], horizon_years: 2 })).toBe("Corn every year, over 2 years");
   });
 });
