@@ -141,7 +141,7 @@ export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[
       {query.isFetching && <div role="status">{data ? "Updating comparison. Previous results remain below." : "Loading comparison, soil data and budgets…"}</div>}
       {query.isPending && <Skeleton height={240} />}
       {query.isError && <ErrorPanel title={missing ? "One selected field is no longer available" : "We could not update the comparison"}
-        message={missing ? "Return to My fields and select the fields again." : friendlyMessage(query.error)}
+        message={missing ? "Return to Saved fields and select the fields again." : friendlyMessage(query.error)}
         actions={unauthorized
           ? <ButtonLink to={`${ROUTES.signIn}?next=${encodeURIComponent(ROUTES.myFields)}`}>Sign in again</ButtonLink>
           : !missing && <Button onClick={() => void query.refetch()} disabled={query.isFetching || waiting}>Try again</Button>} />}

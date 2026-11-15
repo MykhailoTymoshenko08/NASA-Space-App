@@ -139,7 +139,7 @@ it.each([401, 404, 429])("handles HTTP %s without retries or misleading results"
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
   expect(calls).toBe(1);
   if (status === 401) expect(screen.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", "/sign-in?next=%2Fmy-fields");
-  if (status === 404) expect(screen.getByText("Return to My fields and select the fields again.")).toBeInTheDocument();
+  if (status === 404) expect(screen.getByText("Return to Saved fields and select the fields again.")).toBeInTheDocument();
   if (status === 429) {
     expect(screen.getByRole("alert")).toHaveTextContent("Try again in 2 seconds");
     expect(screen.getByRole("button", { name: "Try again" })).toBeDisabled();
