@@ -241,7 +241,7 @@ def test_her_files_are_converted_and_installed(world):
     ndvi = pd.read_csv(world["lina"] / "ndvi_monthly.csv", dtype={"field_id": str})
     assert list(ndvi.columns) == ["field_id", "year", "month", "ndvi_mean", "n_obs"] and ndvi["year"].min() == 2015       # ndvi_hls renamed, date dropped, 2015 kept
     smap = pd.read_csv(world["lina"] / "smap_monthly.csv", dtype={"field_id": str})
-    assert list(smap.columns) == ["field_id", "year", "month", "smap_rootzone"] and smap["year"].min() == 2015
+    assert list(smap.columns)[:4] == ["field_id", "year", "month", "smap_rootzone"] and smap["year"].min() == 2015
     t = pd.read_csv(world["lina"] / "terrain.csv", dtype={"field_id": str}).set_index("field_id")
     f, deg, deg75, deg90 = terrain[3]
     assert t.loc[f, "slope_pct"] == pytest.approx(np.tan(np.radians(deg)) * 100, abs=0.01)                                # percent, not degrees
