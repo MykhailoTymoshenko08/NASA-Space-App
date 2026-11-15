@@ -228,10 +228,10 @@ def her_files(incoming: Path, ids=IDS, deg=None):
     smap = [(f, f"{y}-{m:02d}", y, m, round(float(0.3 + rng.normal(0, 0.02) - (0.15 if f == "P1" and y % 2 == 0 else 0)), 3))
             for f in ids for y in HER_YEARS for m in (6, 7, 8)]
     deg = deg or [1.0 + 0.5 * i for i in range(len(ids))]
-    terrain = [(f, d, round(d * 1.8, 2)) for f, d in zip(ids, deg)]
+    terrain = [(f, d, round(d * 1.4, 2), round(d * 1.8, 2)) for f, d in zip(ids, deg)]
     pd.DataFrame(ndvi, columns=["field_id", "date", "year", "month", "ndvi_hls", "n_obs"]).to_csv(incoming / "hls_ndvi_monthly_long.csv", index=False)
     pd.DataFrame(smap, columns=["field_id", "date", "year", "month", "smap_rootzone"]).to_csv(incoming / "smap_monthly_long.csv", index=False)
-    pd.DataFrame(terrain, columns=["field_id", "slope_deg", "slope_deg_p90"]).to_csv(incoming / "terrain2.csv", index=False)
+    pd.DataFrame(terrain, columns=["field_id", "slope_deg", "slope_deg_p75", "slope_deg_p90"]).to_csv(incoming / "terrain2.csv", index=False)
     return terrain
 
 
@@ -243,8 +243,9 @@ def test_her_files_are_converted_and_installed(world):
     smap = pd.read_csv(world["lina"] / "smap_monthly.csv", dtype={"field_id": str})
     assert list(smap.columns) == ["field_id", "year", "month", "smap_rootzone"] and smap["year"].min() == 2015
     t = pd.read_csv(world["lina"] / "terrain.csv", dtype={"field_id": str}).set_index("field_id")
-    f, deg, deg90 = terrain[3]
+    f, deg, deg75, deg90 = terrain[3]
     assert t.loc[f, "slope_pct"] == pytest.approx(np.tan(np.radians(deg)) * 100, abs=0.01)                                # percent, not degrees
+    assert t.loc[f, "slope_pct_p75"] == pytest.approx(np.tan(np.radians(deg75)) * 100, abs=0.01)
     assert t.loc[f, "slope_pct_p90"] == pytest.approx(np.tan(np.radians(deg90)) * 100, abs=0.01) and "twi" not in t.columns
     county = pd.read_parquet(world["pre"] / "19153.parquet").set_index("field_id")
     assert county.loc["P2", "slope_pct"] == pytest.approx(np.tan(np.radians(terrain[4][1])) * 100, abs=0.01)
@@ -262,13 +263,25 @@ def test_impossible_slopes_in_her_file_are_dropped(world):
     assert pct.between(0, 100).all() and len(pct) == 3
 
 
-def test_service_with_her_files_still_says_twi_is_missing(world):
+def test_field_without_slope_falls_back_to_ssurgo(world):
+    deg = [1.0, 2.0, 3.0, 4.0, 5.0, float("nan")]
+    her_files(world["incoming"], deg=deg)
+    assert run(world, "--max-bad-share", "0.5") == 0
+    county = pd.read_parquet(world["pre"] / "19153.parquet").set_index("field_id")
+    gap = county.index[county["slope_pct"].isna()]
+    assert len(gap) >= 1                                                  # the field without NASADEM slope keeps no NASADEM value ...
+    f = next(i for i in gap if not pd.isna(county.loc[i, "slope_r"]))
+    out = analyze(f)
+    assert "nasadem" not in {s["id"] for s in out["sources"]} and out["strategies"]    # ... and the service still answers, on the SSURGO slope
+
+
+def test_service_with_her_files_twi_missing_is_only_a_warning(world):
     her_files(world["incoming"])
     run(world)
     after = analyze("P1")
     assert {"nasadem", "smap", "landsat_ndvi"} <= {s["id"] for s in after["sources"]}
     text = " ".join(after["warnings"])
-    assert "NDVI" not in text and "SMAP" not in text and "TWI" in text and after["status"] == "partial"     # the TWI rule is off, and it is said
+    assert "NDVI" not in text and "SMAP" not in text and "TWI" in text and after["status"] == "ok"     # the TWI rule is off and it is said, but that alone is not "partial"
     cs = {c["crop"]: c for c in after["crop_suitability"]}
     assert cs["corn"]["parts"]["rules"] < 1.0 < cs["sorghum"]["parts"]["rules"]                              # SMAP still drives the dry-July rules
 
