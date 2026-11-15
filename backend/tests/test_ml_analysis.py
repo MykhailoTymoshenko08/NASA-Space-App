@@ -165,6 +165,18 @@ def test_changing_only_ml_income_score_does_not_change_budget(ml_client, upstrea
     assert {s["id"]: s["budget"] for s in second["result"]["strategies"]} == a
 
 
+def test_short_ml_plan_cannot_report_a_complete_budget_for_a_longer_request(ml_client, upstream):
+    respond(upstream)
+    job = analyze(ml_client, horizon_years=5, budget={"land_rent_per_acre": 0, "cover_cost_per_acre": 40})
+    assert job["status"] == "succeeded"
+    for strategy in job["result"]["strategies"]:
+        budget = strategy["budget"]
+        assert budget["horizon_years"] == 5 and len(budget["years"]) == 5
+        assert budget["status"] == "partial"
+        assert budget["annual_average"] is budget["horizon_total"] is None
+        assert budget["years"][3]["scenarios"] is budget["years"][4]["scenarios"] is None
+
+
 def test_invalid_budget_request_returns_contract_validation_error(ml_client):
     response = ml_client.post("/v1/analyses", json={
         "selection": F1, "options": {"budget": {"land_rent_per_acre": -1}},

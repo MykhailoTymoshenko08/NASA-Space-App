@@ -6,7 +6,7 @@ import pytest
 
 from app.models import ProfitEstimateRequest, RotationBudgetOptions
 from app.profitability import estimate_profit
-from app.profitability.rotation import ACRES_PER_HECTARE, COVER, compare_budgets, estimate_rotation_budget
+from app.profitability.rotation import COVER, compare_budgets, estimate_rotation_budget
 
 
 def season(year, crop, cover=False):
@@ -44,7 +44,9 @@ def test_rotation_reuses_crop_calculator_and_counts_land_once_per_year():
     assert total.revenue_per_acre == round(sum(x.revenue_per_acre for x in expected), 2)
     assert total.cost_per_acre == round(sum(x.cost_per_acre for x in expected), 2)
     assert total.profit_per_acre == round(total.revenue_per_acre - total.cost_per_acre, 2)
-    assert total.field_profit == round(total.profit_per_acre * 40 * ACRES_PER_HECTARE, 2)
+    assert total.field_profit == round(total.field_revenue - total.field_cost, 2)
+    assert total.field_revenue == round(sum(x.field_revenue for x in expected), 2)
+    assert total.field_cost == round(sum(x.field_cost for x in expected), 2)
     annual = result.annual_average.base
     assert annual.cost_per_acre == round(total.cost_per_acre / 3, 2)
     assert annual.profit_per_acre == round(annual.revenue_per_acre - annual.cost_per_acre, 2)
@@ -133,7 +135,7 @@ def test_rent_and_unknown_cover_costs_must_be_supplied():
     assert supplied.status == "estimated"  # Explicit zero is a valid farmer assumption.
 
 
-def test_cover_cost_is_unknown_without_a_local_input_and_rent_placeholders_stay_visible():
+def test_cover_cost_requires_local_input_and_unsourced_wheat_has_no_totals():
     seq = [season(1, "corn"), season(1, "cereal_rye", True)]
     illinois = budget(seq, state="IL", land_rent_per_acre=0)
     iowa = budget(seq, state="IA", land_rent_per_acre=0)
@@ -142,7 +144,9 @@ def test_cover_cost_is_unknown_without_a_local_input_and_rent_placeholders_stay_
     assert illinois.status == iowa.status == "unavailable"
     assert illinois.annual_average is None and iowa.annual_average is None
     assert not illinois.uses_placeholders and not iowa.uses_placeholders
-    assert rent.uses_placeholders and wheat.uses_placeholders
+    assert not rent.uses_placeholders and rent.status == "estimated"
+    assert wheat.uses_placeholders and wheat.status == "unavailable"
+    assert wheat.annual_average is None and wheat.years[0].production_cost_per_acre is None
     assert illinois.years[0].cover_cost_per_acre is None
     assert not any(s.url == COVER["source"]["url"] for s in illinois.sources)
     assert any("planting and termination" in s for s in iowa.missing_inputs)

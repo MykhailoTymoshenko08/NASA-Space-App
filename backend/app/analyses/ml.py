@@ -216,6 +216,7 @@ def _result(
             budget=estimate_rotation_budget(
                 [season.model_dump() for season in s.sequence], selection.county.state_postal,
                 selection.area_ha, options.budget, previous_crop=previous,
+                horizon_years=options.horizon_years,
             ),
         ))
     current_budget = next(s.budget for s in strategies if s.is_current)

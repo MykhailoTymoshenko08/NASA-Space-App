@@ -55,5 +55,37 @@ production costs can remain negative; the application must identify that basis c
 ## Remaining limits
 
 Farm yields, local sale prices, actual land costs, irrigation systems, insurance receipts and program
-payments can differ materially. Land placeholders and unavailable crop budgets remain labeled.
+payments can differ materially. Unavailable crop budgets remain labeled and withhold financial totals.
 Unknown inputs are not zero. ML suitability and income scores do not calibrate dollar or yield forecasts.
+
+## Financial API completion — contract 0.13.0
+
+The standalone crop estimate, standalone rotation budget and baseline catalogue require sign-in and
+share a profitability rate-limit bucket. Sources accompany the financial outputs. Farmer yield,
+prices and itemized costs can replace all crop inputs; rotation gross-revenue/production-cost overrides
+continue to support crops and states outside baseline coverage. Incomplete inputs yield explicit
+missing-input results, not fabricated profits. Iowa winter wheat can be completed entirely from farmer inputs.
+
+Verified rents replace the previous unsourced constants:
+
+| State | USD/acre/year | Data basis | Source |
+| --- | ---: | --- | --- |
+| IA | 274 | 2025 non-irrigated cropland | [USDA NASS Iowa bulletin, Cash Rent — Iowa: 2023–2025](https://www.nass.usda.gov/Statistics_by_State/Iowa/Publications/Annual_Statistical_Bulletin/2025-Iowa-Annual-Bulletin.pdf) |
+| IL | 261 | 2026 statewide cropland | [Illinois farmdoc, September 15, 2026](https://farmdocdaily.illinois.edu/2026/09/illinois-cash-rents-in-2026-and-outlook-for-2027.html) |
+| NE | 168 | 2026 dryland cropland | [Nebraska CropWatch, September 2, 2026](https://cropwatch.unl.edu/news/nebraska-2026-farm-real-estate-value-and-cash-rent/) |
+
+Iowa deliberately retains its verified 2025 observation rather than presenting it as a 2026 quote.
+Illinois's statewide rent is not specific to the high-productivity cost profile. Nebraska's dryland
+rent matches its production system rather than silently using the mixed irrigated/dryland average.
+The pinned references retain their original source and retrieval dates when rebuilt without credentials.
+
+Decimal half-up rounding replaces binary-float rounding at monetary boundaries. Profits subtract
+displayed revenue and cost. Rotation field totals sum yearly cents before annual averaging, preventing
+one-cent discrepancies between annual field amounts and the complete horizon. Break-even outputs are
+rounded ratios, not guaranteed minimum sale quotes. Farmer total costs do not assert the inclusion of
+published labor/depreciation allowances, and unknown land components leave before-land return null.
+
+Regression coverage checks sourced reference budgets, farmer replacements, crop failures, zero prices,
+fractional cents and areas, incomplete rotations, source provenance, authentication, rate limits,
+input validation and responses against the shared OpenAPI contract. Loan schedules, taxes and monthly
+cash-flow accounting remain outside the enterprise-budget model.

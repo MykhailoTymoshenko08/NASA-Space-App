@@ -130,9 +130,12 @@ def test_compare_two_csb_fields(api):
     assert fa["history"]["pattern"] == "corn_soybean" and fa["history"]["corn_in_a_row"] == 1
     assert fb["history"]["source"] == "none" and fb["history"]["pattern"] == "unknown"
 
-    # Rent: the farmer's figure for A, the (placeholder) state reference for B.
+    # Rent: the farmer's figure for A, the sourced 2025 state reference for B.
     assert fa["rent"] == {"per_acre": 200.0, "source": "farmer", "is_placeholder": False}
-    assert fb["rent"]["source"] == "state_baseline" and fb["rent"]["per_acre"] == 270.0
+    assert fb["rent"]["source"] == "state_baseline" and fb["rent"]["per_acre"] == 274.0
+    assert not fb["rent"]["is_placeholder"] and not fb["budget"]["uses_placeholders"]
+    assert any(s["coverage_period"] == "2025" and "Cash Rent" in s["dataset"]
+               for s in fb["budget"]["sources"])
 
     # Money matches the rotation budget: A follows corn, so it starts with soybeans.
     budget = estimate_rotation_budget(
@@ -159,10 +162,21 @@ def test_compare_two_csb_fields(api):
     assert body["best"] == {"net_return": [a], "soil_productivity": [a], "rent_value": [a]}
 
     assert any("Most productive soil" in s for s in fa["strengths"])
-    assert any("placeholder" in c for c in fb["cautions"])
-    assert any("placeholder" in w for w in body["warnings"])
+    assert not any("placeholder" in c for c in fb["cautions"])
+    assert not any("placeholder" in w for w in body["warnings"])
     assert body["plan"] == {"rotation": ["corn", "soybean"], "horizon_years": 2}
     assert body["disclaimer"]
+
+
+def test_comparison_rent_rounds_to_the_cost_charged_by_the_budget(api):
+    auth = login(api)
+    a = save(api, auth, "Fractional rent A", field_id=F1_ID, geometry=_poly(F1))
+    b = save(api, auth, "Fractional rent B", field_id=F2_ID, geometry=_poly(F2))
+    response = compare(api, auth, [a, b], rent_per_acre={a: 200.005, b: 200.004})
+    assert response.status_code == 200
+    for field, expected in zip(response.json()["fields"], (200.01, 200.00), strict=True):
+        assert field["rent"]["per_acre"] == expected
+        assert all(year["land_rent_per_acre"] == expected for year in field["budget"]["years"])
 
 
 def test_compare_point_field_with_farmer_history(api):

@@ -13,8 +13,9 @@ What it does
 - Costs: transcribed by hand from the 2026 extension crop budgets listed in BUDGETS (PDFs, so not parsed
   here). Each line keeps the page and the budget line items it is built from.
 - Nitrogen credit: UNL EC117 Table I; nitrogen price: ISU FM 1712 (A1-20) 2026.
-- Land rent: NASS Quick Stats survey cash rent for non-irrigated cropland. Needs a free API key in the
-  env var NASS_API_KEY (https://quickstats.nass.usda.gov/api). Without it, rent stays a marked placeholder.
+- Land rent: pinned verified state references in `rent_reference.json`; optional Quick Stats updates
+  use a free API key in NASS_API_KEY (https://quickstats.nass.usda.gov/api). Without a key, verified
+  references retain their original source and year. Nebraska uses dryland rent, not mixed cropland.
   Never commit the key; put it in backend/.env (gitignored) or export it in your shell.
 
 Anything that cannot be sourced stays in the file with "placeholder": true and a reason.
@@ -396,12 +397,11 @@ def build_costs(today: str) -> dict:
 
 def build_land_rent(today: str) -> dict:
     key = os.environ.get("NASS_API_KEY", "").strip()
+    references = json.loads((OUT.parent / "rent_reference.json").read_text())
     out: dict = {}
     for st in STATES:
         if not key:
-            out[st] = {"value": PLACEHOLDERS["land_rent"][st], "unit": "USD/acre", "placeholder": True,
-                       "placeholder_reason": "NASS cash rents are only in Quick Stats; "
-                                             "set NASS_API_KEY and rerun."}
+            out[st] = references[st]
             continue
         q = {
             "key": key, "source_desc": "SURVEY", "sector_desc": "ECONOMICS", "agg_level_desc": "STATE",
@@ -414,7 +414,11 @@ def build_land_rent(today: str) -> dict:
             rows = json.load(r)["data"]
         rows = [r for r in rows if r["reference_period_desc"] == "YEAR"
                 and r["Value"].replace(",", "").replace(".", "").strip().isdigit()]
-        latest = max(rows, key=lambda r: int(r["year"]))
+        rows = [r for r in rows if re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", r["Value"].replace(",", ""))]
+        latest = max(rows, key=lambda r: int(r["year"]), default=None)
+        if latest is None or int(latest["year"]) < int(references[st]["data_years"]):
+            out[st] = references[st]
+            continue
         out[st] = {
             "value": float(latest["Value"].replace(",", "")), "unit": "USD/acre",
             "data_years": str(latest["year"]),
@@ -430,7 +434,7 @@ def build_land_rent(today: str) -> dict:
 def main() -> None:
     today = date.today().isoformat()
     data = {
-        "version": f"usda-extension-{today}",
+        "version": f"usda-extension-{today}-financial-v1",
         "generated": today,
         "generated_by": "backend/scripts/build_profit_baseline.py",
         "units": {"price": "USD/bu", "yield": "bu/acre", "costs": "USD/acre", "land_rent": "USD/acre",

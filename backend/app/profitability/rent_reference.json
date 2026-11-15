@@ -1,0 +1,44 @@
+{
+  "IA": {
+    "value": 274,
+    "unit": "USD/acre",
+    "data_years": "2025",
+    "source": {
+      "publisher": "USDA NASS",
+      "document": "2025 Iowa Agricultural Statistics Bulletin",
+      "table": "Cash Rent - Iowa: 2023-2025, non-irrigated cropland, 2025",
+      "url": "https://www.nass.usda.gov/Statistics_by_State/Iowa/Publications/Annual_Statistical_Bulletin/2025-Iowa-Annual-Bulletin.pdf",
+      "year": 2025,
+      "retrieved": "2026-11-15",
+      "note": "Pinned verified non-irrigated reference, not a 2026 or county lease quote."
+    }
+  },
+  "IL": {
+    "value": 261,
+    "unit": "USD/acre",
+    "data_years": "2026",
+    "source": {
+      "publisher": "University of Illinois, farmdoc (Paulson, Schnitkey, Tsay and Zulauf)",
+      "document": "Illinois Cash Rents in 2026 and Outlook for 2027, September 15, 2026",
+      "table": "2026 Illinois Cash Rents: USDA NASS statewide cropland average",
+      "url": "https://farmdocdaily.illinois.edu/2026/09/illinois-cash-rents-in-2026-and-outlook-for-2027.html",
+      "year": 2026,
+      "retrieved": "2026-11-15",
+      "note": "Statewide cropland average, not a high-productivity central Illinois lease quote."
+    }
+  },
+  "NE": {
+    "value": 168,
+    "unit": "USD/acre",
+    "data_years": "2026",
+    "source": {
+      "publisher": "University of Nebraska-Lincoln, CropWatch",
+      "document": "Nebraska 2026 Farm Real Estate Value and Cash Rent, September 2, 2026",
+      "table": "USDA NASS 2026 dryland cropland cash rent",
+      "url": "https://cropwatch.unl.edu/news/nebraska-2026-farm-real-estate-value-and-cash-rent/",
+      "year": 2026,
+      "retrieved": "2026-11-15",
+      "note": "Dryland reference matches the non-irrigated enterprise cost profiles. Not the mixed cropland average."
+    }
+  }
+}

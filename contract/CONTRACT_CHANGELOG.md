@@ -3,6 +3,35 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.13.0 (2026-11-15): complete enterprise-budget API
+
+Breaking access and missing-data changes: `POST /profitability/estimate` now requires a bearer token.
+Its `scenarios` and `yield_per_acre` can be null when required inputs have no verified baseline.
+Consumers must inspect `status` and `missing_inputs` before displaying a return.
+
+- All `/profitability/*` routes require sign-in and share a per-IP rate limit, with documented 401/429 responses.
+- `POST /profitability/rotation` exposes the existing rotation calculator without running ML. Plans are
+  bounded to five years, reject duplicate seasons and preserve missing-year and double-crop gaps.
+  Optional `horizon_years` preserves trailing missing years. Analysis budgets use the requested horizon,
+  even when an upstream plan is shorter; those budgets remain partial.
+- `GET /profitability/baselines` returns nine default crop/state estimates with coverage, input gaps and sources.
+- Crop estimates accept farmer `yield_per_acre`, ordered `price_overrides`, itemized production-cost
+  overrides and optional `area_ha`. A farmer yield and `predicted_yield` cannot accompany each other.
+  Zero yield/price is valid; non-finite and contradictory financial inputs are rejected.
+- Crop outputs include `status`, `price_source`, `currency`, `area_acres`, `is_illustrative`, sources,
+  missing inputs, break-even price/yield and field revenue/cost/profit. Before-land return remains null
+  when a farmer total does not identify the land component. Farmer costs make no claim about depreciation.
+- Placeholder prices, yields, production costs and rents are never calculated. Iowa winter wheat
+  requires farmer inputs. Rotation gaps withhold whole-horizon totals; zero and negative returns remain valid.
+- Replace unsourced rents with verified references: Iowa 2025 non-irrigated $274/acre, Illinois 2026
+  statewide cropland $261/acre and Nebraska 2026 dryland $168/acre. Each source retains its year and category.
+  Rebuilding without `NASS_API_KEY` preserves these pinned references. No credentials are required at runtime.
+- Money uses decimal half-up rounding to cents. Field profit subtracts field cost from field revenue.
+  Rotation field totals sum yearly cents; annual field averages divide those totals. Per-acre averages
+  are rounded independently, so scaling a displayed annual per-acre value can differ by a cent.
+- Rotation years identify their yield basis and sources. Field comparisons preserve state-rent provenance,
+  withhold unknown inputs and avoid ranking unsourced rents. Invalid comparisons clear any previous deltas.
+
 ## 0.12.0 (2026-11-15): field comparisons and area rankings
 
 Additive. Both routes need a bearer token and share a per-client rate limit.

@@ -171,7 +171,7 @@ curl -s -X POST localhost:8000/v1/fields/resolve -H 'content-type: application/j
 | `ML_TIMEOUT_S` | `30` | timeout for an ML HTTP request; must be positive |
 | `STUB_DURATION_S` | `6` | analysis stub run time |
 | `STUB_FAIL_RATE` | `0` | 0..1, share of analysis jobs that fail on purpose |
-| `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_S` | `30` / `60` | per-IP limit on `POST /analyses`, `POST /locations/resolve`, `POST /auth/register`, `POST /auth/login` and the two `POST /comparisons/*` routes (shared bucket) |
+| `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_S` | `30` / `60` | per-IP limits on analyses, location resolution, registration/login, comparisons and profitability; each group has its own bucket |
 | `JWT_SECRET` | empty | signs access tokens, min 32 chars (`openssl rand -base64 48`). Empty: random per process, dev only |
 | `ACCESS_TOKEN_TTL_MIN` | `15` | access token (JWT) lifetime |
 | `REFRESH_TOKEN_TTL_DAYS` | `7` | refresh token (cookie) lifetime |
@@ -273,6 +273,74 @@ startup if missing). Passwords are hashed with argon2id.
   Errors never switch to demonstration results. `ANALYSIS_ENGINE=stub` explicitly selects the old stub;
   `STUB_DURATION_S` and `STUB_FAIL_RATE` only apply there.
 
+### Financial endpoints
+
+All `/v1/profitability/*` endpoints require `Authorization: Bearer <access_token>` and share one
+per-IP rate-limit bucket. Missing, invalid, expired or revoked sessions return `401 UNAUTHORIZED`;
+exhausted limits return `429 RATE_LIMITED` with `Retry-After`.
+
+| Endpoint | Result |
+| --- | --- |
+| `POST /v1/profitability/estimate` | One crop's enterprise return, break-even price/yield and optional field totals |
+| `POST /v1/profitability/rotation` | The same rotation budget used by ML analyses and saved-field comparisons, without running ML |
+| `GET /v1/profitability/baselines` | All nine default crop/state estimates, including source years and unavailable inputs |
+
+The crop estimate supports Corn, Soybeans and Winter Wheat in IA, IL and NE. Farmer `yield_per_acre`
+is distinct from the optional separately modeled `predicted_yield`; provide at most one. Both accept
+zero for crop failure. `price_overrides` supplies all three ordered sale prices in USD/bushel.
+`cost_overrides` can replace seed, fertilizer, chemicals, other operating costs and land independently.
+Alternatively, `total_cost_per_acre` replaces every cost including land. Itemized production costs
+cannot accompany a total; a separate land override remains ignored when the total is given.
+
+```json
+{
+  "crop": "Corn",
+  "state": "IA",
+  "yield_per_acre": 200,
+  "price_overrides": {"low": 3, "base": 5, "high": 7},
+  "area_ha": 40,
+  "cost_overrides": {
+    "seed": 100, "fertilizer": 150, "chemicals": 50,
+    "other_operating": 200, "land_rent_per_acre": 250
+  }
+}
+```
+
+This farmer scenario has $750/acre costs, $1,000/acre base revenue, $250/acre net return and a
+$3.75/bushel break-even price. These are example assumptions, not market quotes. Sources list only
+baseline inputs actually consumed; all-farmer scenarios have an empty source list. Supplied hectares
+convert to acres for field totals. Missing area keeps field totals null.
+
+Every estimate reports `status`, `missing_inputs` and source references. Sourced defaults cover eight
+crop/state combinations. Iowa winter wheat has no verified local yield, price or enterprise budget;
+its default returns `status: unavailable`, `scenarios: null` and explicit missing inputs. Supply farmer
+yield, prices and costs to complete it. Placeholder numbers never contribute to a financial result.
+Partial cost lines may still be returned, but they do not imply a complete total.
+
+`break_even_price_per_unit` divides total cost by yield; it is null at zero yield. Each price scenario
+includes `break_even_yield_per_acre`, null at zero price. Zero and negative returns remain visible.
+`return_before_land_per_acre` is null for an unitemized farmer total, since its land component is unknown.
+Published enterprise costs include labor, ownership/depreciation and overhead; farmer costs retain the
+farmer's own accounting basis. These returns do not represent loan repayment capacity or cash flow.
+
+Amounts use decimal half-up rounding to cents. Revenue and cost are rounded before profit is subtracted.
+Field profit subtracts the displayed field cost from field revenue. Rotation horizon field totals sum
+yearly cents, and annual field averages divide those totals. Per-acre averages round independently;
+scaling a displayed annual per-acre average can differ from the annual field result by a cent.
+
+State rents come from the pinned, sourced `app/profitability/rent_reference.json`: Iowa non-irrigated
+cropland is a **2025** reference; Illinois statewide cropland and Nebraska dryland are **2026** references.
+They are not county or local lease quotes. `scripts/build_profit_baseline.py` preserves these sources
+without an API key. Export `NASS_API_KEY` only when requesting optional Quick Stats rent updates.
+The API performs no live market or baseline-data calls.
+
+For a standalone rotation, send `sequence`, `state`, optional `area_ha`/`previous_crop`, and `options`
+matching `options.budget` below. Entries use `{year, season, crop}`, with chronological years 1–5,
+`season: main | cover`, and ML crop slugs. Duplicate entries and more than two main crops per year
+are rejected. Optional `horizon_years` preserves trailing unknown years; it cannot precede a sequence
+year. ML budgets always use the requested analysis horizon. Crop overrides also support states and
+crops without baseline coverage.
+
 ### Rotation budgets
 
 `result.strategies[].budget` connects the actual ML crop sequence to the existing
@@ -313,7 +381,7 @@ The frontend shows the budget on each strategy and optional local land/cover cos
   from net return after costs. Neither is cash flow: extension costs include labor, machinery ownership,
   depreciation and overhead. Per-year break-even prices divide modeled costs by reference yield.
 - Every result is `is_illustrative: true`, with assumptions, sources and a separate `uses_placeholders`
-  flag. Unverified rent and Iowa wheat defaults remain flagged. No inflation, discounting, future
+  flag. Unsourced Iowa wheat inputs remain flagged and withhold totals. No inflation, discounting, future
   yield forecast or weather/soil suitability adjustment is applied to these dollar figures.
 
 The [profitability audit](docs/profitability-audit.md) records verified sources, corrected assumptions,
@@ -474,8 +542,8 @@ Sources, in priority order:
    Pinning the year keeps demos reproducible without downloading rasters.
 
 No SMAP, SoilGrids, or optional NASS QuickStats calls in this endpoint. They add latency or setup
-without improving this first context card. Auth has not been merged: the explicit `TODO(auth)`
-above the route in `app/api/fields.py` marks where to add `Depends(get_current_user)`.
+without improving this first context card. Field-context endpoints currently allow anonymous access;
+the `TODO(auth)` in `app/api/fields.py` marks the separate deferred field-access policy.
 Reusable fetch functions live in `app/field_info/sources.py`; orchestration and caching live in
 `app/field_info/service.py`. Existing snapshots and analyses keep their current behavior.
 

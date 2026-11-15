@@ -10,7 +10,7 @@ Units: yields in bushels per acre; prices in $ per bushel; costs in $ per acre.
 import json
 from pathlib import Path
 
-from app.models import ProfitCrop, ProfitState
+from app.models import DatasetRef, ProfitCrop, ProfitState
 
 DATA_FILE = Path(__file__).with_name("baseline_data.json")
 DATA = json.loads(DATA_FILE.read_text())
@@ -65,6 +65,18 @@ PLACEHOLDERS: set[tuple[str, ...]] = {
     if _entry(table, c, s).get("placeholder")
 } | {("land_rent", s.value) for s in ProfitState if DATA["land_rent"][s.value].get("placeholder")}
 IS_PLACEHOLDER = bool(PLACEHOLDERS)
+
+
+def source_ref(entry: dict) -> DatasetRef | None:
+    source = entry.get("source")
+    if not source or entry.get("placeholder"):
+        return None
+    document = source["document"]
+    if source.get("table"):
+        document += "; " + source["table"]
+    return DatasetRef(dataset=document, provider=source["publisher"], url=source["url"],
+                      coverage_period=entry.get("data_years", str(source["year"])))
+
 
 COST_LABELS = {
     "seed": "Seed",

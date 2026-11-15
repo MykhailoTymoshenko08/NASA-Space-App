@@ -49,6 +49,7 @@ from app.models import (
     ValueRange,
 )
 from app.profitability import baseline
+from app.profitability.money import money
 from app.profitability.rotation import estimate_rotation_budget
 
 log = logging.getLogger(__name__)
@@ -98,11 +99,13 @@ def _sequence(plan: ComparisonPlan, previous: str | None) -> list[dict]:
 
 def _rent_used(state: str, farmer: float | None) -> RentUsed:
     if farmer is not None:
-        return RentUsed(per_acre=farmer, source="farmer", is_placeholder=False)
+        return RentUsed(per_acre=money(farmer), source="farmer", is_placeholder=False)
     entry = baseline.DATA["land_rent"].get(state)
     if entry is None:
         return RentUsed(per_acre=None, source="none", is_placeholder=False)
-    return RentUsed(per_acre=float(entry["value"]), source="state_baseline",
+    if entry.get("placeholder"):
+        return RentUsed(per_acre=None, source="state_baseline", is_placeholder=True)
+    return RentUsed(per_acre=money(entry["value"]), source="state_baseline",
                     is_placeholder=bool(entry.get("placeholder")))
 
 
@@ -208,7 +211,7 @@ def _compute(inp: FieldInput, label: str, plan: ComparisonPlan, overrides, home:
     if rent.source != "none":
         budget = estimate_rotation_budget(
             _sequence(plan, history.latest_crop), inp.state, inp.area_ha,
-            RotationBudgetOptions(land_rent_per_acre=rent.per_acre, crop_overrides=overrides),
+            RotationBudgetOptions(land_rent_per_acre=inp.rent, crop_overrides=overrides),
             previous_crop=history.latest_crop,
         )
     m = _metric(inp.snapshot.metrics if inp.snapshot else None, "soil_productivity_nccpi")
@@ -233,7 +236,9 @@ def _rent_note(f: _Computed) -> str:
         return "Your asking rent."
     if f.rent.is_placeholder:
         return f"State placeholder rent for {f.inp.state}, not sourced data. Enter the asking rent."
-    return f"Typical cash rent for {f.inp.state}."
+    entry = baseline.DATA["land_rent"].get(f.inp.state)
+    year = entry["data_years"] if entry else "Unknown year"
+    return f"{year} state reference for {f.inp.state}, not a local lease quote."
 
 
 def _history_note(f: _Computed) -> str | None:
@@ -342,6 +347,8 @@ def _notes(f: _Computed, rows: list[ComparisonRow]) -> tuple[list[str], list[str
                         f"(break-even rent about ${f.break_even.base:,.0f}).")
     if f.rent.source == "state_baseline" and f.rent.is_placeholder:
         cautions.append("Rent is a state placeholder. Enter the asking rent for a real comparison.")
+    if f.budget is not None and f.budget.missing_inputs:
+        cautions.extend(f.budget.missing_inputs)
     if f.history.corn_in_a_row >= 3:
         cautions.append(f"Corn {f.history.corn_in_a_row} years in a row: expect higher nitrogen needs "
                         "and pest pressure.")

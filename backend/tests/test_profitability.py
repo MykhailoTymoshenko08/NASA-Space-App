@@ -1,5 +1,7 @@
 """Profitability estimate: the pure calculation (no DB) plus the HTTP route."""
 
+import uuid
+
 import pytest
 
 from app.models import ProfitEstimateRequest
@@ -93,7 +95,8 @@ def test_total_cost_override_replaces_everything():
 def test_placeholder_flag_follows_the_inputs_used():
     iowa_wheat = estimate_profit(req(crop="Winter Wheat", cost_overrides={"total_cost_per_acre": 300}))
     assert iowa_wheat.baseline.is_placeholder is True
-    assert any("Placeholder values" in a for a in iowa_wheat.assumptions)
+    assert iowa_wheat.status == "unavailable" and iowa_wheat.scenarios is None
+    assert len(iowa_wheat.missing_inputs) == 2  # Farmer supplied costs, but not yield or price.
     il_wheat = estimate_profit(req(
         crop="Winter Wheat", state="IL", cost_overrides={"total_cost_per_acre": 300},
     ))
@@ -122,7 +125,7 @@ def test_every_baseline_number_has_a_source_or_is_marked_placeholder():
 
 
 def test_unsupported_input_rejected():
-    for bad in ({"state": "TX"}, {"crop": "Rice"}, {"predicted_yield": 0}, {"cost_overrides": {"seed": 1}}):
+    for bad in ({"state": "TX"}, {"crop": "Rice"}, {"predicted_yield": -1}, {"cost_overrides": {"typo": 1}}):
         with pytest.raises(ValueError):
             req(**bad)
 
@@ -131,10 +134,14 @@ def test_unsupported_input_rejected():
 def test_route_matches_contract(client):
     from tests.contract import assert_matches_contract
 
+    registered = client.post("/v1/auth/register", json={
+        "email": f"profit-{uuid.uuid4().hex}@example.com", "password": "correct horse 9",
+    })
+    headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
     body = {"crop": "Corn", "state": "IA", "predicted_yield": 205}
-    r = client.post("/v1/profitability/estimate", json=body)
+    r = client.post("/v1/profitability/estimate", json=body, headers=headers)
     assert r.status_code == 200
     assert_matches_contract(r)
-    r = client.post("/v1/profitability/estimate", json={"crop": "Corn", "state": "TX"})
+    r = client.post("/v1/profitability/estimate", json={"crop": "Corn", "state": "TX"}, headers=headers)
     assert r.status_code == 422
     assert_matches_contract(r)

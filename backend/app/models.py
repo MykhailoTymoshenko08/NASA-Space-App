@@ -1,4 +1,4 @@
-"""Pydantic models mirroring `contract/openapi.yaml` (v0.12.0).
+"""Pydantic models mirroring `contract/openapi.yaml` (v0.13.0).
 
 Keep names and enums identical to the contract. The contract tests validate real responses
 against the YAML, so drift is caught there.
@@ -274,6 +274,41 @@ class RotationBudgetOptions(BaseModel):
         return self
 
 
+class RotationBudgetSeason(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    year: int = Field(ge=1, le=5)
+    season: Literal["main", "cover"]
+    crop: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
+
+
+class RotationBudgetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sequence: list[RotationBudgetSeason] = Field(min_length=1, max_length=30)
+    horizon_years: int | None = Field(default=None, ge=1, le=5)
+    state: str = Field(pattern=r"^[A-Z]{2}$")
+    area_ha: float | None = Field(default=None, gt=0, le=1000000, allow_inf_nan=False)
+    previous_crop: str | None = Field(default=None, max_length=100)
+    options: RotationBudgetOptions = Field(default_factory=RotationBudgetOptions)
+
+    @field_validator("sequence")
+    @classmethod
+    def _valid_sequence(cls, value: list[RotationBudgetSeason]) -> list[RotationBudgetSeason]:
+        keys = [(s.year, s.season, s.crop) for s in value]
+        if len(keys) != len(set(keys)):
+            raise ValueError("Duplicate year, season and crop in sequence")
+        if [s.year for s in value] != sorted(s.year for s in value):
+            raise ValueError("Sequence must be ordered by year")
+        if any(sum(s.year == year and s.season == "main" for s in value) > 2 for year in range(1, 6)):
+            raise ValueError("At most two main crops per year are supported")
+        return value
+
+    @model_validator(mode="after")
+    def _covers_sequence(self) -> "RotationBudgetRequest":
+        if self.horizon_years is not None and max(s.year for s in self.sequence) > self.horizon_years:
+            raise ValueError("horizon_years cannot precede a sequence year")
+        return self
+
+
 class AnalysisOptions(BaseModel):
     priorities: list[Priority] = Field(default_factory=list, max_length=6)
     crop_history: list[CropYear] | None = Field(default=None, max_length=10)
@@ -325,6 +360,8 @@ class BudgetScenario(BaseModel):
     profit_per_acre: float
     field_profit: float | None
     return_before_land_per_acre: float | None = None
+    field_revenue: float | None = None
+    field_cost: float | None = None
 
 
 class BudgetScenarios(BaseModel):
@@ -346,6 +383,8 @@ class BudgetYear(BaseModel):
     scenarios: BudgetScenarios | None
     cost_profile: str | None = None
     break_even_price_per_unit: float | None = None
+    yield_source: Literal["budget_reference", "baseline_default", "farmer", "unavailable"] = "unavailable"
+    sources: list[DatasetRef] = Field(default_factory=list)
 
 
 class RotationBudget(BaseModel):
@@ -469,17 +508,51 @@ class ProfitState(StrEnum):
 
 class CostOverrides(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    land_rent_per_acre: float | None = Field(default=None, ge=0, le=5000)
-    total_cost_per_acre: float | None = Field(default=None, ge=0, le=10000)
+    land_rent_per_acre: float | None = Field(default=None, ge=0, le=5000, allow_inf_nan=False)
+    total_cost_per_acre: float | None = Field(default=None, ge=0, le=10000, allow_inf_nan=False)
+    seed: float | None = Field(default=None, ge=0, le=10000, allow_inf_nan=False)
+    fertilizer: float | None = Field(default=None, ge=0, le=10000, allow_inf_nan=False)
+    chemicals: float | None = Field(default=None, ge=0, le=10000, allow_inf_nan=False)
+    other_operating: float | None = Field(default=None, ge=0, le=10000, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def _unambiguous_costs(self) -> "CostOverrides":
+        if self.total_cost_per_acre is not None and any(
+            getattr(self, key) is not None for key in ("seed", "fertilizer", "chemicals", "other_operating")
+        ):
+            raise ValueError("Itemized costs cannot accompany total_cost_per_acre")
+        return self
+
+
+class ProfitPriceInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    low: float = Field(ge=0, le=1000, allow_inf_nan=False)
+    base: float = Field(ge=0, le=1000, allow_inf_nan=False)
+    high: float = Field(ge=0, le=1000, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> "ProfitPriceInput":
+        if not self.low <= self.base <= self.high:
+            raise ValueError("Prices must satisfy low <= base <= high")
+        return self
 
 
 class ProfitEstimateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     crop: ProfitCrop
     state: ProfitState
-    predicted_yield: float | None = Field(default=None, gt=0, le=1000)
+    predicted_yield: float | None = Field(default=None, ge=0, le=1000, allow_inf_nan=False)
+    yield_per_acre: float | None = Field(default=None, ge=0, le=1000, allow_inf_nan=False)
+    price_overrides: ProfitPriceInput | None = None
+    area_ha: float | None = Field(default=None, gt=0, le=1000000, allow_inf_nan=False)
     previous_crop: str | None = Field(default=None, max_length=100)
     cost_overrides: CostOverrides = Field(default_factory=CostOverrides)
+
+    @model_validator(mode="after")
+    def _one_yield(self) -> "ProfitEstimateRequest":
+        if self.predicted_yield is not None and self.yield_per_acre is not None:
+            raise ValueError("Supply either predicted_yield or yield_per_acre, not both")
+        return self
 
 
 class ProfitScenario(BaseModel):
@@ -487,6 +560,11 @@ class ProfitScenario(BaseModel):
     revenue_per_acre: float
     cost_per_acre: float
     profit_per_acre: float
+    return_before_land_per_acre: float | None = None
+    break_even_yield_per_acre: float | None = None
+    field_revenue: float | None = None
+    field_cost: float | None = None
+    field_profit: float | None = None
 
 
 class ProfitCostItem(BaseModel):
@@ -510,14 +588,22 @@ class ProfitBaselineInfo(BaseModel):
 class ProfitEstimate(BaseModel):
     crop: ProfitCrop
     state: ProfitState
-    yield_per_acre: float
+    yield_per_acre: float | None
     yield_unit: str
-    yield_source: Literal["model", "baseline_default", "budget_reference"]
+    yield_source: Literal["model", "baseline_default", "budget_reference", "farmer", "unavailable"]
     costs: list[ProfitCostItem]
-    scenarios: ProfitScenarios
+    scenarios: ProfitScenarios | None
     assumptions: list[str]
     baseline: ProfitBaselineInfo
     cost_profile: str | None = None
+    status: Literal["estimated", "unavailable"]
+    currency: Literal["USD"] = "USD"
+    is_illustrative: Literal[True] = True
+    price_source: Literal["baseline", "farmer", "unavailable"]
+    area_acres: float | None = None
+    break_even_price_per_unit: float | None = None
+    missing_inputs: list[str]
+    sources: list[DatasetRef]
 
 
 # --- Auth -------------------------------------------------------------------------------------------

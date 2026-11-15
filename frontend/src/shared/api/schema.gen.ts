@@ -341,20 +341,49 @@ export interface paths {
         put?: never;
         /**
          * Rough profit per acre for one crop (low / base / high)
-         * @description Profit per acre = yield x price - costs, for a low, base and high price. Synchronous and
-         *     deterministic: static baseline tables, no price forecast, no external calls.
-         *     Yield is `predicted_yield` when supplied by a separate yield model, else a per-crop, per-state
-         *     default matched to the selected extension production-cost profile. Costs are the baseline for
-         *     the crop and state; `land_rent_per_acre` replaces the
-         *     baseline rent and `total_cost_per_acre` replaces all costs. Published after-soybean budgets
-         *     already include rotation effects; no additional fertilizer credit is subtracted.
-         *     `assumptions` explains each number in plain English for the UI.
-         *     Baseline prices are per crop and state (NASS marketing-year averages: base = last 3 years,
-         *     low / high = 10th / 90th percentile of the last 10); reference yields and costs come
-         *     from 2026 extension budgets. `baseline.is_placeholder` is true when any baseline number this
-         *     estimate used is still a placeholder (for example Iowa winter wheat, or land rent).
+         * @description Synchronous USD enterprise budget: yield times sale price minus costs. Requires sign-in. Defaults use sourced historical prices and published cost/yield pairs. Farmer prices, yield, itemized costs, total cost and area can replace defaults. Zero yield and price are valid. Unsourced placeholders produce status unavailable with missing_inputs and null scenarios. Includes sources, break-even price/yield and field totals. Economic return includes published ownership/labor allowances; it is not cash flow.
          */
         post: operations["estimateProfitability"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profitability/rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Budget a crop rotation without running ML
+         * @description Uses the same calculator as analysis and field comparisons. Charges land once per year. Unknown crop, cover, land or double-crop inputs withhold full totals. Farmer crop budgets supply gross revenue and non-land production costs. No external calls, discounting or inflation.
+         */
+        post: operations["estimateRotationBudget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profitability/baselines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Default estimates and data coverage for every baseline crop and state
+         * @description Nine default estimates, each with provenance and missing inputs. No farmer data, external calls or forecasts.
+         */
+        get: operations["getProfitabilityBaselines"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1271,10 +1300,12 @@ export interface components {
             cost_per_acre: number;
             /** @description Negative means a loss. */
             profit_per_acre: number;
-            /** @description Profit multiplied by the field's estimated acres; null when area is unknown. */
+            /** @description Field revenue minus field cost; null when area is unknown. Yearly amounts scale estimated acres. Horizon amounts sum yearly cents; annual amounts divide horizon totals. */
             field_profit: number | null;
             /** @description Revenue minus production and cover costs, before land cost. Not cash flow; published production budgets include labor, depreciation and ownership allowances. */
             return_before_land_per_acre?: number | null;
+            field_revenue?: number | null;
+            field_cost?: number | null;
         };
         BudgetScenarios: {
             low: components["schemas"]["BudgetScenario"];
@@ -1297,6 +1328,9 @@ export interface components {
             /** @description Total modeled cost, including land and cover costs, divided by reference yield. */
             break_even_price_per_unit?: number | null;
             scenarios: components["schemas"]["BudgetScenarios"] | null;
+            /** @enum {string} */
+            yield_source?: "budget_reference" | "baseline_default" | "farmer" | "unavailable";
+            sources?: components["schemas"]["DatasetRef"][];
         };
         RotationBudget: {
             /** @enum {string} */
@@ -1308,12 +1342,13 @@ export interface components {
             years: components["schemas"]["BudgetYear"][];
             /** @description Average annual USD/acre figures, including one land charge per year. Null unless all years are budgeted. */
             annual_average: components["schemas"]["BudgetScenarios"] | null;
-            /** @description Undiscounted USD/acre totals over the full horizon. No inflation or price forecast. */
+            /** @description Undiscounted USD/acre totals over the full horizon. Field amounts sum yearly cents. No inflation or price forecast. */
             horizon_total: components["schemas"]["BudgetScenarios"] | null;
             /** @description Difference in average annual profit against the current rotation under matching low/base/high scenarios. Null unless both budgets cover every year over the same horizon. These are paired scenarios, not confidence interval bounds; the differences need not be increasing. */
             delta_vs_current_per_acre: components["schemas"]["BudgetAmounts"] | null;
             /** @constant */
             is_illustrative: true;
+            /** @description A required baseline is marked placeholder. Its numbers are withheld, so complete totals remain null. */
             uses_placeholders: boolean;
             baseline_version: string;
             assumptions: string[];
@@ -1331,6 +1366,23 @@ export interface components {
          * @enum {string}
          */
         ProfitState: "IA" | "IL" | "NE";
+        /** @description Farmer sale-price scenarios in USD/bu. Must satisfy low <= base <= high. Zero is valid. */
+        ProfitPriceInput: {
+            low: number;
+            base: number;
+            high: number;
+        };
+        /** @description Farmer costs in USD/acre. Total replaces every cost including land; detail lines cannot accompany total. */
+        CostOverrides: {
+            seed?: number | null;
+            fertilizer?: number | null;
+            chemicals?: number | null;
+            other_operating?: number | null;
+            /** @description Annual land cost. Explicit zero means no land charge. */
+            land_rent_per_acre?: number | null;
+            /** @description All costs including land. Takes precedence over land_rent_per_acre. */
+            total_cost_per_acre?: number | null;
+        };
         /**
          * @example {
          *       "crop": "Corn",
@@ -1345,16 +1397,16 @@ export interface components {
         ProfitEstimateRequest: {
             crop: components["schemas"]["ProfitCrop"];
             state: components["schemas"]["ProfitState"];
-            /** @description Yield per acre from the ML model, in the crop's unit (`bu`). Null or missing uses the baseline default yield. */
+            /** @description Optional separately modeled yield in bu/acre. No ML score is converted to yield. Cannot accompany yield_per_acre. */
             predicted_yield?: number | null;
             /** @description Last season's crop (e.g. newest `crop_history` entry). "Soybeans" before Corn selects the published corn-after-soybeans cost/yield profile. Illinois soybeans after soybeans select their own profile. Published rotation effects receive no extra nitrogen discount. */
             previous_crop?: string | null;
-            cost_overrides?: {
-                /** @description Replaces the baseline land rent ($/acre). Use 0 for owned land. */
-                land_rent_per_acre?: number | null;
-                /** @description Replaces every baseline cost ($/acre, rent included). Wins over `land_rent_per_acre`. */
-                total_cost_per_acre?: number | null;
-            };
+            cost_overrides?: components["schemas"]["CostOverrides"];
+            /** @description Farmer yield assumption in bu/acre, including zero for crop failure. Cannot accompany predicted_yield. */
+            yield_per_acre?: number | null;
+            price_overrides?: components["schemas"]["ProfitPriceInput"] | null;
+            /** @description Estimated farmed area in hectares; omitted means field totals are unknown. */
+            area_ha?: number | null;
         };
         ProfitScenario: {
             /** @description $ per yield unit. */
@@ -1363,6 +1415,13 @@ export interface components {
             cost_per_acre: number;
             /** @description Negative means a loss. */
             profit_per_acre: number;
+            /** @description Revenue minus non-land costs. Null when farmer total does not identify land cost. */
+            return_before_land_per_acre?: number | null;
+            /** @description Total cost divided by sale price. Null at zero price or when the ratio cannot fit a finite JSON number. */
+            break_even_yield_per_acre?: number | null;
+            field_revenue?: number | null;
+            field_cost?: number | null;
+            field_profit?: number | null;
         };
         ProfitCostItem: {
             /** @enum {string} */
@@ -1375,28 +1434,58 @@ export interface components {
         ProfitEstimate: {
             crop: components["schemas"]["ProfitCrop"];
             state: components["schemas"]["ProfitState"];
-            yield_per_acre: number;
+            yield_per_acre: number | null;
             /** @example bu */
             yield_unit: string;
             /** @enum {string} */
-            yield_source: "model" | "baseline_default" | "budget_reference";
+            yield_source: "model" | "baseline_default" | "budget_reference" | "farmer" | "unavailable";
             /** @description Published production-cost profile. Its own reference yield is used by default; with a farmer total cost, the independent state-average yield remains the fallback. */
             cost_profile?: string | null;
             /** @description Cost lines that add up to `scenarios.*.cost_per_acre`. One `total` line when the farmer gave `total_cost_per_acre`. */
             costs: components["schemas"]["ProfitCostItem"][];
-            /** @description Same yield and costs; only the price differs. */
+            /** @description Null unless every required input is sourced or supplied by the farmer. */
             scenarios: {
                 low: components["schemas"]["ProfitScenario"];
                 base: components["schemas"]["ProfitScenario"];
                 high: components["schemas"]["ProfitScenario"];
-            };
+            } | null;
             /** @description Plain-English lines showing how each number was calculated, e.g. "Revenue = 205 bu × $4.30 = $881.50". Display as-is. */
             assumptions: string[];
             baseline: {
                 version: string;
-                /** @description True when any baseline number used in this estimate is a placeholder, not sourced data. The UI should then label the numbers as illustrative. */
+                /** @description True when a required baseline input is unavailable or marked placeholder. Placeholder numbers are never calculated. */
                 is_placeholder: boolean;
             };
+            /** @enum {string} */
+            status: "estimated" | "unavailable";
+            /** @constant */
+            currency?: "USD";
+            /** @constant */
+            is_illustrative?: true;
+            area_acres?: number | null;
+            /** @description All modeled costs divided by yield. Null at zero/unavailable yield or when the ratio cannot fit a finite JSON number. */
+            break_even_price_per_unit?: number | null;
+            /** @enum {string} */
+            price_source?: "baseline" | "farmer" | "unavailable";
+            missing_inputs: string[];
+            sources: components["schemas"]["DatasetRef"][];
+        };
+        RotationBudgetSeason: {
+            year: number;
+            /** @enum {string} */
+            season: "main" | "cover";
+            crop: string;
+        };
+        RotationBudgetRequest: {
+            /** @description Optional intended horizon. Cannot precede any sequence year; trailing missing years remain incomplete. */
+            horizon_years?: number | null;
+            /** @description Chronological crop plan. No duplicate year/season/crop entries; at most two harvested crops per year. Missing years stay incomplete. */
+            sequence: components["schemas"]["RotationBudgetSeason"][];
+            /** @description US state postal code. States without baselines require farmer crop and land inputs. */
+            state: string;
+            area_ha?: number | null;
+            previous_crop?: string | null;
+            options?: components["schemas"]["RotationBudgetOptions"];
         };
         /** @enum {string} */
         ErrorCode: "VALIDATION_ERROR" | "NOT_FOUND" | "UNPARSEABLE_INPUT" | "UNSUPPORTED_LINK" | "OUTSIDE_COVERAGE" | "UPSTREAM_DATA_UNAVAILABLE" | "RATE_LIMITED" | "INTERNAL_ERROR" | "UNAUTHORIZED" | "EMAIL_TAKEN" | "FIELD_LIMIT_REACHED";
@@ -1458,7 +1547,7 @@ export interface components {
         SavedFieldComparisonRequest: {
             /** @description The user's saved field ids. Columns come back in this order, labelled A to D. */
             saved_field_ids: string[];
-            /** @description Asking cash rent in USD/acre/year, keyed by saved field id. Fields left out use the state reference rent (still a placeholder in 0.12.0, flagged as such). 0 means no land charge. */
+            /** @description Annual asking rent in USD/acre keyed by saved field UUID. Omitted fields use the sourced state reference; zero means no land charge. */
             rent_per_acre?: {
                 [key: string]: number;
             };
@@ -2221,7 +2310,58 @@ export interface operations {
                     "application/json": components["schemas"]["ProfitEstimate"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    estimateRotationBudget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RotationBudgetRequest"];
+            };
+        };
+        responses: {
+            /** @description Rotation budget, including partial or unavailable results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RotationBudget"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getProfitabilityBaselines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default estimates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfitEstimate"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
         };
     };
     register: {
