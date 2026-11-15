@@ -119,7 +119,7 @@ curl -s -X POST localhost:8001/ml/v1/analyze -H 'content-type: application/json'
 
 | поле | що це |
 |---|---|
-| `status` | `ok` або `partial` (зараз `partial`: ще немає NDVI, SMAP, TWI; причини в `warnings`). Це не помилка, аналіз повний |
+| `status` | `ok` або `partial` (`partial`, коли бракує NDVI або SMAP, або ґрунт органічний; відсутній TWI це лише попередження в `warnings`). Це не помилка, аналіз повний |
 | `detected_rotation` | поточна сівозміна з історії, `label` готовий для показу |
 | `summary` | `headline` (одне речення), `overall_risk` (`low/medium/high`), 3 `key_numbers` |
 | `vulnerability_timeline` | 12 місяців: `bare_soil`, `moisture_deficit`, `heat_stress`, `frost_risk`, `extreme_precip` (0..1) + `flags` |

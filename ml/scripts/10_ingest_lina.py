@@ -9,8 +9,8 @@ are accepted under their own names and converted on the way in:
   smap_monthly.csv  field_id, year, month, smap_rootzone         0..0.6 m3/m3
      <- smap_monthly_long.csv      field_id, date, year, month, smap_rootzone          (date dropped)
   terrain.csv       field_id, slope_pct [, twi, slope_class, slope_pct_p90]   slope 0..100 %; twi finite (-10..40) and optional
-     <- terrain2.csv               field_id, slope_deg, slope_deg_p90    slope_pct = tan(radians(slope_deg)) * 100 (the field median);
-                                   slope_pct_p90 is the same for the 90th percentile and is informational only. no twi in her file:
+     <- terrain2.csv               field_id, slope_deg [, slope_deg_p75, slope_deg_p90]    slope_pct = tan(radians(slope_deg)) * 100 (the field median);
+                                   slope_pct_p75 / slope_pct_p90 are the same for the 75th / 90th percentile and is informational only. no twi in her file:
                                    the high-TWI rule stays off (ctx.twi is empty) until a TWI arrives
   years from 2015 on are all kept (ranges allow 2015..2026)
 
@@ -55,8 +55,8 @@ SPECS = {
                             ranges={"year": (2015, 2026, "int"), "ndvi_peak": (-1.0, 1.0, "float"), "ndvi_peak_doy": (1, 366, "int")}),
     "smap_monthly.csv": dict(key=["field_id", "year", "month"], required=["field_id", "year", "month", "smap_rootzone"], optional=[],
                              ranges={"year": (2015, 2026, "int"), "month": (1, 12, "int"), "smap_rootzone": (0.0, 0.6, "float")}),
-    "terrain.csv": dict(key=["field_id"], required=["field_id", "slope_pct"], optional=["twi", "slope_class", "slope_pct_p90"],
-                        ranges={"slope_pct": (0.0, 100.0, "float"), "slope_pct_p90": (0.0, 100.0, "float"), "twi": (-10.0, 40.0, "float")}),
+    "terrain.csv": dict(key=["field_id"], required=["field_id", "slope_pct"], optional=["twi", "slope_class", "slope_pct_p75", "slope_pct_p90"],
+                        ranges={"slope_pct": (0.0, 100.0, "float"), "slope_pct_p75": (0.0, 100.0, "float"), "slope_pct_p90": (0.0, 100.0, "float"), "twi": (-10.0, 40.0, "float")}),
 }
 
 # canonical name -> the names Lina's scripts write (the canonical name wins when both are in the folder)
@@ -70,7 +70,7 @@ def adapt(name: str, raw: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(columns={"ndvi_hls": "ndvi_mean"})
     if name == "terrain.csv" and "slope_deg" in df.columns and "slope_pct" not in df.columns:
         # percent = tan(angle) * 100. 90 degrees or a negative angle gives a value outside 0..100 and is dropped by the range check
-        for deg, pct in (("slope_deg", "slope_pct"), ("slope_deg_p90", "slope_pct_p90")):
+        for deg, pct in (("slope_deg", "slope_pct"), ("slope_deg_p75", "slope_pct_p75"), ("slope_deg_p90", "slope_pct_p90")):
             if deg in df.columns:
                 df[pct] = (np.tan(np.radians(pd.to_numeric(df[deg], errors="coerce"))) * 100).round(2)
     return df
