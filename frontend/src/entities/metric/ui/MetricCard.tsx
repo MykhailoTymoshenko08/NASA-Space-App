@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { DatasetRef, Metric } from "@/shared/api";
 import { Badge, Skeleton } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
@@ -192,12 +192,53 @@ export function SourcesStrip({ registry }: { registry: SourceRegistry }) {
   );
 }
 
+/**
+ * A box with a heading that opens and closes; closed by default. A link to the box or to anything inside it
+ * (the strip links, source chips, "See it in the glossary") opens it first, so the jump lands on visible content.
+ */
+function CollapsibleBox({ id, titleId, title, children }: { id: string; titleId: string; title: string; children: ReactNode }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const openFor = (hash: string) => {
+      const box = ref.current;
+      if (!box || hash.length < 2) return;
+      const target = document.getElementById(decodeURIComponent(hash.slice(1)));
+      if (target && (target.contains(box) || box.contains(target))) box.open = true;
+    };
+    // Capture phase: open before the browser scrolls to the anchor.
+    const onClick = (e: MouseEvent) => {
+      const link = e.target instanceof Element ? e.target.closest("a[href^='#']") : null;
+      if (link) openFor(link.getAttribute("href") ?? "");
+    };
+    const onHash = () => openFor(window.location.hash);
+    onHash();
+    document.addEventListener("click", onClick, true);
+    window.addEventListener("hashchange", onHash);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      window.removeEventListener("hashchange", onHash);
+    };
+  }, []);
+  return (
+    <section id={id} aria-labelledby={titleId} className={s.box}>
+      <details ref={ref} className={s.collapse}>
+        <summary className={s.collapseSummary}>
+          <SectionTitle id={titleId}>{title}</SectionTitle>
+          <span className={s.collapseIcon}>
+            <Icon name="chevron" size={20} />
+          </span>
+        </summary>
+        <div className={s.collapseBody}>{children}</div>
+      </details>
+    </section>
+  );
+}
+
 /** Full Sources list; each card's chip number points here. */
 export function SourcesList({ registry }: { registry: SourceRegistry }) {
   if (registry.list.length === 0) return null;
   return (
-    <section id="sources" aria-labelledby="sources-h" className={s.box}>
-      <SectionTitle id="sources-h">Where this data comes from</SectionTitle>
+    <CollapsibleBox id="sources" titleId="sources-h" title="Where this data comes from">
       <p className={s.boxLead}>
         Each number above points to one or more of these sources. The number in brackets is the same here and on the
         card.
@@ -220,15 +261,14 @@ export function SourcesList({ registry }: { registry: SourceRegistry }) {
           </li>
         ))}
       </ol>
-    </section>
+    </CollapsibleBox>
   );
 }
 
 /** Glossary of the terms the cards and hints use. */
 export function Glossary() {
   return (
-    <section id="glossary" aria-labelledby="glossary-h" className={s.box}>
-      <SectionTitle id="glossary-h">Glossary</SectionTitle>
+    <CollapsibleBox id="glossary" titleId="glossary-h" title="Glossary">
       <dl className={s.glossary}>
         {GLOSSARY.map((t) => (
           <div key={t.id} id={t.id} className={s.term}>
@@ -237,7 +277,7 @@ export function Glossary() {
           </div>
         ))}
       </dl>
-    </section>
+    </CollapsibleBox>
   );
 }
 

@@ -70,6 +70,16 @@ describe("FieldPage", () => {
 
     expect(screen.getByRole("region", { name: "Glossary" })).toHaveTextContent("NDVI (plant greenness)");
 
+    // Sources and Glossary start closed; a link into them opens the box first.
+    const sourcesBox = sources.querySelector("details")!;
+    const glossaryBox = screen.getByRole("region", { name: "Glossary" }).querySelector("details")!;
+    expect(sourcesBox.open).toBe(false);
+    expect(glossaryBox.open).toBe(false);
+    await userEvent.click(screen.getByRole("link", { name: "Glossary" }));
+    expect(glossaryBox.open).toBe(true);
+    await userEvent.click(chip);
+    expect(sourcesBox.open).toBe(true);
+
     const hintBtn = within(card("Plant greenness (NDVI)")).getByRole("button", { name: "What is Plant greenness (NDVI)?" });
     expect(hintBtn).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(hintBtn);
