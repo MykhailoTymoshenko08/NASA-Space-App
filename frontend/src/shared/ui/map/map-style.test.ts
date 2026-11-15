@@ -31,14 +31,37 @@ describe("buildMapStyle", () => {
     expect(layers[at(LAYER.fieldsLabel)]!.minzoom).toBe(FIELD_LABEL_ZOOM);
   });
 
+  it("never overlaps state names: small ones give way, and only coastal ones move, out to sea", () => {
+    const layers = buildMapStyle(input).layers;
+    const ids = layers.map((l) => l.id);
+    // Later layers are placed first: the larger names claim their space, the small ones fit around them.
+    expect(ids.indexOf(LAYER.stateLabelsCoast)).toBeLessThan(ids.indexOf(LAYER.stateLabelsSmall));
+    expect(ids.indexOf(LAYER.stateLabelsSmall)).toBeLessThan(ids.indexOf(LAYER.stateLabels));
+    const layout = (id: string) => (layers.find((l) => l.id === id) as { layout: Record<string, unknown> }).layout;
+    expect(layout(LAYER.stateLabelsSmall)["text-allow-overlap"]).toBeUndefined();
+    expect(layout(LAYER.stateLabelsSmall)["text-variable-anchor"]).toBeUndefined();
+    expect(layout(LAYER.stateLabelsCoast)["text-allow-overlap"]).toBeUndefined();
+    expect(layout(LAYER.stateLabelsCoast)["text-variable-anchor"]).toEqual(["center", "left"]);
+  });
+
+  it("draws the selected field only at field scale, like the other fields", () => {
+    const layers = buildMapStyle(input).layers;
+    for (const id of [LAYER.selectionFill, LAYER.selectionLine, LAYER.selectionDashed]) {
+      expect(layers.find((l) => l.id === id)!.minzoom).toBe(input.fieldMinZoom);
+    }
+  });
+
   it("hides everything outside the focus, and nothing without one", () => {
     const none = focusFilters(null);
-    expect(none[LAYER.stateLabels]).toBeNull();
+    // Without a focus the state names are split by size, never hidden.
+    expect(none[LAYER.stateLabels]).not.toBeNull();
     expect(none[LAYER.places]).toBeNull();
     const state = focusFilters({ stateFips: "17", statePostal: "IL", countyFips: null });
     expect(state[LAYER.stateMask]).toEqual(["!=", ["get", "fips"], "17"]);
     expect(state[LAYER.places]).toEqual(["==", ["get", "state_postal"], "IL"]);
     expect(state[LAYER.stateLabels]).toEqual(none[LAYER.stateMask]);
+    expect(state[LAYER.stateLabelsSmall]).toEqual(none[LAYER.stateMask]);
+    expect(state[LAYER.stateLabelsCoast]).toEqual(none[LAYER.stateMask]);
     const county = focusFilters({ stateFips: "17", statePostal: "IL", countyFips: "17113" });
     expect(county[LAYER.countyMask]).toEqual(["!=", ["get", "fips"], "17113"]);
     expect(county[LAYER.places]).toEqual(["==", ["get", "county_fips"], "17113"]);

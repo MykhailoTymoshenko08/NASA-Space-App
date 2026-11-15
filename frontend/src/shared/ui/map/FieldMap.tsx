@@ -17,6 +17,7 @@ import {
   type MapFocus,
   type MapStyleInput,
 } from "./map-style";
+import { isNarrowScreen } from "./screen";
 import { nearestHit } from "./touch-hit";
 import s from "./field-map.module.css";
 
@@ -93,8 +94,13 @@ type Props = {
   focus?: MapFocus | null;
   /** Townships at county scale only in the focused county; elsewhere only with the fields. */
   townshipsFollowFocus?: boolean;
-  /** The map cannot be zoomed out further than this box (the whole-country view). */
+  /** The whole-country box: with no `bounds`, the map cannot pan or zoom out past its view. */
   outerBBox?: BBox;
+  /**
+   * The focused area (state or county): the map cannot pan or zoom out past the view that fits it, so
+   * the user never drifts into the empty, masked land around it. Null: `outerBBox`.
+   */
+  bounds?: BBox | null;
   ariaLabel: string;
   onClick?: (hit: MapHit) => void;
   onHover?: (hit: MapHit | null) => void;
@@ -198,6 +204,7 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
     focus = null,
     townshipsFollowFocus = false,
     outerBBox,
+    bounds = null,
     ariaLabel,
     onClick,
     onHover,
@@ -215,6 +222,33 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
   handlers.current = { onClick, onHover, onZoomEnd, onViewChange };
   const latest = useRef({ selection, pin, saved, focus, townshipsFollowFocus });
   latest.current = { selection, pin, saved, focus, townshipsFollowFocus };
+  /** Zoom each limit box was opened at: where fitBBox ended on it, else the zoom when it became the limit. */
+  const openZooms = useRef(new Map<string, number>());
+  const limitBox = useRef<{ bbox: BBox; padding: number } | null>(null);
+  limitBox.current = bounds
+    ? { bbox: bounds, padding: FIT_PADDING }
+    : outerBBox
+      ? { bbox: outerBBox, padding: INITIAL_PADDING }
+      : null;
+  /** Hold the map in the focused area, else the country. Not mid-move: the moveend handler sets it then. */
+  const applyLimit = useRef(() => {
+    const map = mapRef.current;
+    if (!map || map.isMoving()) return;
+    const box = limitBox.current;
+    if (!box) {
+      map.setMaxBounds(null);
+      return;
+    }
+    const key = box.bbox.join(",");
+    if (!openZooms.current.has(key)) {
+      // Not opened by fitBBox (focus by panning, the first view): keep what is on screen. On a wide screen
+      // also allow the view that fits the whole box; a phone never shows a whole state or the country at once.
+      const fit = map.cameraForBounds(toLngLatBounds(box.bbox), { padding: box.padding })?.zoom;
+      const now = map.getZoom();
+      openZooms.current.set(key, isNarrowScreen() || fit === undefined ? now : Math.min(now, fit));
+    }
+    limitView(map, box.bbox, box.padding, openZooms.current.get(key)!);
+  }).current;
 
   useImperativeHandle(ref, () => ({
     zoomIn: () => mapRef.current?.zoomIn(),
@@ -223,18 +257,26 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
       const map = mapRef.current;
       if (!map) return;
       const duration = reducedMotion() ? 0 : 800;
-      const fit = map.cameraForBounds(toLngLatBounds(bbox), { padding: 48, maxZoom: maxZoom ?? 16 });
+      // Our own moves often leave the current limit (another state, back to the country): lift it now,
+      // the new one is set when the move ends.
+      map.setMaxBounds(null);
+      const fit = map.cameraForBounds(toLngLatBounds(bbox), { padding: FIT_PADDING, maxZoom: maxZoom ?? 16 });
+      if (fit?.zoom !== undefined) openZooms.current.set(bbox.join(","), Math.max(fit.zoom, minZoom ?? 0));
       if (minZoom !== undefined && fit?.zoom !== undefined && fit.zoom < minZoom) {
         // A small map cannot show the whole box at this zoom: center on it instead.
         map.flyTo({ center: [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], zoom: minZoom, duration }, PROGRAMMATIC);
         return;
       }
-      map.fitBounds(toLngLatBounds(bbox), { padding: 48, maxZoom: maxZoom ?? 16, duration }, PROGRAMMATIC);
+      map.fitBounds(toLngLatBounds(bbox), { padding: FIT_PADDING, maxZoom: maxZoom ?? 16, duration }, PROGRAMMATIC);
     },
-    flyTo: (point, zoom) =>
-      mapRef.current?.flyTo({ center: [point.lon, point.lat], zoom, duration: reducedMotion() ? 0 : 800 }, PROGRAMMATIC),
+    flyTo: (point, zoom) => {
+      const map = mapRef.current;
+      if (!map) return;
+      map.setMaxBounds(null);
+      map.flyTo({ center: [point.lon, point.lat], zoom, duration: reducedMotion() ? 0 : 800 }, PROGRAMMATIC);
+    },
     getZoom: () => mapRef.current?.getZoom() ?? 0,
-    zoomForBBox: (bbox) => mapRef.current?.cameraForBounds(toLngLatBounds(bbox), { padding: 48 })?.zoom ?? null,
+    zoomForBBox: (bbox) => mapRef.current?.cameraForBounds(toLngLatBounds(bbox), { padding: FIT_PADDING })?.zoom ?? null,
   }));
 
   // Create once per style config.
@@ -246,7 +288,7 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
       container: containerRef.current,
       style: buildMapStyle(config),
       bounds: toLngLatBounds(initialBBox),
-      fitBoundsOptions: { padding: 24 },
+      fitBoundsOptions: { padding: INITIAL_PADDING },
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -254,14 +296,12 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
     });
     map.touchZoomRotate.disableRotation();
     mapRef.current = map;
-    // Zoom out no further than the whole-country view (recomputed when the map resizes).
-    const limitZoom = () => {
-      if (!outerBBox) return;
-      const z = map.cameraForBounds(toLngLatBounds(outerBBox), { padding: 24 })?.zoom;
-      if (z !== undefined) map.setMinZoom(Math.max(0, z));
-    };
-    limitZoom();
-    map.on("resize", limitZoom);
+    // Our own moves lift the limit to leave it (a limit set mid-flight would snap the camera); it is set
+    // again when a move ends, and recomputed when the map resizes. A new map opens on its own first view.
+    openZooms.current.clear();
+    applyLimit();
+    map.on("moveend", applyLimit);
+    map.on("resize", applyLimit);
     // Tile errors (e.g. a deployment without the field file) must not break the page.
     map.on("error", () => undefined);
 
@@ -310,13 +350,13 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
     });
     map.on("click", (e) => handlers.current.onClick?.(lastPointer === "mouse" ? readHit(map, e).hit : readTap(map, e)));
     map.on("zoomend", () => handlers.current.onZoomEnd?.(map.getZoom()));
-    // Report the center once the move's tiles are drawn (idle), not on moveend: the areas under the
-    // center are read from the rendered tiles.
+    // Report the center once the move's boundary and survey tiles are drawn: the areas under the center
+    // are read from them. Field tiles, by far the slowest, are not awaited (idle would), so a focus mask
+    // follows the move at once instead of seconds later.
     let moved: { byUser: boolean } | null = null;
-    map.on("moveend", (e) => {
-      moved = { byUser: !(e as { programmatic?: boolean }).programmatic };
-    });
-    map.on("idle", () => {
+    const areasLoaded = () =>
+      [SOURCE.boundaries, SOURCE.plss].every((id) => !map.getSource(id) || map.isSourceLoaded(id));
+    const reportView = () => {
       if (!moved || !handlers.current.onViewChange) return;
       const { byUser } = moved;
       moved = null;
@@ -330,7 +370,15 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
         township: hit.township,
         byUser,
       });
+    };
+    map.on("moveend", (e) => {
+      moved = { byUser: !(e as { programmatic?: boolean }).programmatic };
+      if (areasLoaded()) reportView();
     });
+    map.on("render", () => {
+      if (moved && !map.isMoving() && areasLoaded()) reportView();
+    });
+    map.on("idle", reportView);
 
     return () => {
       readyRef.current = false;
@@ -350,6 +398,9 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
     const map = mapRef.current;
     if (map && readyRef.current) syncSaved(map, saved);
   }, [saved]);
+
+  const boundsKey = bounds?.join(",") ?? "";
+  useEffect(applyLimit, [boundsKey, applyLimit]);
 
   const focusKey = focus ? `${focus.stateFips}|${focus.countyFips ?? ""}|${focus.township?.plssid ?? ""}` : "";
   useEffect(() => {
@@ -371,6 +422,32 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
 });
 
 const NO_SAVED: readonly MapSavedShape[] = [];
+/** Padding of fitBBox (and so of every focused area's view). */
+const FIT_PADDING = 48;
+/** Padding of the first, whole-country view. */
+const INITIAL_PADDING = 24;
+
+/**
+ * Hold the map so it never shows land past the box: per axis, the box with its padding, or what the screen
+ * shows at `zoom` (the zoom the box was opened at) when that is more. On a wide screen a tall state is fitted
+ * whole, so the limit is that view; a phone opened on part of a wide state may pan along it, not off it.
+ * Panning and zooming out stop at the limit; a zoom that would show more than it is refused.
+ */
+function limitView(map: maplibregl.Map, bbox: BBox, padding: number, zoom: number) {
+  const { clientWidth: w, clientHeight: h } = map.getContainer();
+  if (w === 0 || h === 0 || !Number.isFinite(zoom)) return;
+  const sw = maplibregl.MercatorCoordinate.fromLngLat([bbox[0], bbox[1]]);
+  const ne = maplibregl.MercatorCoordinate.fromLngLat([bbox[2], bbox[3]]);
+  // Mercator units per screen pixel at that zoom (512 px tiles), with a hair of slack for rounding.
+  const unit = 1.002 / (512 * 2 ** zoom);
+  const cx = (sw.x + ne.x) / 2;
+  const cy = (sw.y + ne.y) / 2;
+  const halfW = Math.max((ne.x - sw.x) / 2 + padding * unit, (w / 2) * unit);
+  const halfH = Math.max((sw.y - ne.y) / 2 + padding * unit, (h / 2) * unit);
+  const min = new maplibregl.MercatorCoordinate(cx - halfW, cy + halfH).toLngLat();
+  const max = new maplibregl.MercatorCoordinate(cx + halfW, cy - halfH).toLngLat();
+  map.setMaxBounds([min.lng, min.lat, max.lng, max.lat]);
+}
 /** Event data of the handle's camera moves, so onViewChange can tell them from the user's. */
 const PROGRAMMATIC = { programmatic: true };
 

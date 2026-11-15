@@ -11,7 +11,7 @@ import { Button, ButtonLink } from "@/shared/ui/button";
 import { SegmentedControl } from "@/shared/ui/choice";
 import { Icon } from "@/shared/ui/icon";
 import { Container, MonoLabel, PageIntro, Panel } from "@/shared/ui/layout";
-import { PickMap } from "@/widgets/pick-map";
+import { PickMap, type PickMapPlace } from "@/widgets/pick-map";
 import s from "./pick-field.module.css";
 
 type Method = "county" | "location";
@@ -35,7 +35,7 @@ export function PickFieldPage() {
     setPlaceLabel(null);
   };
 
-  const onStateChange = useCallback((fips: string) => {
+  const onStateChange = useCallback((fips: string | null) => {
     setStateFips(fips);
     setCounty(null);
     setSelection(null);
@@ -44,6 +44,14 @@ export function PickFieldPage() {
     setCounty(c);
     setSelection(null);
   }, []);
+  // The map went to a state or county: the lists follow. A selected field stays while the user only zooms
+  // out of its county; going to another state or county drops it.
+  const onMapPlace = (p: PickMapPlace) => {
+    const moved = (p.county !== null && p.county.fips !== county?.fips) || (p.stateFips !== null && p.stateFips !== stateFips);
+    setStateFips(p.stateFips);
+    setCounty(p.county);
+    if (moved) setSelection(null);
+  };
 
   const onResolved = useCallback((r: ResolvedLocation) => {
     setPin(r.point);
@@ -137,11 +145,15 @@ export function PickFieldPage() {
 
         <div className={s.right}>
           <PickMap
+            // A fresh map per method: a county focus would hide a pasted point, and the other way round.
+            key={method}
+            stateFips={method === "county" ? stateFips : null}
             county={method === "county" ? county : null}
             pin={pin}
             selection={sel}
             placeLabel={placeLabel}
             onSelect={(value) => setSelection({ value, from: method })}
+            onPlaceChange={method === "county" ? onMapPlace : undefined}
           />
         </div>
       </Container>

@@ -1,4 +1,9 @@
-import type { ExpressionSpecification, FilterSpecification, StyleSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  FilterSpecification,
+  StyleSpecification,
+  SymbolLayerSpecification,
+} from "maplibre-gl";
 import { apiUrl } from "@/shared/api";
 import type { BBox } from "@/shared/lib";
 import { cropColorExpression } from "./crops";
@@ -44,6 +49,8 @@ export const LAYER = {
   sectionLabels: "section-labels",
   places: "places",
   stateLabels: "state-labels",
+  stateLabelsSmall: "state-labels-small",
+  stateLabelsCoast: "state-labels-coast",
   savedLine: "saved-line",
   savedPoint: "saved-point",
   savedLabel: "saved-label",
@@ -66,6 +73,23 @@ export type MapFocus = {
 
 const MATCH_NONE: FilterSpecification = ["==", ["get", "fips"], "__none__"];
 
+/**
+ * States too small for a sure centered name at the country view. A name never covers another: one that
+ * does not fit waits for a closer zoom. Larger names are placed first, then these, in this order.
+ * Inland ones stay centered (moved aside, a name lands on the neighbour and reads as its name).
+ * DC is not a state: named only from zoom 6. RI and DE are too small for a name at any country view
+ * (their names would read as the neighbour's): named from zoom 5.
+ */
+const SMALL_INLAND_STATES = ["MD", "VT", "NH", "CT", "DC"];
+/** On the Atlantic: when the center is taken, the name moves east, into the ocean, never onto a neighbour. */
+const SMALL_COASTAL_STATES = ["MA", "NJ", "DE", "RI"];
+const postalIn = (list: string[]): ExpressionSpecification => ["in", ["get", "postal"], ["literal", list]];
+const SMALL_INLAND = postalIn(SMALL_INLAND_STATES);
+const SMALL_COASTAL = postalIn(SMALL_COASTAL_STATES);
+const LARGE_STATE: FilterSpecification = ["!", postalIn([...SMALL_INLAND_STATES, ...SMALL_COASTAL_STATES])];
+const TINY_STATE: ExpressionSpecification = ["in", ["get", "postal"], ["literal", ["RI", "DE"]]];
+const placeFirst = (list: string[]): ExpressionSpecification => ["index-of", ["get", "postal"], ["literal", list]];
+
 /** Layer filters for a focus (null: no focus, nothing hidden). `null` as a value removes the filter. */
 export function focusFilters(f: MapFocus | null): Record<string, FilterSpecification | null> {
   const county = f?.countyFips ?? null;
@@ -83,7 +107,9 @@ export function focusFilters(f: MapFocus | null): Record<string, FilterSpecifica
     [LAYER.statesLine]: f ? ["==", ["get", "fips"], f.stateFips] : null,
     [LAYER.countiesLine]: !f ? null : county ? ["==", ["get", "fips"], county] : ["==", ["get", "state_fips"], f.stateFips],
     // A focused state is named in the breadcrumb; its centred name would cover a county name.
-    [LAYER.stateLabels]: f ? MATCH_NONE : null,
+    [LAYER.stateLabels]: f ? MATCH_NONE : LARGE_STATE,
+    [LAYER.stateLabelsSmall]: f ? MATCH_NONE : SMALL_INLAND,
+    [LAYER.stateLabelsCoast]: f ? MATCH_NONE : SMALL_COASTAL,
     // A county name sits at the county's centre, usually outside the focused township.
     [LAYER.countyLabels]: tw
       ? MATCH_NONE
@@ -230,6 +256,19 @@ export function buildMapStyle(input: MapStyleInput): StyleSpecification {
   const hovered: ExpressionSpecification = ["boolean", ["feature-state", "hover"], false];
   const supported: ExpressionSpecification = ["in", ["get", "postal"], ["literal", [...input.supportedStates]]];
 
+  const stateLabelLayout = {
+    "text-field": ["step", ["zoom"], ["get", "postal"], 4, ["get", "name"]] as ExpressionSpecification,
+    "text-font": FONT.medium,
+    "text-size": ["interpolate", ["linear"], ["zoom"], 3, 11, 7, 17],
+    "text-letter-spacing": 0.04,
+    "text-max-width": 7,
+  } satisfies SymbolLayerSpecification["layout"];
+  const stateLabelPaint = {
+    "text-color": ["case", supported, c.label, c.labelMuted],
+    ...halo,
+    "text-opacity": ["interpolate", ["linear"], ["zoom"], 7, 1, 8, 0],
+  } satisfies SymbolLayerSpecification["paint"];
+
   const style: StyleSpecification = {
     version: 8,
     glyphs: glyphsUrl(),
@@ -298,16 +337,20 @@ export function buildMapStyle(input: MapStyleInput): StyleSpecification {
         source: SOURCE.focus,
         paint: { "line-color": c.outline, "line-width": 2 },
       },
+      // The selected field (or circle) shows only at field scale, with the other fields: zoomed out it
+      // would sit alone on a county or state map. Both maps keep the selection; it is drawn again on zooming in.
       {
         id: LAYER.selectionFill,
         type: "fill",
         source: SOURCE.selection,
+        minzoom: input.fieldMinZoom,
         paint: { "fill-color": c.selected, "fill-opacity": ["case", ["==", ["get", "buffered"], true], 0.55, 0.9] },
       },
       {
         id: LAYER.selectionLine,
         type: "line",
         source: SOURCE.selection,
+        minzoom: input.fieldMinZoom,
         filter: ["!=", ["get", "buffered"], true],
         paint: { "line-color": c.outline, "line-width": 2.5 },
       },
@@ -316,6 +359,7 @@ export function buildMapStyle(input: MapStyleInput): StyleSpecification {
         id: LAYER.selectionDashed,
         type: "line",
         source: SOURCE.selection,
+        minzoom: input.fieldMinZoom,
         filter: ["==", ["get", "buffered"], true],
         paint: { "line-color": c.outline, "line-width": 2.5, "line-dasharray": [3, 2.5] },
       },
@@ -433,26 +477,67 @@ export function buildMapStyle(input: MapStyleInput): StyleSpecification {
         paint: { "text-color": c.label, ...halo },
       },
       {
+        // Coastal small states, placed last (layers lower in the list are placed later).
+        id: LAYER.stateLabelsCoast,
+        type: "symbol",
+        source: SOURCE.boundaries,
+        "source-layer": "state_labels",
+        maxzoom: 8,
+        filter: SMALL_COASTAL,
+        layout: {
+          ...stateLabelLayout,
+          "text-field": [
+            "step",
+            ["zoom"],
+            ["case", TINY_STATE, "", ["get", "postal"]],
+            4,
+            ["case", TINY_STATE, "", ["get", "name"]],
+            5,
+            ["get", "name"],
+          ],
+          // "left": the text starts at the point, so it runs east.
+          "text-variable-anchor": ["center", "left"],
+          "text-radial-offset": 0.6,
+          "text-padding": 1,
+          "symbol-sort-key": placeFirst(SMALL_COASTAL_STATES),
+        },
+        paint: stateLabelPaint,
+      },
+      {
+        // Inland small states, after the larger names: centered or not at all.
+        id: LAYER.stateLabelsSmall,
+        type: "symbol",
+        source: SOURCE.boundaries,
+        "source-layer": "state_labels",
+        maxzoom: 8,
+        filter: SMALL_INLAND,
+        layout: {
+          ...stateLabelLayout,
+          // Zoom must be the outer step: DC is blank until 6, the others as in stateLabelLayout.
+          "text-field": [
+            "step",
+            ["zoom"],
+            ["case", ["==", ["get", "postal"], "DC"], "", ["get", "postal"]],
+            4,
+            ["case", ["==", ["get", "postal"], "DC"], "", ["get", "name"]],
+            6,
+            ["get", "name"],
+          ],
+          "text-padding": 1,
+          "symbol-sort-key": placeFirst(SMALL_INLAND_STATES),
+        },
+        paint: stateLabelPaint,
+      },
+      {
+        // Larger states: always named, centered. Smaller names keep clear of them.
         id: LAYER.stateLabels,
         type: "symbol",
         source: SOURCE.boundaries,
         "source-layer": "state_labels",
         maxzoom: 8,
-        layout: {
-          "text-field": ["step", ["zoom"], ["get", "postal"], 4, ["get", "name"]],
-          "text-font": FONT.medium,
-          "text-size": ["interpolate", ["linear"], ["zoom"], 3, 11, 7, 17],
-          "text-letter-spacing": 0.04,
-          "text-max-width": 7,
-          // States are few: always show them, even over town labels.
-          "text-allow-overlap": true,
-          "text-ignore-placement": true,
-        },
-        paint: {
-          "text-color": ["case", supported, c.label, c.labelMuted],
-          ...halo,
-          "text-opacity": ["interpolate", ["linear"], ["zoom"], 7, 1, 8, 0],
-        },
+        filter: LARGE_STATE,
+        layout: { ...stateLabelLayout, "text-allow-overlap": true },
+        paint: stateLabelPaint,
       },
       {
         id: LAYER.savedLabel,
@@ -629,6 +714,8 @@ export function buildMapStyle(input: MapStyleInput): StyleSpecification {
     LAYER.countyLabels,
     LAYER.townshipLabels,
     LAYER.places,
+    LAYER.stateLabelsCoast,
+    LAYER.stateLabelsSmall,
     LAYER.stateLabels,
   ]);
   const savedLabel = style.layers.filter((l) => l.id === LAYER.savedLabel);

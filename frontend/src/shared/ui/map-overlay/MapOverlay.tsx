@@ -36,18 +36,17 @@ export function MapStage({ children, height = 720, id }: { children: ReactNode; 
   );
 }
 
-/** Zoom in, zoom out and "show all" (DS-Map controls, 46 px). */
+/**
+ * Zoom in and out (DS-Map controls, 46 px), plus the full-screen toggle on phones. Going back to a whole
+ * area is the widgets' job (breadcrumbs, back button): a "show all" button here only repeated it.
+ */
 export function MapZoomControls({
   onZoomIn,
   onZoomOut,
-  onReset,
-  resetLabel,
   children,
 }: {
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onReset: () => void;
-  resetLabel: string;
   children?: ReactNode;
 }) {
   const stage = useContext(StageContext);
@@ -72,9 +71,6 @@ export function MapZoomControls({
         </button>
         <button type="button" className={s.ctl} onClick={onZoomOut} aria-label="Zoom out">
           <Icon name="minus" />
-        </button>
-        <button type="button" className={s.ctl} onClick={onReset} aria-label={resetLabel}>
-          <Icon name="expand" />
         </button>
       </div>
       {children}

@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { areaText, coordsText, selectionSearch, useField } from "@/entities/field";
-import { CONUS_BBOX, mapConfigFrom, supportedStatesText, useCounty, useCoverage, useStates } from "@/entities/region";
+import {
+  CONUS_BBOX,
+  mapConfigFrom,
+  stateBBox,
+  supportedStatesText,
+  useCounty,
+  useCoverage,
+  useStates,
+} from "@/entities/region";
 import { useSavedFieldShapes } from "@/entities/saved-field";
 import { useSession } from "@/entities/session";
 import { friendlyMessage, type GeoState } from "@/shared/api";
@@ -14,6 +22,7 @@ import {
   COUNTY_FIT_MIN_ZOOM,
   FieldMap,
   focusForView,
+  isNarrowScreen,
   sameFocus,
   ZOOM,
   type FieldMapHandle,
@@ -39,10 +48,6 @@ import {
   type LegendItem,
 } from "@/shared/ui/map-overlay";
 import s from "./explore-map.module.css";
-
-/** Phones (same breakpoint as the map stage CSS). */
-const NARROW_SCREEN = "(max-width: 760px)";
-const isNarrowScreen = () => typeof window !== "undefined" && window.matchMedia?.(NARROW_SCREEN).matches === true;
 
 const STAGE_NAMES = ["Country", "State", "County", "Field"] as const;
 type Stage = 0 | 1 | 2 | 3;
@@ -193,6 +198,12 @@ export function ExploreMap() {
       }
     : null;
 
+  // The map stays in the focused county, else state (shared/ui/map/FieldMap.tsx `bounds`). The breadcrumbs,
+  // "Jump to" and clicks on the hidden land around it lead out.
+  const bounds =
+    (countyFips && county.data?.fips === countyFips ? (county.data.bbox as BBox) : null) ??
+    (focusState ? stateBBox(focusState.fips) : null);
+
   /** Zoom below which a focus ends: one level under the zoom that fits the area. */
   const floorFor = (bbox: number[] | undefined, fallback: number) => {
     const z = bbox ? mapRef.current?.zoomForBBox(bbox as BBox) : null;
@@ -286,7 +297,10 @@ export function ExploreMap() {
       if (known) fitState(known.bbox as BBox);
       else {
         setNoCoverageIn(hit.state.name);
-        mapRef.current?.flyTo(hit.point, 6);
+        // Not a field state: no /geo/states entry, but the static box fits it like any other.
+        const bbox = stateBBox(hit.state.fips);
+        if (bbox) fitState(bbox);
+        else mapRef.current?.flyTo(hit.point, 6);
       }
       return;
     }
@@ -308,7 +322,9 @@ export function ExploreMap() {
     fieldId ? "Selected. Open it to see base conditions" : "Click an estimated field area to select it",
   ][stage];
 
-  const crumbs: { label: string; onClick: () => void }[] = [{ label: "United States", onClick: reset }];
+  // The country needs no name (the map shows it): the trail starts once the user is in a state, with a
+  // way back to all of them.
+  const crumbs: { label: string; onClick: () => void }[] = [{ label: "All states", onClick: reset }];
   if (focusState && stage >= 1) {
     const st = states.data?.find((x) => x.fips === focusState.fips);
     crumbs.push({ label: focusState.name, onClick: () => (st ? goState(st) : mapRef.current?.flyTo(mapCenter(), 6)) });
@@ -344,6 +360,7 @@ export function ExploreMap() {
         focus={focus}
         townshipsFollowFocus
         outerBBox={CONUS_BBOX}
+        bounds={bounds}
         ariaLabel="Map of the contiguous United States. Zoom from states to counties and estimated field areas."
         onClick={onClick}
         onHover={onHover}
@@ -352,23 +369,25 @@ export function ExploreMap() {
       />
 
       <MapTopBar>
-        <nav aria-label="Map scale" className={s.crumbs}>
-          <ol className={s.crumbList}>
-            {crumbs.map((c, i) => (
-              <li key={c.label} className={s.crumbItem}>
-                {i > 0 && <Icon name="chevron" size={16} />}
-                <button
-                  type="button"
-                  className={s.crumb}
-                  onClick={c.onClick}
-                  aria-current={i === crumbs.length - 1 ? "location" : undefined}
-                >
-                  {c.label}
-                </button>
-              </li>
-            ))}
-          </ol>
-        </nav>
+        {crumbs.length > 1 && (
+          <nav aria-label="Map scale" className={s.crumbs}>
+            <ol className={s.crumbList}>
+              {crumbs.map((c, i) => (
+                <li key={c.label} className={s.crumbItem}>
+                  {i > 0 && <Icon name="chevron" size={16} />}
+                  <button
+                    type="button"
+                    className={s.crumb}
+                    onClick={c.onClick}
+                    aria-current={i === crumbs.length - 1 ? "location" : undefined}
+                  >
+                    {c.label}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )}
         <div className={s.jump}>
           <label htmlFor="map-jump" className={s.jumpLabel}>
             Jump to
@@ -396,8 +415,6 @@ export function ExploreMap() {
       <MapZoomControls
         onZoomIn={() => mapRef.current?.zoomIn()}
         onZoomOut={() => mapRef.current?.zoomOut()}
-        onReset={reset}
-        resetLabel="Show the whole country"
       >
         <MapScaleSteps steps={4} current={stage} label={`Map scale: ${STAGE_NAMES[stage]}`} />
       </MapZoomControls>

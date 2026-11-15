@@ -25,6 +25,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The instruction alone, when there is no place to name. */
+.lead {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  font-weight: 500;
+}
 .scale {
   font-size: var(--text-caption);
   line-height: var(--text-caption-lh);

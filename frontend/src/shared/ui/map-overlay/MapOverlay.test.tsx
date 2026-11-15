@@ -9,7 +9,7 @@ describe("MapStage full screen", () => {
   it("toggles from the zoom controls, locks page scroll, and leaves on Escape", async () => {
     const { container } = render(
       <MapStage>
-        <MapZoomControls onZoomIn={noop} onZoomOut={noop} onReset={noop} resetLabel="Show all" />
+        <MapZoomControls onZoomIn={noop} onZoomOut={noop} />
       </MapStage>,
     );
     const stage = container.firstElementChild as HTMLElement;

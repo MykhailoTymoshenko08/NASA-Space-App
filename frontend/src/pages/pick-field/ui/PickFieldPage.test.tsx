@@ -9,6 +9,10 @@ import { PickFieldPage } from "./PickFieldPage";
 vi.mock("@/shared/ui/map", async () => {
   const { forwardRef } = await import("react");
   return {
+    isNarrowScreen: () => false,
+    tapWord: () => "Click",
+    ZOOM: { countyLines: 5.5, county: 7, township: 8, sections: 11 },
+    COUNTY_FIT_MIN_ZOOM: 8.5,
     FieldMap: forwardRef(function FakeMap(props: { ariaLabel: string }, _ref) {
       return <div role="application" aria-label={props.ariaLabel} />;
     }),
@@ -31,13 +35,23 @@ const renderPage = () =>
   );
 
 describe("PickFieldPage", () => {
-  it("fills state and county from the API and points the map at the county", async () => {
+  it("starts on the whole country and follows the state and county the user chooses", async () => {
     renderPage();
-    expect(await screen.findByLabelText("Map of Champaign County, IL", undefined, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByLabelText("State")).toHaveDisplayValue("Illinois");
-    expect(screen.getByLabelText("County")).toHaveDisplayValue("Champaign");
+    expect(screen.getByLabelText("Map of the United States")).toBeInTheDocument();
+    const state = screen.getByLabelText("State");
+    await screen.findByRole("option", { name: "Illinois" }, { timeout: 5000 });
+    expect(state).toHaveDisplayValue("Choose a state");
+    expect(screen.getByLabelText("County")).toHaveDisplayValue("Choose a state first");
     expect(screen.getByText(/available in Illinois, Iowa and Nebraska for now/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Get analysis" })).toBeDisabled();
+
+    await userEvent.selectOptions(state, "Illinois");
+    expect(screen.getByLabelText("Map of Illinois")).toBeInTheDocument();
+    await screen.findByRole("option", { name: "Champaign" }, { timeout: 5000 });
+    expect(screen.getByLabelText("County")).toHaveDisplayValue("Choose a county");
+
+    await userEvent.selectOptions(screen.getByLabelText("County"), "Champaign");
+    expect(screen.getByLabelText("Map of Champaign County, IL")).toBeInTheDocument();
   });
 
   it("resolves pasted coordinates into a selected field", async () => {
