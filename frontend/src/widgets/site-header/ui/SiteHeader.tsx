@@ -11,7 +11,7 @@ const AUTH_PAGES: readonly string[] = [ROUTES.signIn, ROUTES.signUp, ROUTES.rese
 
 /**
  * Top bar, as in the desktop design. Landing: "How it works" (its #how section); other pages: "Explore the map".
- * The current page gets the wash fill and weight 600. Signed in: My fields + account menu. Auth pages: map links only.
+ * The current page gets the wash fill and weight 600. Signed in: Saved fields + account menu. Auth pages: map links only.
  * At 760 px and narrower the links move into a burger menu that opens under the header (48 px rows).
  */
 export function SiteHeader() {
@@ -61,7 +61,7 @@ export function SiteHeader() {
             current={here(ROUTES.myFields)}
             className={row ? s.row : undefined}
           >
-            My fields
+            Saved fields
           </ButtonLink>
           <AccountMenu email={session.user.email} block={row} />
         </>

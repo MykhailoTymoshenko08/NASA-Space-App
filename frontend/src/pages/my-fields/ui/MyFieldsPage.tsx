@@ -11,7 +11,7 @@ import { Container, PageIntro } from "@/shared/ui/layout";
 import { FieldsCompare, MAX_COMPARE, SavedFieldsList } from "@/widgets/saved-fields";
 import s from "./my-fields.module.css";
 
-/** "My fields" (GET /me/fields) and "Compare fields" (2 to 4). */
+/** "Saved fields" (GET /me/fields) and "Compare fields" (2 to 4). */
 export function MyFieldsPage() {
   const session = useSession();
   const userId = session.status === "authenticated" ? session.user.id : null;
@@ -23,7 +23,7 @@ export function MyFieldsPage() {
   const fields = saved.data?.items ?? [];
   const chosen = fields.filter((f) => selected.includes(f.id));
   const comparing = view === "compare" && chosen.length >= 2;
-  useDocumentTitle(comparing ? "Compare fields" : "My fields");
+  useDocumentTitle(comparing ? "Compare fields" : "Saved fields");
 
   if (session.status === "unknown") {
     return (
@@ -58,7 +58,7 @@ export function MyFieldsPage() {
   return (
     <>
       <PageIntro
-        title={comparing ? "Compare fields" : "My fields"}
+        title={comparing ? "Compare fields" : "Saved fields"}
         lead={
           comparing
             ? "Compare asking rent, illustrative returns and land quality for the fields you picked."
@@ -84,7 +84,7 @@ export function MyFieldsPage() {
               <div className={s.compareBar}>
                 <Button variant="secondary" onClick={() => setView("list")}>
                   <Icon name="arrow-left" size={18} />
-                  Back to my fields
+                  Back to saved fields
                 </Button>
                 <span className={s.muted}>Pick 2 to 4 fields. Enter asking rents to compare the same crop plan.</span>
               </div>

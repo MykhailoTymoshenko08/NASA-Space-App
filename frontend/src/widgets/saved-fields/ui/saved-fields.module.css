@@ -71,6 +71,9 @@
 .sketch svg {
   width: 100%;
 }
+.sketch:hover {
+  filter: brightness(0.97);
+}
 .body {
   padding: var(--s-16) 18px 18px;
   display: flex;
@@ -88,6 +91,14 @@
   font-weight: 600;
   font-size: var(--text-title-4);
   line-height: var(--text-title-4-lh);
+}
+.titleLink {
+  color: inherit;
+  text-decoration: none;
+}
+.titleLink:hover {
+  color: var(--color-green-700);
+  text-decoration: underline;
 }
 .coords {
   font-family: var(--font-mono);

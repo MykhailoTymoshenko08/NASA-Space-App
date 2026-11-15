@@ -5,7 +5,7 @@ import { nameError, type SavedField } from "@/entities/saved-field";
 import { friendlyMessage } from "@/shared/api";
 import { fieldPath, ROUTES } from "@/shared/config";
 import { formatAcres, formatDateTime } from "@/shared/lib";
-import { Button, ButtonLink, buttonClass } from "@/shared/ui/button";
+import { Button, ButtonLink } from "@/shared/ui/button";
 import { Checkbox, TextField } from "@/shared/ui/form";
 import { Icon } from "@/shared/ui/icon";
 import { isPoint, savedCoords, savedCrop, savedKind, savedRings, savedSearch } from "../lib/title";
@@ -75,7 +75,7 @@ function RenameForm({ field, onRename, onDone }: { field: SavedField; onRename: 
   );
 }
 
-/** "My fields" (GET /me/fields): cards with a sketch, compare checkboxes (2 to 4), open and remove. */
+/** "Saved fields" (GET /me/fields): cards with a sketch, compare checkboxes (2 to 4), rename and remove. The sketch and title open the field. */
 export function SavedFieldsList({
   fields,
   selected,
@@ -113,7 +113,6 @@ export function SavedFieldsList({
           </div>
         </div>
         <Button variant="primary" size="lg" onClick={onCompare} disabled={n < 2}>
-          <Icon name="columns" />
           Compare fields
         </Button>
       </div>
@@ -122,9 +121,10 @@ export function SavedFieldsList({
         {fields.map((f) => {
           const on = selected.includes(f.id);
           const crop = savedCrop(f);
+          const href = fieldPath(savedSearch(f));
           return (
             <li key={f.id} className={`${s.card} ${on ? s.cardOn : ""}`}>
-              <div className={s.sketch}>
+              <Link to={href} className={s.sketch} tabIndex={-1} aria-hidden="true">
                 <GeometrySketch
                   rings={savedRings(f)}
                   anchor={f.centroid}
@@ -133,13 +133,17 @@ export function SavedFieldsList({
                   width={240}
                   height={120}
                 />
-              </div>
+              </Link>
               <div className={s.body}>
                 {editingId === f.id ? (
                   <RenameForm field={f} onRename={onRename} onDone={() => setEditingId(null)} />
                 ) : (
                   <div className={s.titleRow}>
-                    <h2 className={s.title}>{f.name}</h2>
+                    <h2 className={s.title}>
+                      <Link to={href} className={s.titleLink}>
+                        {f.name}
+                      </Link>
+                    </h2>
                     {f.area_ha != null && <div className={s.muted}>About {formatAcres(f.area_ha)} acres</div>}
                   </div>
                 )}
@@ -169,9 +173,6 @@ export function SavedFieldsList({
                     Compare
                   </Checkbox>
                   <div className={s.right}>
-                    <Link to={fieldPath(savedSearch(f))} className={buttonClass({ variant: "secondary" })}>
-                      Open
-                    </Link>
                     <button
                       type="button"
                       className={s.remove}
