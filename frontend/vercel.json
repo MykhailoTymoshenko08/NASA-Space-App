@@ -6,7 +6,7 @@
     }
   },
   "rewrites": [
-    { "source": "/v1/:path*", "destination": "https://YOUR-HEROKU-APP.herokuapp.com/v1/:path*" },
+    { "source": "/v1/:path*", "destination": "https://fieldshift-api-66d5a9555f84.herokuapp.com/v1/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

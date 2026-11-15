@@ -72,9 +72,10 @@ because the backend also allows `http://localhost:5173`.
 
 | Item | Value |
 |---|---|
-| Production frontend origin | `https://selo-ai-seven.vercel.app` |
-| How it connects | Option A: Vercel proxies `/v1` to the API |
+| Production frontend origin | `https://selo-ai-seven.vercel.app` (Vercel) |
+| How it connects | Option A: `frontend/vercel.json` rewrites `/v1/*` to the API, built with `VITE_API_BASE_URL=/v1` |
 | Other allowed origins | `http://localhost:5173` (`npm run dev:remote`) |
+| Preview/staging origins | none (Vercel Git previews are off; production deploys from `.github/workflows/frontend.yml`) |
 
 The backend allows exactly these browser origins (CORS, needed for the field tiles). For another origin, such as
 a Vercel preview URL that must load field tiles, ask us to add it.
