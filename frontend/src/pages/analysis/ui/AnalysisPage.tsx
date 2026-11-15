@@ -112,7 +112,7 @@ export function AnalysisPage() {
         lead={COPY[phase].lead}
       />
       {/* Export PDF panel starts level with the Best fit card, not with the section heading. */}
-      <PageColumns main={main} aside={aside} asideLabel="Actions" alignAsideTo="[data-best-fit-anchor]" />
+      <PageColumns main={main} aside={aside} asideLabel="Actions" alignAsideTo="[data-best-fit-anchor]" stickyAside />
     </div>
   );
 }
