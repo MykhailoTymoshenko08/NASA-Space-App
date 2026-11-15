@@ -15,6 +15,8 @@ export const ROUTES = {
   myFields: "/my-fields",
   /** Signed-in county screening (POST /comparisons/area). */
   areaRanking: "/rank-fields",
+  /** Public crop model validation report (numbers from ml/models/crop_model/metrics.json). */
+  modelMetrics: "/model",
 } as const;
 
 /** `search` is a query string from `buildFieldSearch` ("?field_id=.."), or empty. */
