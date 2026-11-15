@@ -322,8 +322,9 @@ export function ExploreMap() {
     fieldId ? "Selected. Open it to see base conditions" : "Click an estimated field area to select it",
   ][stage];
 
-  // The trail always starts at the whole country, the way back from any state, county or township.
-  const crumbs: { label: string; onClick: () => void }[] = [{ label: "United States", onClick: reset }];
+  // The country needs no name (the map shows it): the trail starts once the user is in a state, with a
+  // way back to all of them.
+  const crumbs: { label: string; onClick: () => void }[] = [{ label: "All states", onClick: reset }];
   if (focusState && stage >= 1) {
     const st = states.data?.find((x) => x.fips === focusState.fips);
     crumbs.push({ label: focusState.name, onClick: () => (st ? goState(st) : mapRef.current?.flyTo(mapCenter(), 6)) });
@@ -368,23 +369,25 @@ export function ExploreMap() {
       />
 
       <MapTopBar>
-        <nav aria-label="Map scale" className={s.crumbs}>
-          <ol className={s.crumbList}>
-            {crumbs.map((c, i) => (
-              <li key={c.label} className={s.crumbItem}>
-                {i > 0 && <Icon name="chevron" size={16} />}
-                <button
-                  type="button"
-                  className={s.crumb}
-                  onClick={c.onClick}
-                  aria-current={i === crumbs.length - 1 ? "location" : undefined}
-                >
-                  {c.label}
-                </button>
-              </li>
-            ))}
-          </ol>
-        </nav>
+        {crumbs.length > 1 && (
+          <nav aria-label="Map scale" className={s.crumbs}>
+            <ol className={s.crumbList}>
+              {crumbs.map((c, i) => (
+                <li key={c.label} className={s.crumbItem}>
+                  {i > 0 && <Icon name="chevron" size={16} />}
+                  <button
+                    type="button"
+                    className={s.crumb}
+                    onClick={c.onClick}
+                    aria-current={i === crumbs.length - 1 ? "location" : undefined}
+                  >
+                    {c.label}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )}
         <div className={s.jump}>
           <label htmlFor="map-jump" className={s.jumpLabel}>
             Jump to
@@ -412,7 +415,6 @@ export function ExploreMap() {
       <MapZoomControls
         onZoomIn={() => mapRef.current?.zoomIn()}
         onZoomOut={() => mapRef.current?.zoomOut()}
-        onReset={reset}
       >
         <MapScaleSteps steps={4} current={stage} label={`Map scale: ${STAGE_NAMES[stage]}`} />
       </MapZoomControls>
