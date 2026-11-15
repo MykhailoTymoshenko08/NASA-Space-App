@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ExploreMap } from "@/widgets/explore-map";
 import { APP_NAME, ROUTES } from "@/shared/config";
 import { ButtonLink } from "@/shared/ui/button";
 import { Icon } from "@/shared/ui/icon";
 import { Card, Container, Eyebrow } from "@/shared/ui/layout";
+import { isNarrowScreen } from "@/shared/ui/map";
+import { useCenterOnApproach } from "../lib/center-on-approach";
 import s from "./landing.module.css";
 
 const STEPS = [
@@ -26,11 +28,15 @@ const STEPS = [
 
 const reducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+const isDesktop = () => !isNarrowScreen();
 
 export function LandingPage() {
   useEffect(() => {
     document.title = `${APP_NAME}: know your field before you plant`;
   }, []);
+  // Desktop: the map is one window tall; scrolling to it brings it to the middle of the window.
+  const mapRef = useRef<HTMLElement>(null);
+  useCenterOnApproach(mapRef, isDesktop, reducedMotion);
 
 
   return (
@@ -55,7 +61,9 @@ export function LandingPage() {
             onClick={(e) => {
               // Scroll without putting #map in the URL (entering the site starts at the top: app/router/entry-scroll.ts).
               e.preventDefault();
-              document.getElementById("map")?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth" });
+              document
+                .getElementById("map")
+                ?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "center" });
             }}
           >
             or explore the map below
@@ -63,8 +71,8 @@ export function LandingPage() {
         </div>
       </Container>
 
-      <Container as="section" id="map" aria-label="Field map">
-        <ExploreMap />
+      <Container as="section" id="map" ref={mapRef} aria-label="Field map">
+        <ExploreMap className={s.mapStage} />
       </Container>
 
       <Container as="section" id="how" className={s.how} aria-labelledby="how-title">

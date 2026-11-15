@@ -10,7 +10,17 @@ const StageContext = createContext<{ expanded: boolean; toggle: () => void } | n
  * (toggle in MapZoomControls, Escape leaves): the page around it then stops scrolling, so every drag
  * moves the map. The map resizes itself with its container.
  */
-export function MapStage({ children, height = 720, id }: { children: ReactNode; height?: number; id?: string }) {
+export function MapStage({
+  children,
+  height = 720,
+  id,
+  className,
+}: {
+  children: ReactNode;
+  height?: number;
+  id?: string;
+  className?: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     if (!expanded) return;
@@ -29,7 +39,7 @@ export function MapStage({ children, height = 720, id }: { children: ReactNode; 
   const stage = useMemo(() => ({ expanded, toggle: () => setExpanded((v) => !v) }), [expanded]);
   return (
     <StageContext.Provider value={stage}>
-      <div className={`${s.stage} ${expanded ? s.stageFull : ""}`} style={{ height }} id={id}>
+      <div className={`${s.stage} ${expanded ? s.stageFull : ""} ${className ?? ""}`} style={{ height }} id={id}>
         {children}
       </div>
     </StageContext.Provider>

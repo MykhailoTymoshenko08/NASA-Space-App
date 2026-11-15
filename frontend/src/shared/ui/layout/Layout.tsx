@@ -1,9 +1,9 @@
-import { useLayoutEffect, useRef, type ElementType, type HTMLAttributes, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ElementType, type HTMLAttributes, type ReactNode, type Ref } from "react";
 import { ButtonLink } from "../button";
 import { Icon } from "../icon";
 import s from "./layout.module.css";
 
-type Props = HTMLAttributes<HTMLElement> & { as?: ElementType; children: ReactNode };
+type Props = HTMLAttributes<HTMLElement> & { as?: ElementType; children: ReactNode; ref?: Ref<HTMLElement> };
 
 const join = (...c: (string | undefined | false)[]) => c.filter(Boolean).join(" ");
 

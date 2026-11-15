@@ -17,7 +17,7 @@ import {
   type MapFocus,
   type MapStyleInput,
 } from "./map-style";
-import { isNarrowScreen } from "./screen";
+import { isDesktopPointer, isNarrowScreen } from "./screen";
 import { nearestHit } from "./touch-hit";
 import s from "./field-map.module.css";
 
@@ -101,6 +101,11 @@ type Props = {
    * the user never drifts into the empty, masked land around it. Null: `outerBBox`.
    */
   bounds?: BBox | null;
+  /**
+   * The map fills the window, so with a mouse the wheel scrolls the page past it and Ctrl (Cmd on a Mac)
+   * plus the wheel zooms. A trackpad pinch still zooms. Touch screens keep their gestures.
+   */
+  pageScrollsOverMap?: boolean;
   ariaLabel: string;
   onClick?: (hit: MapHit) => void;
   onHover?: (hit: MapHit | null) => void;
@@ -205,6 +210,7 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
     townshipsFollowFocus = false,
     outerBBox,
     bounds = null,
+    pageScrollsOverMap = false,
     ariaLabel,
     onClick,
     onHover,
@@ -293,6 +299,7 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
       dragRotate: false,
       pitchWithRotate: false,
       maxPitch: 0,
+      cooperativeGestures: pageScrollsOverMap && isDesktopPointer(),
     });
     map.touchZoomRotate.disableRotation();
     mapRef.current = map;
