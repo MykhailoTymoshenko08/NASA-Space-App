@@ -47,14 +47,14 @@ export const GLOSSARY: readonly GlossaryTerm[] = [
     term: "Surface soil moisture",
     def: "Water in the top few centimeters of soil. It changes fast after rain or wind.",
     why: "It shows recent rain and drying. It matters most for seeding and for young plants with short roots.",
-    match: ["surface soil moisture", "surface moisture"],
+    match: ["soil moisture (surface)", "surface soil moisture", "surface moisture"],
   },
   {
     id: "gl-rootzone",
     term: "Root-zone soil moisture",
     def: "Water down to about 1 meter, where most crop roots drink. It changes more slowly.",
     why: "It is the water crops can reach through the season, so it says more about drought stress than the surface layer.",
-    match: ["root-zone soil moisture", "root zone soil moisture", "root-zone moisture", "root zone moisture", "root-zone", "root zone"],
+    match: ["soil moisture (root zone)", "root-zone soil moisture", "root zone soil moisture", "root-zone moisture", "root zone moisture", "root-zone", "root zone"],
   },
   {
     id: "gl-vol",

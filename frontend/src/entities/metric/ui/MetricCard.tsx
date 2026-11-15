@@ -33,7 +33,7 @@ export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = fal
     <article className={s.card} data-quality={metric.quality} aria-labelledby={`metric-${m.key}`}>
       <div className={s.head}>
         <h3 id={`metric-${m.key}`} className={s.label}>
-          {m.label}
+          <TermText>{m.label}</TermText>
         </h3>
         {hint && onToggleHint && (
           <button
@@ -50,9 +50,15 @@ export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = fal
       </div>
       <div className={s.valueRow}>
         <span className={m.available ? s.value : s.valueMissing}>{m.value}</span>
-        {m.unit && <span className={s.unit}>{m.unit}</span>}
+        {m.unit && (
+          <span className={s.unit}>
+            <TermText>{m.unit}</TermText>
+          </span>
+        )}
         <span className={s.quality}>
-          <Badge tone={m.quality.tone}>{m.quality.label}</Badge>
+          <Badge tone={m.quality.tone}>
+            <TermText>{m.quality.label}</TermText>
+          </Badge>
         </span>
       </div>
       {reading && (
@@ -102,7 +108,9 @@ export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = fal
           {m.pixel && (
             <>
               <span aria-hidden="true">·</span>
-              <span>{m.pixel}</span>
+              <span>
+                <TermText>{m.pixel}</TermText>
+              </span>
             </>
           )}
         </div>
