@@ -99,7 +99,7 @@ src/
   app/        router (map pages load lazily), query client, root layout, mock worker, session restore
   pages/      landing, pick-field, field, analysis (setup + job), sign-in, sign-up, reset-password,
               change-password, my-fields, not-found
-  widgets/    site-header, site-footer, explore-map, pick-map, analysis-result, saved-fields
+  widgets/    site-header, explore-map, pick-map, analysis-result, saved-fields
   features/   sign-in, sign-up, sign-out, reset-password, change-password, pick-by-county, pick-by-location,
               save-field, configure-analysis, export-pdf
   entities/   session, field, metric, region, analysis, saved-field
