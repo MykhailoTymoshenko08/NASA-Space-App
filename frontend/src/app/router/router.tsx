@@ -8,6 +8,7 @@ import { ResetPasswordPage } from "@/pages/reset-password";
 import { SignInPage } from "@/pages/sign-in";
 import { SignUpPage } from "@/pages/sign-up";
 import { ROUTES } from "@/shared/config";
+import { PageLoader } from "@/shared/ui/page-loader";
 import { RootLayout } from "../layout/RootLayout";
 import { resetEntryScroll } from "./entry-scroll";
 
@@ -17,6 +18,8 @@ resetEntryScroll();
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
+    // Shown on first load while a lazy page chunk downloads.
+    HydrateFallback: () => <PageLoader />,
     children: [
       { path: ROUTES.home, lazy: () => import("@/pages/landing").then((m) => ({ Component: m.LandingPage })) },
       { path: ROUTES.pickField, lazy: () => import("@/pages/pick-field").then((m) => ({ Component: m.PickFieldPage })) },

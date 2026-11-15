@@ -58,6 +58,7 @@ const render = () => renderRoutes([{ path: "/", element: <FieldsCompare fields={
 const row = (name: string) => within(screen.getByRole("rowheader", { name: new RegExp(name) }).closest('[role="row"]')!);
 
 it("requests one authenticated comparison and renders server winners, missing reasons, units and warnings", async () => {
+  const user = userEvent.setup();
   setAccessToken("test-token");
   let calls = 0;
   server.use(http.post(endpoint, async ({ request }) => {
@@ -74,11 +75,35 @@ it("requests one authenticated comparison and renders server winners, missing re
   const cells = row("Soil pH").getAllByRole("cell");
   expect(within(cells[0]!).queryByText("Best")).not.toBeInTheDocument();
   expect(within(cells[1]!).getByText("Best")).toBeInTheDocument();
-  expect(row("Annual rain").getAllByText("1.0 in")).toHaveLength(2);
   expect(row("Organic matter").getAllByText("Not available")).toHaveLength(2);
   expect(row("Organic matter").getAllByText("Soil source is down.")).toHaveLength(2);
-  expect(row("Return after rent").getAllByText("-$20.00 / acre / year (loss)")).toHaveLength(2);
+  // A loss keeps its sign and says "loss" in words, not only in color. Money rows never fold.
+  expect(row("Return after rent").getAllByText("−$20")).toHaveLength(2);
+  expect(row("Return after rent").getAllByText(/\(loss\)/)).toHaveLength(2);
   expect(screen.getByText("Inspect each field before signing a lease.")).toBeInTheDocument();
+
+  // Quick answers name the server's winners and admit when there is none.
+  const answers = within(screen.getByRole("region", { name: "Quick answers" }));
+  expect(answers.getByText("South")).toBeInTheDocument();
+  expect(answers.getAllByText("No clear winner")).toHaveLength(2);
+
+  // Rows that are the same for every field fold into one line until asked for.
+  expect(screen.queryByRole("rowheader", { name: /Annual rain/ })).not.toBeInTheDocument();
+  expect(screen.getByText(/Annual rain \(1\.0 in\)/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Show the row that is the same" }));
+  expect(row("Annual rain").getAllByText("1.0")).toHaveLength(2);
+});
+
+it("shows one card per field with its return, cautions and a link to the field", async () => {
+  server.use(http.post(endpoint, () => HttpResponse.json(response())));
+  render();
+  const cards = within(await screen.findByRole("list", { name: "Fields compared" }));
+  expect(cards.getByRole("heading", { name: "Field A: North" })).toBeInTheDocument();
+  expect(cards.getByRole("heading", { name: "Field B: South" })).toBeInTheDocument();
+  expect(cards.getAllByText(/loss at base prices/)).toHaveLength(2);
+  expect(cards.getAllByText("Inspect drainage before renting.")).toHaveLength(2);
+  expect(cards.getAllByText(/Break-even rent: \$254 per acre/)).toHaveLength(2);
+  expect(screen.getByRole("link", { name: "Open field A" })).toHaveAttribute("href", expect.stringContaining("/field"));
 });
 
 it("submits zero rent and one shared plan, retaining previous results while loading", async () => {

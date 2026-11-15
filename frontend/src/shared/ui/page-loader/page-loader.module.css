@@ -1,0 +1,77 @@
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-24);
+  background: var(--color-paper);
+  color: var(--color-ink-muted);
+}
+.mark {
+  border-radius: 12px;
+  animation: breathe 1.6s ease-in-out infinite;
+}
+.track {
+  width: min(220px, 60vw);
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-paper-wash);
+  overflow: hidden;
+}
+.slide {
+  width: 40%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--color-green-700);
+  animation: slide 1.4s ease-in-out infinite;
+}
+.label {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+}
+
+.routeBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 3px;
+  background: var(--color-green-100);
+  overflow: hidden;
+}
+.routeSlide {
+  width: 35%;
+  height: 100%;
+  background: var(--color-green-700);
+  animation: slide 1.1s ease-in-out infinite;
+}
+
+@keyframes slide {
+  0% {
+    margin-left: -40%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.6;
+    transform: scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .slide,
+  .routeSlide {
+    animation: none;
+  }
+  .slide,
+  .routeSlide {
+    width: 60%;
+    margin-left: 0;
+  }
+}

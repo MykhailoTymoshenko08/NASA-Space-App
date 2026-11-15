@@ -1,11 +1,16 @@
-import { Outlet, ScrollRestoration } from "react-router";
+import { Outlet, ScrollRestoration, useNavigation } from "react-router";
 import { env } from "@/shared/config";
+import { RouteProgress } from "@/shared/ui/page-loader";
 import { SiteHeader } from "@/widgets/site-header";
 import s from "./root-layout.module.css";
 
 export function RootLayout() {
+  const navigation = useNavigation();
+  const loading = navigation.state === "loading";
+
   return (
     <>
+      <RouteProgress active={loading} />
       <a href="#main" className="skip-link">
         Skip to content
       </a>
@@ -15,7 +20,7 @@ export function RootLayout() {
         </div>
       )}
       <SiteHeader />
-      <main id="main" tabIndex={-1} className={s.main}>
+      <main id="main" tabIndex={-1} className={s.main} aria-busy={loading || undefined}>
         <Outlet />
       </main>
       <ScrollRestoration />

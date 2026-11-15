@@ -1,0 +1,539 @@
+/* Compare fields (POST /comparisons/saved-fields). Tokens only; see shared/ui/theme/tokens.css. */
+
+.compare,
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-24);
+}
+.results {
+  transition: opacity 150ms;
+}
+.stale {
+  opacity: 0.55;
+}
+
+.h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-4);
+  line-height: var(--text-title-4-lh);
+}
+.muted {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink-muted);
+}
+.small,
+.unit {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+  font-weight: 400;
+}
+.na {
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+.loss {
+  color: var(--color-error-fg);
+}
+
+/* Field letter (A to D) */
+.letter {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  background: var(--color-green-700);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+}
+.letterSm {
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+}
+
+/* Settings: crop plan and asking rent */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-20);
+  padding: var(--s-20);
+  border-radius: var(--radius-stage);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+.planGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: var(--s-16);
+}
+.rents {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--s-16);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.legend {
+  grid-column: 1 / -1;
+  margin-bottom: var(--s-8);
+  padding: 0;
+  font-weight: 600;
+}
+.settingsActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-16);
+}
+
+.warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin: var(--s-4) 0 0;
+  padding-left: 18px;
+}
+
+/* Verdicts */
+.verdicts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: var(--s-16);
+}
+.verdict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: var(--s-16) 18px 18px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+.verdictWon {
+  box-shadow: inset 0 4px 0 var(--color-green-700);
+}
+.verdictTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.verdictWho {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 24px;
+}
+.verdictValue {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-3);
+  line-height: var(--text-title-3-lh);
+}
+.verdictNone {
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 24px;
+  color: var(--color-ink-muted);
+}
+
+/* Field cards */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: var(--s-16);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+  padding: 18px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  min-width: 0;
+}
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-12);
+}
+.cardTitleBox {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cardTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 26px;
+  overflow-wrap: anywhere;
+}
+.cardSketch {
+  display: flex;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  background: var(--color-map-ground);
+  overflow: hidden;
+}
+.cardSketch svg {
+  width: 100%;
+  height: auto;
+}
+.money {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.moneyLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.moneyValue {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-title-3);
+  line-height: var(--text-title-3-lh);
+}
+.points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+  padding-top: var(--s-12);
+  border-top: 1px solid var(--color-line-soft);
+}
+.pointList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+}
+.strength,
+.caution {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-8);
+}
+.strength svg,
+.caution svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.strength svg {
+  color: var(--color-success-fg);
+}
+.caution svg {
+  color: var(--color-warning-fg);
+}
+.budget summary,
+.dataNote summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+.budget summary {
+  font-weight: 600;
+  color: var(--color-green-700);
+}
+.dataNote {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+.dataNote summary {
+  min-height: 32px;
+  text-decoration: underline;
+}
+.open {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  margin-top: auto;
+  font-weight: 600;
+  color: var(--color-green-700);
+}
+
+/* Table */
+.tableWrap {
+  border-radius: var(--radius-stage);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  overflow: clip;
+}
+.tableTitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  padding: var(--s-16) var(--s-20);
+}
+.legendBest {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  border-radius: var(--radius-swatch);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-fg);
+}
+.row {
+  display: grid;
+  grid-template-columns: 240px repeat(var(--cols), minmax(0, 1fr));
+  border-top: 1px solid var(--color-line-soft);
+}
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-surface);
+  box-shadow: 0 1px 0 var(--color-line);
+}
+.head .row {
+  border-top: 1px solid var(--color-line);
+}
+.headLabel {
+  align-self: center;
+  padding: var(--s-12) var(--s-20);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.headCell {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding: var(--s-12) var(--s-16);
+  min-width: 0;
+}
+.headName {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.groupRow {
+  border-top: 1px solid var(--color-line);
+  background: var(--color-paper-warm);
+}
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px var(--s-12);
+  padding: 10px var(--s-20);
+}
+.groupTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--text-micro-lh);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-wheat-700);
+}
+.groupLead {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+.rowHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px var(--s-20);
+}
+.rowLabel {
+  font-weight: 600;
+}
+.rowNote,
+.cellNote {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+.cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px var(--s-16);
+  min-width: 0;
+  border-left: 1px solid var(--color-line-soft);
+}
+.best {
+  background: var(--color-success-bg);
+}
+.value {
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+.valueNum {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 26px;
+}
+.valueText {
+  font-weight: 600;
+  font-size: var(--text-body);
+  line-height: 22px;
+}
+/* Field name inside each cell: only shown when phones stack 3 or 4 fields two per line. */
+.cellField {
+  display: none;
+}
+.bestTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  font-weight: 600;
+  color: var(--color-success-fg);
+}
+.same {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-8);
+  padding: 14px var(--s-20);
+  border-top: 1px solid var(--color-line);
+}
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-green-700);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.fine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  color: var(--color-ink-muted);
+}
+
+/* Narrow screens: each measure's label sits on its own line above the field columns. */
+@media (max-width: 760px) {
+  .settings {
+    padding: var(--s-16);
+  }
+  .row {
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  }
+  .headLabel {
+    display: none;
+  }
+  .headCell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 10px var(--s-12);
+    font-size: var(--text-caption);
+    line-height: var(--text-caption-lh);
+  }
+  .groupHead {
+    grid-column: 1 / -1;
+    padding: 10px var(--s-16);
+  }
+  .rowHead {
+    grid-column: 1 / -1;
+    padding: var(--s-12) var(--s-16) 0;
+  }
+  .cell {
+    justify-content: flex-start;
+    padding: var(--s-8) var(--s-12) var(--s-12);
+    border-left: 0;
+  }
+  .cell + .cell {
+    border-left: 1px solid var(--color-line-soft);
+  }
+  .valueNum {
+    font-size: 17px;
+    line-height: 22px;
+  }
+  .valueText {
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
+}
+
+/* Phones with 3 or 4 fields: two fields per line, each cell names its field (the header row hides). */
+@media (max-width: 520px) {
+  .tableMany .row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tableMany .head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  /* Children: the row label, then cells. Odd children sit in the right column; from the 4th, a new line. */
+  .tableMany .cell + .cell {
+    border-left: 0;
+  }
+  .tableMany .cell:nth-child(odd) {
+    border-left: 1px solid var(--color-line-soft);
+  }
+  .tableMany .cell:nth-child(n + 4) {
+    border-top: 1px solid var(--color-line-soft);
+  }
+  .tableMany .cellField {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-caption);
+    line-height: var(--text-caption-lh);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+}
