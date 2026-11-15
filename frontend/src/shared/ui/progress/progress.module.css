@@ -6,13 +6,13 @@
 .track {
   flex: 1;
   height: 10px;
-  border-radius: 5px;
+  border-radius: 3px;
   background: var(--color-line-soft);
   overflow: hidden;
 }
 .bar {
   height: 10px;
-  border-radius: 5px;
+  border-radius: 3px;
   background: var(--color-green-700);
   transition: width 300ms;
 }
@@ -24,14 +24,14 @@
 }
 .thin {
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-swatch);
   background: var(--color-line-soft);
   overflow: hidden;
 }
 .slide {
   width: 40%;
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-swatch);
   background: var(--color-green-700);
   animation: slide 1.4s ease-in-out infinite;
 }

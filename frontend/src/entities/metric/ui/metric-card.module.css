@@ -205,7 +205,7 @@
   scroll-margin-top: var(--s-16);
 }
 .sourceItem:target {
-  background: var(--color-paper);
+  background: var(--color-paper-warm);
 }
 .sourceN {
   flex: none;

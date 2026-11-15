@@ -4,7 +4,6 @@ import { useSession } from "@/entities/session";
 import { AccountMenu } from "@/features/sign-out";
 import { ROUTES } from "@/shared/config";
 import { ButtonLink } from "@/shared/ui/button";
-import { Icon } from "@/shared/ui/icon";
 import { Wordmark } from "@/shared/ui/wordmark";
 import s from "./site-header.module.css";
 
@@ -80,13 +79,25 @@ export function SiteHeader() {
         aria-controls={menuId}
         onClick={() => setMenuOpen((v) => !v)}
       >
-        <Icon name={menuOpen ? "close" : "menu"} size={22} />
+        <span className={s.burgerIcon} aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
       </button>
-      {menuOpen && (
-        <nav id={menuId} aria-label="Menu" className={s.menu}>
-          {links(true)}
-        </nav>
-      )}
+      {/* Stays mounted so it can animate closed; inert + aria-hidden keep it out of reach while shut. */}
+      <nav
+        id={menuId}
+        aria-label="Menu"
+        className={s.menu}
+        data-open={menuOpen}
+        aria-hidden={!menuOpen}
+        inert={!menuOpen}
+      >
+        <div className={s.menuClip}>
+          <div className={s.menuInner}>{links(true)}</div>
+        </div>
+      </nav>
     </header>
   );
 }

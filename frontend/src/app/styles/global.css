@@ -82,7 +82,6 @@ p {
   .skip-link,
   body > #root > header,
   #root > header,
-  #root > footer,
   #root [role="note"][data-mock-banner] {
     display: none !important;
   }

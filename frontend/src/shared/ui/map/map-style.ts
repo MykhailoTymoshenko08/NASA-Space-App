@@ -210,7 +210,7 @@ export type MapStyleInput = {
 
 export function buildMapStyle(input: MapStyleInput): StyleSpecification {
   const c = {
-    ground: token("--color-map-ground", "#e8e3d3"),
+    ground: token("--color-map-ground", "#ffeed1"),
     state: token("--color-map-state", "#cbd7be"),
     stateFields: token("--color-map-state-fields", "#9fbe84"),
     stateHover: token("--color-map-state-hover", "#7fa463"),
@@ -222,7 +222,7 @@ export function buildMapStyle(input: MapStyleInput): StyleSpecification {
     pin: token("--color-wheat-500", "#e2a62b"),
     surface: token("--color-surface", "#fffdf8"),
     saved: token("--color-map-saved", "#8a5a00"),
-    label: token("--color-map-label", "#17211b"),
+    label: token("--color-map-label", "#2f4a3a"),
     labelMuted: token("--color-map-label-muted", "#3d4a40"),
     halo: token("--color-map-label-halo", "#fffdf8"),
   };
