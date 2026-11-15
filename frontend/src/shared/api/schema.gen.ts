@@ -330,6 +330,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analyses/{job_id}/report.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The finished analysis as a printable PDF report
+         * @description "Export to PDF" on the Analysis page. An A4 portrait report rendered by the backend from the same
+         *     `AnalysisResult` as `GET /analyses/{job_id}`, plus the priorities and horizon of the request: a summary
+         *     page, one card per strategy (sorted by score), current conditions and history charts, then the datasets
+         *     and the disclaimer. Values in US units; a missing metric prints "Not available" with its reason.
+         *     Sent as an attachment. Available only once the job has `status = succeeded`; the same job always gives the
+         *     same report. No sign-in needed (job ids are unguessable UUIDs, like the job itself).
+         */
+        get: operations["getAnalysisReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profitability/estimate": {
         parameters: {
             query?: never;
@@ -1488,7 +1513,7 @@ export interface components {
             options?: components["schemas"]["RotationBudgetOptions"];
         };
         /** @enum {string} */
-        ErrorCode: "VALIDATION_ERROR" | "NOT_FOUND" | "UNPARSEABLE_INPUT" | "UNSUPPORTED_LINK" | "OUTSIDE_COVERAGE" | "UPSTREAM_DATA_UNAVAILABLE" | "RATE_LIMITED" | "INTERNAL_ERROR" | "UNAUTHORIZED" | "EMAIL_TAKEN" | "FIELD_LIMIT_REACHED";
+        ErrorCode: "VALIDATION_ERROR" | "NOT_FOUND" | "UNPARSEABLE_INPUT" | "UNSUPPORTED_LINK" | "OUTSIDE_COVERAGE" | "UPSTREAM_DATA_UNAVAILABLE" | "RATE_LIMITED" | "INTERNAL_ERROR" | "UNAUTHORIZED" | "EMAIL_TAKEN" | "FIELD_LIMIT_REACHED" | "ANALYSIS_NOT_READY";
         ApiError: {
             code: components["schemas"]["ErrorCode"];
             /** @description Safe to show to the user. */
@@ -2286,6 +2311,41 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    getAnalysisReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF report. */
+            200: {
+                headers: {
+                    /** @description `attachment; filename="seloai-analysis-<county>-<state>-<job id prefix>.pdf"` */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `ANALYSIS_NOT_READY`: the job is still queued or running, or it failed. `details.status` holds the job status. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
         };
     };
     estimateProfitability: {

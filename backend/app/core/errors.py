@@ -24,6 +24,7 @@ class ErrorCode(StrEnum):
     UNAUTHORIZED = "UNAUTHORIZED"
     EMAIL_TAKEN = "EMAIL_TAKEN"
     FIELD_LIMIT_REACHED = "FIELD_LIMIT_REACHED"
+    ANALYSIS_NOT_READY = "ANALYSIS_NOT_READY"
 
 
 HTTP_STATUS: dict[ErrorCode, int] = {
@@ -31,6 +32,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.UNAUTHORIZED: 401,
     ErrorCode.EMAIL_TAKEN: 409,
     ErrorCode.FIELD_LIMIT_REACHED: 409,
+    ErrorCode.ANALYSIS_NOT_READY: 409,
     ErrorCode.NOT_FOUND: 404,
     ErrorCode.UNPARSEABLE_INPUT: 422,
     ErrorCode.UNSUPPORTED_LINK: 422,

@@ -3,6 +3,15 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.14.0 (2026-11-15): PDF analysis report
+
+Additive.
+
+- `GET /analyses/{job_id}/report.pdf` returns the finished analysis as an A4 PDF attachment rendered by the
+  backend (summary, strategy cards, conditions with history charts, datasets and disclaimer), in US units.
+- New error code `ANALYSIS_NOT_READY` (409) when the job has not succeeded; `details.status` holds its status.
+- The endpoint has its own per-IP rate limit (429 `RATE_LIMITED`).
+
 ## 0.13.0 (2026-11-15): complete enterprise-budget API
 
 Breaking access and missing-data changes: `POST /profitability/estimate` now requires a bearer token.

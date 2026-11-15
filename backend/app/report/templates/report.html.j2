@@ -1,0 +1,198 @@
+{%- macro head(st, large) %}
+<div class="head">
+  <div class="head-main">
+    <div class="tags">
+      <span class="badge">{{ st.rank }}</span>
+      {%- if st.is_current %} <span class="badge badge-current">Your current rotation</span>{% endif %}
+      {%- if st.needs_local_review %} <span class="badge badge-review">Local review advised</span>{% endif %}
+    </div>
+    <h3 class="{{ 'name-large' if large else 'name' }}">{{ st.name }}</h3>
+    <p>{{ st.summary }}</p>
+  </div>
+  <div class="score{% if large %} score-large{% endif %}">
+    <div class="score-value">{{ st.score }}<span class="score-max"> / 100</span></div>
+    {%- if st.delta %}<div class="small muted">{{ st.delta }}</div>{% endif %}
+    <div class="small strong">{{ st.confidence }}</div>
+  </div>
+</div>
+{%- endmacro %}
+
+{%- macro seasons(st) %}
+{%- if st.seasons %}
+<ol class="seasons">
+  {%- for s in st.seasons %}
+  <li><span class="small muted">{{ s.label }}</span><span class="strong">{{ s.crop }}</span><span class="small muted">{{ s.role }}</span></li>
+  {%- endfor %}
+</ol>
+{%- endif %}
+{%- endmacro %}
+
+{%- macro bullets(title, items) %}
+{%- if items %}
+<div>
+  <div class="label">{{ title }}</div>
+  <ul>{% for t in items %}<li>{{ t }}</li>{% endfor %}</ul>
+</div>
+{%- endif %}
+{%- endmacro %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<meta name="author" content="SeloAI">
+<meta name="generator" content="SeloAI analysis report">
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+{#- Running header and footer: repeated in the page margins on every page. -#}
+<header class="page-header">
+  <div class="brand"><img src="logo.png" alt="" width="28" height="26"><span>SeloAI</span></div>
+  <div class="small muted">Rotation analysis · {{ county }}</div>
+</header>
+<footer class="page-footer">
+  <span>{{ footer }}</span>
+  <span class="page-number"></span>
+</footer>
+
+{#- Page 1: summary -#}
+<section class="summary">
+  <div class="intro">
+    <div class="kicker">Crop rotation analysis report</div>
+    <h1>Your analysis</h1>
+    <p class="lead">Crop rotation strategies for this field, ranked by how well they fit.</p>
+  </div>
+  <dl class="facts">
+    {%- for label, value in summary %}
+    <div><dt class="label">{{ label }}</dt><dd>{{ value }}</dd></div>
+    {%- endfor %}
+  </dl>
+  <div class="block">
+    <h2>Best fit for this field</h2>
+    <div class="card best">
+      {{ head(best, large=True) }}
+      {{ seasons(best) }}
+    </div>
+  </div>
+  <div class="block">
+    <h2>All options at a glance</h2>
+    <div class="card ranking">
+      {%- for st in strategies %}
+      <div class="rank-row{% if st.is_best %} is-best{% endif %}">
+        <span class="rank-name">{{ st.name }}</span>
+        <div class="track"><div class="fill {% if st.is_best %}fill-best{% elif st.is_current %}fill-current{% else %}fill-other{% endif %}" style="width: {{ st.score }}%"></div></div>
+        <span class="rank-score">{{ st.score }}</span>
+      </div>
+      {%- endfor %}
+      <div class="small muted">Scores compare options for this field only. They are not money. Details on the next pages.</div>
+    </div>
+  </div>
+  {%- if warnings %}
+  <div class="callout">
+    <strong>Keep in mind</strong>
+    <ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+  </div>
+  {%- endif %}
+</section>
+
+{#- Strategy details: as many whole cards per page as fit (two for typical results) -#}
+<section class="strategies">
+  {%- for st in strategies %}
+  <article class="card strategy{% if st.is_best %} best{% endif %}">
+    {{ head(st, large=False) }}
+    {{ seasons(st) }}
+    <div class="details">
+      {%- if st.evidence %}
+      <div>
+        <div class="label">Why we suggest it</div>
+        <ul class="plain">
+          {%- for e in st.evidence %}
+          <li><div>{{ e.statement }}</div>{% if e.source %}<div class="small muted">{{ e.source }}</div>{% endif %}</li>
+          {%- endfor %}
+        </ul>
+      </div>
+      {%- endif %}
+      {%- if st.topics %}
+      <div>
+        <div class="label">Fit by topic</div>
+        <div class="topics">
+          {%- for t in st.topics %}
+          <div class="topic-row"><span>{{ t.label }}</span><div class="track thin"><div class="fill fill-best" style="width: {{ t.score }}%"></div></div><span class="topic-score">{{ t.score }}</span></div>
+          {%- endfor %}
+        </div>
+      </div>
+      {%- endif %}
+      {{ bullets("Good for", st.benefits) }}
+      {{ bullets("Watch out for", st.risks) }}
+      {{ bullets("What we do not know", st.gaps) }}
+    </div>
+  </article>
+  {%- endfor %}
+</section>
+
+{#- Conditions: history charts and the current values -#}
+<section class="conditions">
+  {%- if charts %}
+  <h2>{{ history_title }}</h2>
+  <div class="charts">
+    {%- for c in charts %}
+    <div class="card chart">
+      <div class="chart-head">
+        <div><h3>{{ c.title }}</h3>{% if c.source %}<div class="small muted">{{ c.source }}</div>{% endif %}</div>
+        <div class="readout"><div class="strong">{{ c.readout }}</div>{% if c.when %}<div class="small muted">{{ c.when }}</div>{% endif %}</div>
+      </div>
+      {%- if c.svg %}{{ c.svg }}{% else %}<p class="small muted">No values in this period.</p>{% endif %}
+    </div>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+  <h2>Current conditions</h2>
+  {%- if conditions %}
+  <table class="conditions-table">
+    <caption>Table 1. Current conditions for this field. US units. Source and resolution on every row.</caption>
+    <tbody>
+      {%- for g in conditions %}
+      <tr class="group"><td colspan="4">{{ g.title }}</td></tr>
+      {%- for r in g.rows %}
+      <tr>
+        <td class="c-label">{{ r.label }}</td>
+        <td class="c-value">{{ r.value }}{% if r.unit %} <span class="unit">{{ r.unit }}</span>{% endif %}</td>
+        <td class="c-quality">{{ r.quality }}</td>
+        <td class="c-detail">{{ r.detail }}{% if r.note %}<div class="c-note">{{ r.note }}</div>{% endif %}</td>
+      </tr>
+      {%- endfor %}
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="muted">No current conditions were available for this field.</p>
+  {%- endif %}
+</section>
+
+{#- Data and disclaimer -#}
+<section class="data">
+  <h2>Data used</h2>
+  <table class="datasets">
+    <caption>Table 2. Datasets used in this analysis.</caption>
+    <thead><tr><th>Dataset</th><th>Provider</th><th class="num">Resolution</th><th class="num">Period</th></tr></thead>
+    <tbody>
+      {%- for d in datasets %}
+      <tr><td class="strong">{{ d.dataset }}</td><td>{{ d.provider }}</td><td class="num">{{ d.resolution }}</td><td class="num">{{ d.period }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  <h2>How to read this report</h2>
+  <div class="howto">
+    <div><div class="strong">Scores</div><div class="muted">0 to 100. They show fit to this field and the priorities you chose. They compare options inside this report only, and they are not money.</div></div>
+    <div><div class="strong">Confidence</div><div class="muted">How sure we are about a strategy, given the data we had. Low confidence means check with a local expert before changing anything.</div></div>
+    <div><div class="strong">{{ kind }}</div><div class="muted">{% if kind == "Estimated field area" %}The field outline comes from USDA Crop Sequence Boundaries. It is an estimate from satellite crop maps, not a legal or ownership boundary.{% else %}No field outline was found here, so the values are for a small circle around your point. It is not a legal or ownership boundary.{% endif %}</div></div>
+    <div><div class="strong">Measured, modeled, estimated</div><div class="muted">Measured values come from a sensor or survey. Modeled values come from a weather or land model. Estimated values are derived and are not a lab test.</div></div>
+  </div>
+  <div class="please-read">
+    <div class="strong-700">Please read</div>
+    <div>{{ disclaimer }}</div>
+    <div class="small muted">Model {{ model_version }} · Generated {{ generated }}{% if data_as_of %} · Data as of {{ data_as_of }}{% endif %}</div>
+  </div>
+</section>
+</body>
+</html>

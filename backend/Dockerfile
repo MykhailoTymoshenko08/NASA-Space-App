@@ -23,6 +23,11 @@ RUN uv sync --frozen --no-dev --no-install-project
 # ---------- runtime stage ----------
 FROM python:3.12-slim
 
+# Pango/HarfBuzz for WeasyPrint (PDF analysis reports). Fonts are bundled in app/report/assets.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd --system --uid 10001 --home /app app
 WORKDIR /app
 

@@ -31,6 +31,30 @@ const isTest = import.meta.env.MODE === "test";
 const wait = (ms = 700) => delay(isTest ? 0 : ms);
 const requestId = () => `mock-${Math.random().toString(36).slice(2, 10)}`;
 
+/** A one-page PDF with one line of text (the real report is rendered by the backend). */
+function mockPdf(text: string): Uint8Array {
+  const line = text.replace(/[()\\]/g, "");
+  const stream = `BT /F1 18 Tf 72 760 Td (${line}) Tj ET`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = objects.map((body, i) => {
+    const at = pdf.length;
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+    return at;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
 function errorResponse(
   status: number,
   code: S["ErrorCode"],
@@ -309,6 +333,26 @@ export const handlers: AnyHandler[] = [
     const job = jobs.get(id);
     if (!job) return errorResponse(404, "NOT_FOUND", "No analysis with that id. It may have expired.");
     return HttpResponse.json(jobView(id, job));
+  }),
+
+  http.get(url("/analyses/:jobId/report.pdf"), async ({ params }) => {
+    await wait(900);
+    const id = String(params.jobId);
+    const job = jobs.get(id);
+    if (!job) return errorResponse(404, "NOT_FOUND", "No analysis with that id. It may have expired.");
+    const { status } = jobView(id, job);
+    if (status !== "succeeded") {
+      const message =
+        status === "failed"
+          ? "This analysis failed, so it has no report. Please run it again."
+          : "The report is ready once the analysis has finished.";
+      return errorResponse(409, "ANALYSIS_NOT_READY", message, {}, { status });
+    }
+    const county = job.selection.county;
+    const name = `seloai-analysis-${county.name}-${county.state_postal}-${id.slice(0, 8)}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+    return new HttpResponse(mockPdf(`SeloAI mock report: ${county.name} County, ${county.state_postal}`), {
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${name}.pdf"` },
+    });
   }),
 
   http.post<never, S["RegisterRequest"]>(url("/auth/register"), async ({ request }) => {

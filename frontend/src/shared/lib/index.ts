@@ -23,3 +23,4 @@ export type { BBox, LatLon, Position, ProjectedSketch } from "./geo/geo";
 export { formatDate, formatDateTime } from "./format/date";
 export { useDocumentTitle } from "./react/use-document-title";
 export { safeNext } from "./navigation/safe-next";
+export { saveFile } from "./download/save-file";

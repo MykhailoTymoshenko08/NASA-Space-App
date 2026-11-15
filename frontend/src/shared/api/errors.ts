@@ -16,6 +16,7 @@ const FRIENDLY: Record<ErrorCode, string> = {
   UNAUTHORIZED: "Your email or password is not right, or your session ended. Sign in again.",
   EMAIL_TAKEN: "An account with this email already exists. Sign in instead.",
   FIELD_LIMIT_REACHED: "You have saved the most fields allowed. Remove one to save another.",
+  ANALYSIS_NOT_READY: "The PDF is ready once the analysis has finished.",
 };
 
 const NETWORK_MESSAGE = "We couldn't reach our server. Check your connection and try again.";

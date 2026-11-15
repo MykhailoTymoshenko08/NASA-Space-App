@@ -90,7 +90,7 @@ export function AnalysisPage() {
     <>
       {result && (
         <Panel className={s.noPrint}>
-          <ExportPdfButton />
+          <ExportPdfButton jobId={jobId} />
           <SaveFieldButton selection={result.selection} showMyFieldsLink />
           <ButtonLink to={tryAgain} variant="ghost" className={s.rerun}>
             Change priorities and run again

@@ -1,4 +1,12 @@
-export { analysisJobKey, createAnalysisJob, pollDelayMs, useAnalysisJob } from "./api/analysis-api";
+export {
+  analysisJobKey,
+  attachmentName,
+  createAnalysisJob,
+  fetchAnalysisReport,
+  pollDelayMs,
+  useAnalysisJob,
+} from "./api/analysis-api";
+export type { AnalysisReport } from "./api/analysis-api";
 export {
   CRITERION_LABEL,
   DEFAULT_HORIZON,
@@ -11,4 +19,5 @@ export {
 } from "./config/labels";
 export { deltaText, rankLabel, sortStrategies } from "./lib/strategies";
 export { StrategyCard } from "./ui/StrategyCard";
+export { StrategyBudget } from "./ui/StrategyBudget";
 export { TimeSeriesChart } from "./ui/TimeSeriesChart";

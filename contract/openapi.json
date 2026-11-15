@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Field Shift API",
-    "version": "0.13.0",
+    "version": "0.14.0",
     "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it). ML analysis covers IA/IL/NE/KS and requires crop history\n  outside its precomputed fields; unavailable coverage or inputs are reported as failed jobs.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one PMTiles file read with HTTP\n  Range requests; its URL is `coverage.field_tiles.url_template`. By default the backend serves it at\n  `GET /tiles/fields.pmtiles`; a deployment may point the URL at external static hosting instead.\n"
   },
   "servers": [
@@ -719,6 +719,64 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/analyses/{job_id}/report.pdf": {
+      "get": {
+        "tags": [
+          "analyses"
+        ],
+        "operationId": "getAnalysisReport",
+        "summary": "The finished analysis as a printable PDF report",
+        "description": "\"Export to PDF\" on the Analysis page. An A4 portrait report rendered by the backend from the same\n`AnalysisResult` as `GET /analyses/{job_id}`, plus the priorities and horizon of the request: a summary\npage, one card per strategy (sorted by score), current conditions and history charts, then the datasets\nand the disclaimer. Values in US units; a missing metric prints \"Not available\" with its reason.\nSent as an attachment. Available only once the job has `status = succeeded`; the same job always gives the\nsame report. No sign-in needed (job ids are unguessable UUIDs, like the job itself).\n",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The PDF report.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`attachment; filename=\"seloai-analysis-<county>-<state>-<job id prefix>.pdf\"`"
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`ANALYSIS_NOT_READY`: the job is still queued or running, or it failed. `details.status` holds the job status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -4193,7 +4251,8 @@
           "INTERNAL_ERROR",
           "UNAUTHORIZED",
           "EMAIL_TAKEN",
-          "FIELD_LIMIT_REACHED"
+          "FIELD_LIMIT_REACHED",
+          "ANALYSIS_NOT_READY"
         ]
       },
       "ApiError": {

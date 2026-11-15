@@ -26,3 +26,30 @@ export function useAnalysisJob(jobId: string) {
     staleTime: (query) => (isDone(query.state.data) ? Infinity : 0),
   });
 }
+
+export type AnalysisReport = { blob: Blob; filename: string };
+
+/** `attachment; filename="x.pdf"` -> `x.pdf`, or null. */
+export function attachmentName(disposition: string | null): string | null {
+  const m = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  const raw = m?.[1];
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+/** GET /analyses/{job_id}/report.pdf: the finished analysis as a PDF the backend renders (A4). */
+export async function fetchAnalysisReport(jobId: string, signal?: AbortSignal): Promise<AnalysisReport> {
+  const call = api.GET("/analyses/{job_id}/report.pdf", {
+    params: { path: { job_id: jobId } },
+    parseAs: "blob",
+    signal,
+  });
+  const blob = (await unwrap(call)) as Blob;
+  const { response } = await call;
+  const filename = attachmentName(response.headers.get("Content-Disposition"));
+  return { blob, filename: filename ?? `seloai-analysis-${jobId.slice(0, 8)}.pdf` };
+}

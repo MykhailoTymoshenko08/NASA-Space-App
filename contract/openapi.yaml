@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Field Shift API
-  version: 0.13.0
+  version: 0.14.0
   description: |
     Contract between the frontend and backend of the Field Shift farmer map
     (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
@@ -512,6 +512,50 @@ paths:
                 $ref: '#/components/schemas/AnalysisJob'
         '404':
           $ref: '#/components/responses/NotFound'
+  /analyses/{job_id}/report.pdf:
+    get:
+      tags:
+      - analyses
+      operationId: getAnalysisReport
+      summary: The finished analysis as a printable PDF report
+      description: |
+        "Export to PDF" on the Analysis page. An A4 portrait report rendered by the backend from the same
+        `AnalysisResult` as `GET /analyses/{job_id}`, plus the priorities and horizon of the request: a summary
+        page, one card per strategy (sorted by score), current conditions and history charts, then the datasets
+        and the disclaimer. Values in US units; a missing metric prints "Not available" with its reason.
+        Sent as an attachment. Available only once the job has `status = succeeded`; the same job always gives the
+        same report. No sign-in needed (job ids are unguessable UUIDs, like the job itself).
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: The PDF report.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: '`attachment; filename="seloai-analysis-<county>-<state>-<job id prefix>.pdf"`'
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`ANALYSIS_NOT_READY`: the job is still queued or running, or it failed. `details.status`
+            holds the job status.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /profitability/estimate:
     post:
       tags:
@@ -2928,6 +2972,7 @@ components:
       - UNAUTHORIZED
       - EMAIL_TAKEN
       - FIELD_LIMIT_REACHED
+      - ANALYSIS_NOT_READY
     ApiError:
       type: object
       required:

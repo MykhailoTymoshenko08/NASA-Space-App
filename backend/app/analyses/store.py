@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from app.models import AnalysisJob
+from app.models import AnalysisJob, AnalysisOptions
 
 JOB_RETENTION_S = 3600
 
@@ -14,6 +14,10 @@ class JobRecord:
     job: AnalysisJob
     dedupe_key: str
     created_mono: float = field(default_factory=time.monotonic)
+    # The farmer's choices, kept for the PDF report (the result itself does not echo them).
+    options: AnalysisOptions | None = None
+    # The rendered PDF report, made on first download: a finished job never changes.
+    report_pdf: bytes | None = None
 
 
 class JobStore(Protocol):

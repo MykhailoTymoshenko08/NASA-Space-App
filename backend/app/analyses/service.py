@@ -65,7 +65,7 @@ class AnalysisService:
             created_at=_now(),
             progress=Progress(percent=0, stage="Waiting to start"),
         )
-        self.store.put(JobRecord(job=job, dedupe_key=key))
+        self.store.put(JobRecord(job=job, dedupe_key=key, options=options))
         task = asyncio.create_task(self._run(job, selection, options))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
@@ -74,6 +74,9 @@ class AnalysisService:
     def get(self, job_id: str) -> AnalysisJob | None:
         rec = self.store.get(job_id)
         return rec.job if rec else None
+
+    def record(self, job_id: str) -> JobRecord | None:
+        return self.store.get(job_id)
 
     async def aclose(self) -> None:
         tasks = list(self._tasks)
