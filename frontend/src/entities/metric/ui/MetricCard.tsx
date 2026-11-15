@@ -4,7 +4,7 @@ import { Badge, Skeleton } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import { SectionTitle } from "@/shared/ui/layout";
 import { GLOSSARY, HINTS, readingFor } from "../lib/glossary";
-import { groupMetrics, presentMetric, QUALITY } from "../lib/present";
+import { groupMetrics, presentMetric } from "../lib/present";
 import { buildSourceRegistry, type SourceEntry, type SourceRegistry } from "../lib/sources";
 import s from "./metric-card.module.css";
 
@@ -167,31 +167,6 @@ export function MetricGroups({
         ))}
       </div>
     </>
-  );
-}
-
-/** "14 values: 6 measured, 7 modeled, 1 estimate": how much of the page is read directly. */
-export function QualitySummary({ metrics }: { metrics: readonly Metric[] }) {
-  if (metrics.length === 0) return null;
-  const order: Metric["quality"][] = ["measured", "modeled", "estimated", "unavailable"];
-  const counts = order
-    .map((q) => ({ q, n: metrics.filter((m) => m.quality === q).length }))
-    .filter((c) => c.n > 0);
-  return (
-    <div className={s.summary}>
-      <div className={s.summaryTotal}>
-        <span className={s.summaryN}>{metrics.length}</span>
-        <span className={s.summaryLabel}>values for this field</span>
-      </div>
-      <ul className={s.summaryList} aria-label="Values by how they were obtained">
-        {counts.map(({ q, n }) => (
-          <li key={q} className={s.summaryItem}>
-            <Badge tone={QUALITY[q].tone}>{QUALITY[q].label}</Badge>
-            <span className={s.summaryCount}>{n}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 

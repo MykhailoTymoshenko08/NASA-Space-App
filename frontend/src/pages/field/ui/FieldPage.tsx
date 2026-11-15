@@ -13,7 +13,6 @@ import {
   Glossary,
   MetricGridSkeleton,
   MetricGroups,
-  QualitySummary,
   SourcesList,
   SourcesStrip,
   useSourceRegistry,
@@ -132,15 +131,12 @@ export function FieldPage() {
   );
 }
 
-/** Loaded state: quality summary and sources, metric groups, then the full Sources list and Glossary. */
+/** Loaded state: the sources strip, metric groups, then the full Sources list and Glossary. */
 function FieldConditions({ snapshot }: { snapshot: Snapshot }) {
   const registry = useSourceRegistry(snapshot.metrics);
   return (
     <>
-      <div className={s.overviewRow}>
-        <QualitySummary metrics={snapshot.metrics} />
-        <SourcesStrip registry={registry} />
-      </div>
+      <SourcesStrip registry={registry} />
       <MetricGroups metrics={snapshot.metrics} fieldSizeM={fieldSizeM(snapshot.selection.area_ha)} registry={registry} />
       <p className={s.fine}>Values from the API are metric and shown here in US units.</p>
       <SourcesList registry={registry} />
