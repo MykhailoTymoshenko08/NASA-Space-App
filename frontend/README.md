@@ -31,6 +31,7 @@ on `/pick-field`. A blue banner marks every mock-mode page.
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | `http://localhost:8000/v1` | Our backend. The browser calls nothing else. |
 | `VITE_USE_MOCKS` | unset | `1` answers API calls in the browser with MSW (`src/shared/mocks`). |
+| `VITE_API_PROXY_TARGET` | unset | Dev server only: forward `/v1` to this backend (`npm run dev:remote` with `.env.remote`, see [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md)). |
 
 No API keys belong in the client.
 
