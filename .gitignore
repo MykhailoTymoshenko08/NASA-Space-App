@@ -25,3 +25,5 @@ backend/data/*
 
 # Vercel CLI (vercel link / vercel pull)
 .vercel/
+# vercel link / vercel env pull (holds VERCEL_OIDC_TOKEN and pulled env vars)
+.env*.local
