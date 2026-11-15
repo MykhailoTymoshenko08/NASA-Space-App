@@ -144,7 +144,7 @@ export function SourcesStrip({ registry }: { registry: SourceRegistry }) {
   return (
     <div className={s.strip}>
       <span className={s.stripTitle}>Where this data comes from</span>
-      <span className={s.stripLine}>{registry.providersLine}</span>
+      <span className={s.stripLine}>{registry.sourcesLine}</span>
       <a href="#sources" className={s.stripLink}>
         All {registry.list.length} {registry.list.length === 1 ? "source" : "sources"}
       </a>

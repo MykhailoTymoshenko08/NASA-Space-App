@@ -5,13 +5,15 @@
   border: 1px solid var(--color-line-control);
   background: var(--color-map-ground);
 }
-@media (max-width: 760px) {
-  .stage {
-    height: 560px !important;
-  }
-  .card {
-    width: 100%;
-  }
+/* Full screen (phones): above the page, which stops scrolling meanwhile (MapStage). */
+.stage.stageFull {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  height: 100vh !important;
+  height: 100dvh !important;
+  border: 0;
+  border-radius: 0;
 }
 
 .controls {
@@ -50,6 +52,12 @@
 }
 .ctl:hover {
   background: var(--color-paper-wash);
+}
+.fullGroup {
+  display: none;
+}
+.stageFull .fullGroup {
+  display: flex;
 }
 .scale {
   display: flex;
@@ -104,14 +112,30 @@
 }
 
 .legend {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-8);
   padding: var(--s-12) 14px;
   border-radius: var(--radius-panel);
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   box-shadow: var(--shadow-1);
+}
+.legendBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+.legendToggle {
+  display: none;
+  align-items: center;
+  gap: var(--s-8);
+  min-height: var(--control-min);
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+  font-weight: 500;
+  cursor: pointer;
 }
 .legendTitle {
   font-family: var(--font-mono);
@@ -177,4 +201,56 @@
 }
 .emptyText {
   max-width: 320px;
+}
+
+/*
+ * Phones: the map keeps clear of the screen edges so the page can still be scrolled past it, the
+ * overlays move closer to the edges, the legend folds into a button and the hint gets smaller.
+ */
+@media (max-width: 760px) {
+  .stage {
+    height: min(560px, calc(100svh - 96px)) !important;
+    min-height: 420px;
+  }
+  .controls {
+    top: var(--s-12);
+    right: var(--s-12);
+  }
+  .fullGroup {
+    display: flex;
+  }
+  .top {
+    top: var(--s-12);
+    left: var(--s-12);
+    right: 70px;
+  }
+  .bottom {
+    left: var(--s-12);
+    right: var(--s-12);
+    bottom: var(--s-12);
+    gap: var(--s-8);
+  }
+  .legend {
+    padding: 0;
+  }
+  .legendToggle {
+    display: inline-flex;
+  }
+  .legendBody {
+    display: none;
+  }
+  .legendOpen .legendBody {
+    display: flex;
+    max-height: 45svh;
+    overflow-y: auto;
+    padding: 0 14px var(--s-12);
+  }
+  .hint {
+    padding: var(--s-8) var(--s-12);
+    font-size: var(--text-caption);
+    line-height: var(--text-caption-lh);
+  }
+  .card {
+    width: 100%;
+  }
 }

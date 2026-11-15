@@ -3,6 +3,8 @@ const PATHS = {
   plus: "M12 5v14M5 12h14",
   minus: "M5 12h14",
   expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
+  maximize: "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7",
+  minimize: "M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7",
   "arrow-right": "M5 12h14M13 6l6 6-6 6",
   "arrow-left": "M19 12H5M11 6l-6 6 6 6",
   chevron: "M9 6l6 6-6 6",
