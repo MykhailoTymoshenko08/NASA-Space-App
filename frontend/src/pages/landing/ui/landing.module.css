@@ -10,6 +10,14 @@
 .heroEyebrow {
   margin-bottom: var(--s-16);
 }
+/* Desktop: the title stays on one line. Font size follows the page width (the line is about 17 em wide). */
+@media (min-width: 761px) {
+  .heroTitle.heroTitle {
+    max-width: none;
+    white-space: nowrap;
+    font-size: clamp(34px, calc((100vw - 2 * var(--page-gutter)) / 17.5), var(--text-display));
+  }
+}
 .heroTitle {
   max-width: 880px;
   font-family: var(--font-display);
