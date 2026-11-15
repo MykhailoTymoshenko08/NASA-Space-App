@@ -61,7 +61,7 @@ export function MyFieldsPage() {
         title={comparing ? "Compare fields" : "My fields"}
         lead={
           comparing
-            ? "Side by side base conditions for the fields you picked."
+            ? "Compare asking rent, illustrative returns and land quality for the fields you picked."
             : "Fields you saved. Select two or more to compare them."
         }
       />
@@ -86,14 +86,9 @@ export function MyFieldsPage() {
                   <Icon name="arrow-left" size={18} />
                   Back to my fields
                 </Button>
-                <span className={s.muted}>Latest values for each field, read from our server now.</span>
+                <span className={s.muted}>Pick 2 to 4 fields. Enter asking rents to compare the same crop plan.</span>
               </div>
-              <FieldsCompare fields={chosen} />
-              <p className={s.fine}>
-                Bars are scaled to the highest value in each row. Each row says if the value was measured, modeled or
-                estimated. Nitrogen is an estimate from organic matter, not a lab test. Values from the API are metric and
-                shown here in US units.
-              </p>
+              <FieldsCompare key={`${userId}:${chosen.map((field) => field.id).join(",")}`} fields={chosen} userId={userId} />
             </>
           ) : (
             <SavedFieldsList

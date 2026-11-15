@@ -11,6 +11,7 @@
 import { delay, http, HttpResponse, type AnyHandler } from "msw";
 import type { components } from "@/shared/api";
 import { env } from "@/shared/config";
+import { comparisonFor } from "./comparison";
 import {
   COUNTIES,
   DEFAULT_POINT,
@@ -217,6 +218,22 @@ function shapeFacts(g: S["SavedFieldCreate"]["geometry"]): { centroid: LatLon; a
 }
 
 export const handlers: AnyHandler[] = [
+  http.post<never, S["SavedFieldComparisonRequest"]>(url("/comparisons/saved-fields"), async ({ request }) => {
+    const account = bearerAccount(request);
+    if (!account) return unauthorized();
+    const body = await request.json();
+    const ids = body.saved_field_ids;
+    if (!Array.isArray(ids) || ids.length < 2 || ids.length > 4 || new Set(ids).size !== ids.length ||
+      Object.entries(body.rent_per_acre ?? {}).some(([id, value]) => !ids.includes(id) || !Number.isFinite(value) || value < 0 || value > 5000)) {
+      return errorResponse(422, "VALIDATION_ERROR", "Select 2 to 4 unique saved fields and valid rents.");
+    }
+    const mine = savedRows().filter((row) => row.owner === account.id);
+    const fields = ids.map((id) => mine.find((field) => field.id === id));
+    const missing = fields.findIndex((field) => !field);
+    if (missing >= 0) return errorResponse(404, "NOT_FOUND", "One field is no longer available.", {}, { saved_field_id: ids[missing] });
+    await wait();
+    return HttpResponse.json<S["FieldComparison"]>(comparisonFor(fields.map((field) => publicRow(field!)), body));
+  }),
   http.get(url("/health"), () => HttpResponse.json({ status: "ok" as const })),
 
   http.get(url("/meta/coverage"), () =>

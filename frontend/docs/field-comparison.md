@@ -4,6 +4,13 @@ Backend contract 0.12.0 (`contract/openapi.yaml`, tag `comparisons`). This guide
 compare screens on top of it. The contract stays the source of truth for shapes. This file covers
 behaviour, rendering rules and gotchas.
 
+Implementation status (2026-11-15): My fields now calls `/comparisons/saved-fields` through
+`entities/comparison`, with asking rents, a shared crop plan, summary cards and grouped responsive rows.
+Changes apply with **Update comparison**, so editing rents does not spend requests on each keystroke.
+The area-ranking screen and its map integration remain unimplemented; the area endpoint is tested.
+See [comparison-validation.md](comparison-validation.md) for the tested scope and browser test commands.
+The remaining sections are API guidance, including suggestions for those unfinished screens.
+
 Who it is for: a farmer choosing which field to rent. They pick candidates on the map, save them, enter
 the owner's asking rent and see which field pays and which has the better soil.
 
@@ -47,11 +54,10 @@ export const comparisonsApi = {
 };
 ```
 
-Suggested FSD placement: `entities/comparison` (api, types, row helpers), `features/compare-rent-inputs`
-(asking rent and plan form), `widgets/field-comparison` (the table or cards), `widgets/area-ranking`
-(list and map highlight). Replace the current `widgets/saved-fields/ui/FieldsCompare.tsx`, which sends one
-`POST /snapshots` per field, with the new endpoint. It returns the same soil data plus money, history and
-the winner of each row.
+Current FSD placement: `entities/comparison` owns the typed comparison API;
+`widgets/saved-fields/ui/FieldsCompare.tsx` renders its settings, summary and rows.
+The widget uses one comparison request instead of separate `POST /snapshots` calls.
+Suggested placement for the unfinished area screen: `widgets/area-ranking` (list and map highlight).
 
 ---
 

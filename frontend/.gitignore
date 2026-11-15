@@ -8,3 +8,6 @@ coverage/
 
 # Design source files (local only)
 design/
+
+# TypeScript incremental build state
+*.tsbuildinfo
