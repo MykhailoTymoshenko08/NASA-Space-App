@@ -104,7 +104,7 @@ export function FieldPage() {
       <div aria-live="polite" className="visually-hidden">
         {query.isPending ? "Loading base conditions." : query.isError ? "Base conditions could not be loaded." : "Base conditions loaded."}
       </div>
-      <PageColumns main={main} aside={aside} asideLabel="Next step" />
+      <PageColumns main={main} aside={aside} asideLabel="Next step" stickyAside />
     </>
   );
 }

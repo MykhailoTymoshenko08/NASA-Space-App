@@ -69,12 +69,15 @@ export function PageColumns({
   aside,
   asideLabel,
   alignAsideTo,
+  stickyAside = false,
 }: {
   main: ReactNode;
   aside: ReactNode;
   asideLabel: string;
   /** CSS selector of an element in `main`: while the columns sit side by side, the aside starts level with it. */
   alignAsideTo?: string;
+  /** Keep the aside in view while the page scrolls (wide screens only, where it sits beside `main`). */
+  stickyAside?: boolean;
 }) {
   const mainRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
@@ -106,7 +109,7 @@ export function PageColumns({
       <div ref={mainRef} className={s.main}>
         {main}
       </div>
-      <aside ref={asideRef} className={s.aside} aria-label={asideLabel}>
+      <aside ref={asideRef} className={join(s.aside, stickyAside && s.asideSticky)} aria-label={asideLabel}>
         {aside}
       </aside>
     </Container>
