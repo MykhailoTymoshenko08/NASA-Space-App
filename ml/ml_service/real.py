@@ -6,7 +6,7 @@
   strategies               the current rotation + n alternatives (ml_service/rotations.py)
   crop_suitability         NEW: the crop ranking (ml_service/ranking.py): score, rank, blocked, reasons, main factors
   sources                  only the ones really used
-  status "partial" + warnings when NDVI, SMAP or TWI are missing
+  status "partial" when NDVI or SMAP is missing (or the soil is organic); a missing TWI is only a warning
 """
 from __future__ import annotations
 
@@ -410,6 +410,6 @@ def analyze_real(req) -> dict:
 
 
 def warnings_need_partial(warnings: list[str], t: dict) -> bool:
-    """the provenance line is information, not a problem; anything else means the analysis is missing something"""
-    info = {t["src_precomputed"], t["src_on_the_fly"]}
-    return any(w not in info for w in warnings)
+    """partial only when a data layer the analysis needs is missing: NDVI or SMAP, or the soil is organic (out of the training
+    domain). everything else (no TWI, SSURGO slope instead of NASADEM, provenance line, rotation notes) is just a warning."""
+    return any(w in warnings for w in (t["w_ndvi"], t["w_smap"], t["w_organic"]))

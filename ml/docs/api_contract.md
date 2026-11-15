@@ -161,7 +161,7 @@ guarantees:
 - `feature_source`: `precomputed` (county file or the 2000-field sample) or `on_the_fly` (history from the request, soil from USDA SDA, climate from NASA POWER)
 - `sources` lists only the sources that were really used
 - `overall_risk`: `low` | `medium` | `high`
-- `status: "partial"` - analysis exists but some data was missing (today: no Landsat NDVI, no SMAP, no TWI); reasons in `warnings`
+- `status: "partial"` - analysis exists but some data was missing (no Landsat NDVI, no SMAP, or an organic soil); reasons in `warnings`. A missing TWI or the SSURGO slope instead of NASADEM is only a warning, not `partial`
 
 ### errors
 ```json
