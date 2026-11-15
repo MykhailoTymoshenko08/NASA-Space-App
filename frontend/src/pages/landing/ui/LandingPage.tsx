@@ -38,7 +38,7 @@ export function LandingPage() {
       <Container as="section" className={s.hero} aria-labelledby="hero-title">
         <Eyebrow className={s.heroEyebrow}>Field data for U.S. farmers</Eyebrow>
         <h1 id="hero-title" className={s.heroTitle}>
-          Know your field before you plant.
+          Know your field before you plant
         </h1>
         <p className={s.heroLead}>
           Zoom from the whole country down to one estimated field area, or paste a map link or coordinates. We bring
