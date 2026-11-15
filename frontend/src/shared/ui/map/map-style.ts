@@ -188,6 +188,13 @@ export const PLSS_TILES_REV = 1;
  */
 export const ZOOM = { countyLines: 5.5, county: 7, township: 8, sections: 11 } as const;
 
+/**
+ * A fitted county never ends further out than this: its townships and their names must show (they start at
+ * ZOOM.township, and names fit a township from about here). A large county (Custer, NE) on a phone would
+ * otherwise fit below ZOOM.township and show no townships at all; it is centered instead, edges off screen.
+ */
+export const COUNTY_FIT_MIN_ZOOM = ZOOM.township + 0.5;
+
 const token = (name: string, fallback: string) => {
   if (typeof document === "undefined") return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();

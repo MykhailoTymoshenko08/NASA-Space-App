@@ -7,6 +7,7 @@ import { friendlyMessage, type County, type FieldSelection, type SelectionSource
 import { bboxOfRing, type BBox, type LatLon } from "@/shared/lib";
 import { Icon } from "@/shared/ui/icon";
 import {
+  COUNTY_FIT_MIN_ZOOM,
   FieldMap,
   focusForView,
   type FieldMapHandle,
@@ -65,7 +66,7 @@ export function PickMap({ county, pin, selection, placeLabel, onSelect }: Props)
 
   useEffect(() => {
     setArea(null);
-    if (county) mapRef.current?.fitBBox(county.bbox as BBox, config.fieldMinZoom - 1);
+    if (county) mapRef.current?.fitBBox(county.bbox as BBox, config.fieldMinZoom - 1, COUNTY_FIT_MIN_ZOOM);
   }, [county, config.fieldMinZoom]);
 
   const tw = area ? { plssid: area.township.plssid, bbox: area.township.bbox } : null;
@@ -172,7 +173,7 @@ export function PickMap({ county, pin, selection, placeLabel, onSelect }: Props)
           <button
             type="button"
             className={s.back}
-            onClick={() => mapRef.current?.fitBBox(county.bbox as BBox, config.fieldMinZoom - 1)}
+            onClick={() => mapRef.current?.fitBBox(county.bbox as BBox, config.fieldMinZoom - 1, COUNTY_FIT_MIN_ZOOM)}
           >
             <Icon name="arrow-left" size={18} />
             Back to county
@@ -203,7 +204,7 @@ export function PickMap({ county, pin, selection, placeLabel, onSelect }: Props)
               onZoomOut={() => mapRef.current?.zoomOut()}
               onReset={() =>
                 county
-                  ? mapRef.current?.fitBBox(county.bbox as BBox, config.fieldMinZoom - 1)
+                  ? mapRef.current?.fitBBox(county.bbox as BBox, config.fieldMinZoom - 1, COUNTY_FIT_MIN_ZOOM)
                   : selection && mapRef.current?.fitBBox((selection.bbox ?? bboxOfRing(selection.geometry.coordinates[0] ?? [])) as BBox, 16)
               }
               resetLabel="Show the whole county"

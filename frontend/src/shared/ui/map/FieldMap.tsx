@@ -1,4 +1,4 @@
-import maplibregl, { type GeoJSONSource, type MapGeoJSONFeature, type MapMouseEvent } from "maplibre-gl";
+import maplibregl, { type GeoJSONSource, type LngLat, type MapGeoJSONFeature, type PointLike } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
@@ -17,6 +17,7 @@ import {
   type MapFocus,
   type MapStyleInput,
 } from "./map-style";
+import { nearestHit } from "./touch-hit";
 import s from "./field-map.module.css";
 
 let pmtilesRegistered = false;
@@ -105,7 +106,10 @@ type Props = {
 const HOVER_LAYERS = [LAYER.fieldsFill, LAYER.townshipsFill, LAYER.countiesFill, LAYER.statesFill];
 const MASK_LAYERS = [LAYER.stateMask, LAYER.countyMask, LAYER.townshipMask];
 
-function readHit(map: maplibregl.Map, e: Pick<MapMouseEvent, "point" | "lngLat">): { hit: MapHit; features: MapGeoJSONFeature[] } {
+/** Where to read a hit: a screen point and the map position under it. */
+type HitAt = { point: PointLike; lngLat: LngLat };
+
+function readHit(map: maplibregl.Map, e: HitAt): { hit: MapHit; features: MapGeoJSONFeature[] } {
   const layers = HOVER_LAYERS.filter((id) => map.getLayer(id));
   const masks = MASK_LAYERS.filter((id) => map.getLayer(id));
   const outsideFocus = masks.length > 0 && map.queryRenderedFeatures(e.point, { layers: masks }).length > 0;
@@ -143,6 +147,36 @@ function readHit(map: maplibregl.Map, e: Pick<MapMouseEvent, "point" | "lngLat">
         : null,
     },
   };
+}
+
+/** Layers a tap aims at, most specific first: the first one drawn at the current zoom is the target. */
+const TAP_TARGETS = [LAYER.fieldsFill, LAYER.townshipsFill, LAYER.countiesFill, LAYER.statesFill];
+
+function drawnAt(map: maplibregl.Map, id: string, zoom: number): boolean {
+  const layer = map.getLayer(id);
+  return layer !== undefined && zoom >= (layer.minzoom ?? 0) && zoom < (layer.maxzoom ?? 24);
+}
+
+/**
+ * A touch tap (touch-hit.ts): when it misses the most specific layer drawn, read the hit at the nearest
+ * pixel within reach that hits it, so a finger just off a small field or county still gets it.
+ * Never moves a tap onto a masked area, or off one: a tap on a mask moves the focus there.
+ */
+function readTap(map: maplibregl.Map, e: HitAt): MapHit {
+  const exact = readHit(map, e).hit;
+  if (exact.outsideFocus) return exact;
+  const target = TAP_TARGETS.find((id) => drawnAt(map, id, exact.zoom));
+  if (!target) return exact;
+  const masks = MASK_LAYERS.filter((id) => map.getLayer(id));
+  const p = map.project(e.lngLat);
+  const at = (dx: number, dy: number): [number, number] => [p.x + dx, p.y + dy];
+  const hits = (pt: [number, number]) => map.queryRenderedFeatures(pt, { layers: [target] }).length > 0;
+  if (hits(at(0, 0))) return exact;
+  const visible = (pt: [number, number]) => masks.length === 0 || map.queryRenderedFeatures(pt, { layers: masks }).length === 0;
+  const off = nearestHit(({ dx, dy }) => hits(at(dx, dy)) && visible(at(dx, dy)));
+  if (!off) return exact;
+  const point = at(off.dx, off.dy);
+  return readHit(map, { point, lngLat: map.unproject(point) }).hit;
 }
 
 const toLngLatBounds = (b: BBox): [[number, number], [number, number]] => [
@@ -240,6 +274,8 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
 
     map.on("load", () => {
       readyRef.current = true;
+      // The first view (initialBBox) has no zoomend: report its zoom so the widgets start at the right scale.
+      handlers.current.onZoomEnd?.(map.getZoom());
       syncShapes(map, latest.current.selection, latest.current.pin);
       syncSaved(map, latest.current.saved);
       syncFocus(map, latest.current.focus, latest.current.townshipsFollowFocus, config.fieldMinZoom);
@@ -267,7 +303,12 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
       setHover([]);
       handlers.current.onHover?.(null);
     });
-    map.on("click", (e) => handlers.current.onClick?.(readHit(map, e).hit));
+    // Taps get some reach (readTap); mouse clicks stay exact. The click after a tap follows its pointerdown.
+    let lastPointer = "mouse";
+    map.getCanvasContainer().addEventListener("pointerdown", (ev) => {
+      lastPointer = ev.pointerType;
+    });
+    map.on("click", (e) => handlers.current.onClick?.(lastPointer === "mouse" ? readHit(map, e).hit : readTap(map, e)));
     map.on("zoomend", () => handlers.current.onZoomEnd?.(map.getZoom()));
     // Report the center once the move's tiles are drawn (idle), not on moveend: the areas under the
     // center are read from the rendered tiles.

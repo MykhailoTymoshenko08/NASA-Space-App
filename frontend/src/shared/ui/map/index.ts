@@ -12,7 +12,7 @@ export type {
 } from "./FieldMap";
 export { CROP_GROUPS, cropGroupOf } from "./crops";
 export type { CropGroup } from "./crops";
-export { FIELD_LABEL_ZOOM, ZOOM } from "./map-style";
+export { COUNTY_FIT_MIN_ZOOM, FIELD_LABEL_ZOOM, ZOOM } from "./map-style";
 export type { MapFocus, MapStyleInput } from "./map-style";
 export { AUTO_COUNTY_ZOOM, focusForView, sameFocus } from "./view-focus";
 export type { ViewFocus } from "./view-focus";

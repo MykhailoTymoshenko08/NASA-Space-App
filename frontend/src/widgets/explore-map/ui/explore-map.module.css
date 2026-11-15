@@ -139,3 +139,19 @@
   color: var(--color-error-fg);
   font-size: var(--text-small);
 }
+
+/* Phones: the select's "State…" says what it is; keep the label for screen readers only. */
+@media (max-width: 760px) {
+  .jump {
+    min-height: var(--control-min);
+    padding: 0 4px;
+  }
+  .jumpLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}

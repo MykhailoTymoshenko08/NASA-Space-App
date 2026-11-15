@@ -1,13 +1,38 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Icon } from "../icon";
 import s from "./map-overlay.module.css";
 
-/** Bordered map frame. Overlays are absolutely placed children. */
+/** Full-screen state of the enclosing MapStage, for the toggle in MapZoomControls. */
+const StageContext = createContext<{ expanded: boolean; toggle: () => void } | null>(null);
+
+/**
+ * Bordered map frame. Overlays are absolutely placed children. On a phone it can fill the screen
+ * (toggle in MapZoomControls, Escape leaves): the page around it then stops scrolling, so every drag
+ * moves the map. The map resizes itself with its container.
+ */
 export function MapStage({ children, height = 720, id }: { children: ReactNode; height?: number; id?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!expanded) return;
+    const root = document.documentElement;
+    const overflow = root.style.overflow;
+    root.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      root.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
+  const stage = useMemo(() => ({ expanded, toggle: () => setExpanded((v) => !v) }), [expanded]);
   return (
-    <div className={s.stage} style={{ height }} id={id}>
-      {children}
-    </div>
+    <StageContext.Provider value={stage}>
+      <div className={`${s.stage} ${expanded ? s.stageFull : ""}`} style={{ height }} id={id}>
+        {children}
+      </div>
+    </StageContext.Provider>
   );
 }
 
@@ -25,8 +50,22 @@ export function MapZoomControls({
   resetLabel: string;
   children?: ReactNode;
 }) {
+  const stage = useContext(StageContext);
   return (
     <div className={s.controls}>
+      {stage && (
+        // Phones only (CSS), and always while full screen so there is a way back.
+        <div className={`${s.zoom} ${s.fullGroup}`}>
+          <button
+            type="button"
+            className={s.ctl}
+            onClick={stage.toggle}
+            aria-label={stage.expanded ? "Exit full screen" : "Show the map full screen"}
+          >
+            <Icon name={stage.expanded ? "minimize" : "maximize"} />
+          </button>
+        </div>
+      )}
       <div className={s.zoom}>
         <button type="button" className={s.ctl} onClick={onZoomIn} aria-label="Zoom in">
           <Icon name="plus" />
@@ -56,17 +95,32 @@ export function MapScaleSteps({ steps, current, label }: { steps: number; curren
 
 export type LegendItem = { label: string; fill: string; line: string };
 
+/** Legend card. On a phone it folds into a "Legend" button, so it does not cover half the map. */
 export function MapLegend({ title, items, note }: { title?: string; items: readonly LegendItem[]; note?: string }) {
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
   return (
-    <div className={s.legend}>
-      {title && <div className={s.legendTitle}>{title}</div>}
-      {items.map((k) => (
-        <div key={k.label} className={s.legendRow}>
-          <span className={s.swatch} style={{ background: k.fill, borderColor: k.line }} aria-hidden="true" />
-          {k.label}
-        </div>
-      ))}
-      {note && <div className={s.legendNote}>{note}</div>}
+    <div className={`${s.legend} ${open ? s.legendOpen : ""}`}>
+      <button
+        type="button"
+        className={s.legendToggle}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="layers" size={18} />
+        {open ? "Hide legend" : "Legend"}
+      </button>
+      <div id={bodyId} className={s.legendBody}>
+        {title && <div className={s.legendTitle}>{title}</div>}
+        {items.map((k) => (
+          <div key={k.label} className={s.legendRow}>
+            <span className={s.swatch} style={{ background: k.fill, borderColor: k.line }} aria-hidden="true" />
+            {k.label}
+          </div>
+        ))}
+        {note && <div className={s.legendNote}>{note}</div>}
+      </div>
     </div>
   );
 }

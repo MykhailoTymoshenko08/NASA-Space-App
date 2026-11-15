@@ -11,6 +11,7 @@ import { buttonClass } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import {
+  COUNTY_FIT_MIN_ZOOM,
   FieldMap,
   focusForView,
   sameFocus,
@@ -38,6 +39,10 @@ import {
   type LegendItem,
 } from "@/shared/ui/map-overlay";
 import s from "./explore-map.module.css";
+
+/** Phones (same breakpoint as the map stage CSS). */
+const NARROW_SCREEN = "(max-width: 760px)";
+const isNarrowScreen = () => typeof window !== "undefined" && window.matchMedia?.(NARROW_SCREEN).matches === true;
 
 const STAGE_NAMES = ["Country", "State", "County", "Field"] as const;
 type Stage = 0 | 1 | 2 | 3;
@@ -108,6 +113,12 @@ export function ExploreMap() {
   const states = useStates();
   const config = useMemo(() => mapConfigFrom(coverage.data), [coverage.data]);
   const mapRef = useRef<FieldMapHandle>(null);
+  // On a phone the whole country leaves each state a few dozen pixels wide, too small to tap: open on
+  // the field states instead. Zooming out and "Show the whole country" still reach CONUS.
+  const startBBox = useMemo(
+    () => (isNarrowScreen() && coverage.data ? (coverage.data.bounds as BBox) : CONUS_BBOX),
+    [coverage.data],
+  );
 
   const [zoom, setZoom] = useState(3);
   const [focusState, setFocusState] = useState<MapStateHit | null>(null);
@@ -133,7 +144,7 @@ export function ExploreMap() {
     if (!pending || pending.fips !== countyFips) return;
     if (county.data?.fips === pending.fips) {
       pendingCounty.current = null;
-      mapRef.current?.fitBBox(county.data.bbox as BBox, config.fieldMinZoom - 0.5);
+      mapRef.current?.fitBBox(county.data.bbox as BBox, config.fieldMinZoom - 0.5, COUNTY_FIT_MIN_ZOOM);
     } else if (county.isError) {
       pendingCounty.current = null;
       mapRef.current?.flyTo(pending.point, config.fieldMinZoom + 0.5);
@@ -147,6 +158,10 @@ export function ExploreMap() {
     mapRef.current?.fitBBox(t.bbox, undefined, config.fieldMinZoom + 0.25);
   };
 
+  // A phone fits a whole state below the zoom where counties show: zoom in to the counties instead (the
+  // state's edges may be off screen, the next step is a county anyway).
+  const fitState = (bbox: BBox) => mapRef.current?.fitBBox(bbox, undefined, isNarrowScreen() ? ZOOM.countyLines : undefined);
+
   const goState = (st: GeoState) => {
     setFocusState({ fips: st.fips, name: st.name, postal: st.postal });
     setCountyFips(null);
@@ -154,7 +169,7 @@ export function ExploreMap() {
     pendingCounty.current = null;
     setFieldId(null);
     setNoCoverageIn(null);
-    mapRef.current?.fitBBox(st.bbox as BBox);
+    fitState(st.bbox as BBox);
   };
 
   const reset = () => {
@@ -268,7 +283,7 @@ export function ExploreMap() {
       setFocusState(hit.state);
       setCountyFips(null);
       const known = states.data?.find((st) => st.fips === hit.state!.fips);
-      if (known) mapRef.current?.fitBBox(known.bbox as BBox);
+      if (known) fitState(known.bbox as BBox);
       else {
         setNoCoverageIn(hit.state.name);
         mapRef.current?.flyTo(hit.point, 6);
@@ -304,7 +319,7 @@ export function ExploreMap() {
       onClick: () => {
         setFieldId(null);
         setTownship(null);
-        mapRef.current?.fitBBox(county.data!.bbox as BBox, config.fieldMinZoom - 0.5);
+        mapRef.current?.fitBBox(county.data!.bbox as BBox, config.fieldMinZoom - 0.5, COUNTY_FIT_MIN_ZOOM);
       },
     });
   }
@@ -322,7 +337,7 @@ export function ExploreMap() {
       <FieldMap
         ref={mapRef}
         config={config}
-        initialBBox={CONUS_BBOX}
+        initialBBox={startBBox}
         selection={selectionShape}
         pin={null}
         saved={saved}
