@@ -28,31 +28,94 @@
   stroke-width: 2;
 }
 
+/* Head card: sketch | area and county, details below. On phones the sketch shrinks beside the area. */
 .overview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-20);
-  padding: var(--s-16);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "sketch head"
+    "sketch body";
+  align-items: start;
+  gap: var(--s-12) var(--s-24);
+  padding: var(--s-20);
   border-radius: var(--radius-stage);
   background: var(--color-surface);
   border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-1);
+  min-width: 0;
 }
-.overviewBody {
-  flex: 1 1 300px;
+.overviewSketch {
+  grid-area: sketch;
+  display: flex;
+}
+.overviewHead {
+  grid-area: head;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-8);
+  gap: var(--s-4);
+}
+.overviewBody {
+  grid-area: body;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
 }
 .bigArea {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 32px;
-  line-height: 38px;
+  font-weight: 700;
+  font-size: 36px;
+  line-height: 42px;
+  letter-spacing: -0.02em;
 }
 .countyLine {
-  font-size: 15px;
-  line-height: 22px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-ink-muted);
+}
+.factGrid {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8) var(--s-32);
+}
+.fact {
+  min-width: 0;
+}
+.fact dt {
+  font-size: var(--text-micro);
+  line-height: var(--text-micro-lh);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.fact dd {
+  margin: 2px 0 0;
+}
+@media (max-width: 640px) {
+  .overview {
+    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-areas:
+      "sketch head"
+      "body body";
+    align-items: center;
+    gap: var(--s-16);
+    padding: var(--s-16);
+  }
+  .overview .sketch {
+    width: 112px;
+    height: 82px;
+  }
+  .bigArea {
+    font-size: 26px;
+    line-height: 32px;
+  }
+  .countyLine {
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
 }
 .coords {
   font-family: var(--font-mono);
@@ -65,6 +128,11 @@
   line-height: var(--text-caption-lh);
   color: var(--color-ink-muted);
   overflow-wrap: anywhere;
+}
+.fact .fieldId {
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  color: var(--color-ink);
 }
 .crops {
   display: flex;
@@ -91,11 +159,14 @@
   display: flex;
   align-items: flex-start;
   gap: var(--s-8);
-  padding: var(--s-12) 14px;
+  padding: 10px var(--s-12);
   border-radius: var(--radius-control);
   background: var(--color-map-ground);
   font-size: var(--text-small);
   line-height: var(--text-small-lh);
+}
+.boundaryNote > svg {
+  flex: none;
 }
 
 .facts {

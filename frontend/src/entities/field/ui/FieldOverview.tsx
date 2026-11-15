@@ -19,13 +19,27 @@ export function FieldOverview({ selection }: { selection: FieldSelection }) {
   const crops = cropHistoryLabels(selection);
   return (
     <div className={s.overview}>
-      <FieldSketch selection={selection} />
-      <div className={s.overviewBody}>
+      <div className={s.overviewSketch}>
+        <FieldSketch selection={selection} />
+      </div>
+      <div className={s.overviewHead}>
         <MonoLabel>{fieldKind(selection)}</MonoLabel>
         {area && <div className={s.bigArea}>{area}</div>}
         <div className={s.countyLine}>{countyLine(selection)}</div>
-        <div className={s.coords}>{coordsText(selection)}</div>
-        {selection.field_id && <div className={s.fieldId}>{selection.field_id}</div>}
+      </div>
+      <div className={s.overviewBody}>
+        <dl className={s.factGrid}>
+          <div className={s.fact}>
+            <dt>Location</dt>
+            <dd className={s.coords}>{coordsText(selection)}</dd>
+          </div>
+          {selection.field_id && (
+            <div className={s.fact}>
+              <dt>Field ID</dt>
+              <dd className={s.fieldId}>{selection.field_id}</dd>
+            </div>
+          )}
+        </dl>
         {crops.length > 0 && (
           <div className={s.crops}>
             <span className={s.muted}>Mapped crops</span>
@@ -37,7 +51,7 @@ export function FieldOverview({ selection }: { selection: FieldSelection }) {
           </div>
         )}
         <div className={s.boundaryNote}>
-          <Icon name="info" size={22} />
+          <Icon name="info" size={20} />
           <span>{boundaryNote(selection)}</span>
         </div>
       </div>
