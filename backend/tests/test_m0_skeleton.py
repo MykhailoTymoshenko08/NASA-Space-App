@@ -43,3 +43,13 @@ def test_cors_allows_frontend_origin(client):
 def test_cors_rejects_other_origins(client, origin):
     r = client.get("/v1/health", headers={"Origin": origin})
     assert "access-control-allow-origin" not in r.headers
+
+
+def test_cors_extra_origins(make_client, data_dir):
+    c = make_client(data_dir, database_url="", frontend_origin="https://app.example",
+                    cors_extra_origins=" http://localhost:5173/ , https://preview.example")
+    for origin in ("https://app.example", "http://localhost:5173", "https://preview.example"):
+        r = c.get("/v1/health", headers={"Origin": origin})
+        assert r.headers["access-control-allow-origin"] == origin
+    r = c.get("/v1/health", headers={"Origin": "http://evil.example"})
+    assert "access-control-allow-origin" not in r.headers

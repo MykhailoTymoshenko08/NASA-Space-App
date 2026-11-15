@@ -57,9 +57,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.frontend_origin],
+        allow_origins=settings.cors_origins,
         # The refresh token is a cookie: the frontend calls /v1/auth/* with `credentials: "include"`.
-        # Credentials require an explicit origin (never "*"), which FRONTEND_ORIGIN is.
+        # Credentials require explicit origins (never "*"): FRONTEND_ORIGIN and CORS_EXTRA_ORIGINS.
         allow_credentials=True,
         allow_methods=["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],

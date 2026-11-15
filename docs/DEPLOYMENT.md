@@ -1,7 +1,7 @@
 # Deployed backend: how the frontend connects
 
 The backend API (with its database and ML service) is deployed and reachable at the URL below. The frontend is
-hosted separately (see [What we need from the frontend](#what-we-need-from-the-frontend)).
+hosted separately on Vercel (see [Frontend hosting](#frontend-hosting)).
 
 ## Endpoints
 
@@ -37,8 +37,8 @@ survives page reloads in every browser. Examples: Vercel `rewrites` in `vercel.j
 refresh-token cookie is then a third-party cookie (`SameSite=None; Secure`), which Safari and Firefox (strict
 mode) block: users would be signed out on every reload.
 
-Either way the field PMTiles file is loaded directly from the API URL, so your frontend origin must be the
-backend's allowed CORS origin (we set it, see below).
+Either way the field PMTiles file is loaded directly from the API URL, so your frontend origin must be one of
+the backend's allowed origins (see [Frontend hosting](#frontend-hosting)).
 
 ## Running the local frontend against the deployed backend
 
@@ -53,7 +53,7 @@ npm run dev:remote        # http://localhost:5173, /v1 proxied by the Vite dev s
 ```
 
 `.env.*` files are gitignored, so each developer creates `.env.remote` once. Field tiles work
-because the backend currently allows `http://localhost:5173`.
+because the backend also allows `http://localhost:5173`.
 
 ## Behaviour to expect
 
@@ -68,16 +68,13 @@ because the backend currently allows `http://localhost:5173`.
   `UPSTREAM_DATA_UNAVAILABLE` ("Password reset email is unavailable"). Show that message; we will tell you
   when email is enabled.
 
-## What we need from the frontend
-
-Send us these; we then configure the backend for your origin.
+## Frontend hosting
 
 | Item | Value |
 |---|---|
-| Production frontend origin (scheme + host, no path) | _TBD_ |
-| Option A (proxy) or B (direct)? | _TBD_ |
-| Preview/staging origins that must work too | _TBD_ |
+| Production frontend origin | `https://selo-ai-seven.vercel.app` |
+| How it connects | Option A: Vercel proxies `/v1` to the API |
+| Other allowed origins | `http://localhost:5173` (`npm run dev:remote`) |
 
-Note: the backend currently allows one browser origin, `http://localhost:5173` (local dev). When we switch it to
-your production origin, field tiles stop loading for `npm run dev:remote` unless we add support for several
-origins: tell us if you need both.
+The backend allows exactly these browser origins (CORS, needed for the field tiles). For another origin, such as
+a Vercel preview URL that must load field tiles, ask us to add it.

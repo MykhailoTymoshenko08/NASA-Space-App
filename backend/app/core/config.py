@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     frontend_origin: str = "http://localhost:5173"
+    # More browser origins allowed by CORS besides FRONTEND_ORIGIN, comma-separated (e.g. local dev
+    # against the deployed API: http://localhost:5173). Reset-password links always use FRONTEND_ORIGIN.
+    cors_extra_origins: str = ""
     data_dir: Path = BACKEND_DIR / "data"
     cache_dir: Path = BACKEND_DIR / ".cache"
     # PostGIS with the CSB field polygons (scripts/prepare_csb.py). Empty: every point resolves to a
@@ -105,6 +108,12 @@ class Settings(BaseSettings):
         if self.auth_cookie_samesite == "none" and not self.auth_cookie_secure:
             raise ValueError("AUTH_COOKIE_SAMESITE=none requires AUTH_COOKIE_SECURE=true")
         return self
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """FRONTEND_ORIGIN first, then CORS_EXTRA_ORIGINS (trailing slashes dropped, duplicates removed)."""
+        origins = [self.frontend_origin, *self.cors_extra_origins.split(",")]
+        return list(dict.fromkeys(o.strip().rstrip("/") for o in origins if o.strip()))
 
 
 @lru_cache
