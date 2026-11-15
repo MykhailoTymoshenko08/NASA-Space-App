@@ -12,14 +12,14 @@ import s from "./site-header.module.css";
  * At 760 px and narrower the links move into a burger menu that opens under the header (48 px rows).
  */
 export function SiteHeader() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   const session = useSession();
   const here = (path: string) => pathname === path;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuId = useId();
 
   // Close the menu after navigating, and on Escape.
-  useEffect(() => setMenuOpen(false), [pathname]);
+  useEffect(() => setMenuOpen(false), [pathname, hash]);
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
@@ -29,8 +29,8 @@ export function SiteHeader() {
 
   const links = (row: boolean) => (
     <>
-      <ButtonLink to={ROUTES.home} variant="ghost" current={here(ROUTES.home)} className={row ? s.row : undefined}>
-        Explore the map
+      <ButtonLink to={{ pathname: ROUTES.home, hash: "how" }} variant="ghost" className={row ? s.row : undefined}>
+        How it works
       </ButtonLink>
       <ButtonLink
         to={ROUTES.pickField}
