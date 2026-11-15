@@ -1,4 +1,4 @@
-import type { ElementType, HTMLAttributes, ReactNode } from "react";
+import { useLayoutEffect, useRef, type ElementType, type HTMLAttributes, type ReactNode } from "react";
 import { ButtonLink } from "../button";
 import { Icon } from "../icon";
 import s from "./layout.module.css";
@@ -64,11 +64,49 @@ export function PageIntro({
 }
 
 /** Two columns that wrap: a wide main column and a 320 to 400 px aside. */
-export function PageColumns({ main, aside, asideLabel }: { main: ReactNode; aside: ReactNode; asideLabel: string }) {
+export function PageColumns({
+  main,
+  aside,
+  asideLabel,
+  alignAsideTo,
+}: {
+  main: ReactNode;
+  aside: ReactNode;
+  asideLabel: string;
+  /** CSS selector of an element in `main`: while the columns sit side by side, the aside starts level with it. */
+  alignAsideTo?: string;
+}) {
+  const mainRef = useRef<HTMLDivElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const mainEl = mainRef.current;
+    const asideEl = asideRef.current;
+    if (!alignAsideTo || !mainEl || !asideEl) return;
+    const align = () => {
+      const anchor = mainEl.querySelector<HTMLElement>(alignAsideTo);
+      // Stacked (aside under main, on narrow screens) or no anchor yet: no offset.
+      const besideMain = asideEl.offsetLeft > mainEl.offsetLeft;
+      const offset = anchor && besideMain ? anchor.getBoundingClientRect().top - mainEl.getBoundingClientRect().top : 0;
+      asideEl.style.marginTop = offset > 0 ? `${Math.round(offset)}px` : "";
+    };
+    align();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(align);
+    observer.observe(mainEl);
+    observer.observe(asideEl.parentElement ?? asideEl);
+    return () => {
+      observer.disconnect();
+      asideEl.style.marginTop = "";
+    };
+  });
+
   return (
     <Container className={s.columns}>
-      <div className={s.main}>{main}</div>
-      <aside className={s.aside} aria-label={asideLabel}>
+      <div ref={mainRef} className={s.main}>
+        {main}
+      </div>
+      <aside ref={asideRef} className={s.aside} aria-label={asideLabel}>
         {aside}
       </aside>
     </Container>

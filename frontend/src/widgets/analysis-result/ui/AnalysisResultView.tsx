@@ -41,16 +41,18 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
           </h2>
           <p className={s.muted}>{choices}</p>
         </div>
-        {strategies.map((st, i) => (
-          <StrategyCard
-            key={st.id}
-            strategy={st}
-            index={i}
-            baselineScore={baseline}
-            open={!!open[st.id]}
-            onToggle={() => setOpen((o) => ({ ...o, [st.id]: !o[st.id] }))}
-          />
-        ))}
+        <div className={s.cards} data-best-fit-anchor>
+          {strategies.map((st, i) => (
+            <StrategyCard
+              key={st.id}
+              strategy={st}
+              index={i}
+              baselineScore={baseline}
+              open={!!open[st.id]}
+              onToggle={() => setOpen((o) => ({ ...o, [st.id]: !o[st.id] }))}
+            />
+          ))}
+        </div>
       </section>
 
       {series.length > 0 && (
