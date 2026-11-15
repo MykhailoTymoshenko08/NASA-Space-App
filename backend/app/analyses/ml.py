@@ -213,7 +213,8 @@ def _result(
             if any(ref not in sources for ref in item.source_ids):
                 raise ValueError("ML evidence refers to an unknown source")
             evidence.append(Evidence(
-                statement=plain.clean(item.text), source=sources[item.source_ids[0]] if item.source_ids else None,
+                statement=plain.clean(item.text),
+                source=sources[item.source_ids[0]] if item.source_ids else None,
             ))
         strategies.append(Strategy(
             id=s.id, name=s.name, is_current=s.is_current,
