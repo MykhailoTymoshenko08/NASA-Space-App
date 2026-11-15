@@ -1,7 +1,7 @@
-"""Plug-in point for the rotation model. The ML teammate replaces StubAnalysisEngine with a real one.
+"""Plug-in point for the rotation model, implemented by MLAnalysisEngine and the development stub.
 
 Contract for implementations:
-- Return an `AnalysisResult` exactly as described in contract/openapi.yaml (>= 3 strategies, one with
+- Return an `AnalysisResult` exactly as described in contract/openapi.yaml (>= 1 strategy, one with
   `is_current = true`, sorted by `score` descending, every required field present).
 - Call `progress(percent, stage)` as work advances; `stage` is shown to farmers, keep it plain English.
 - Raise an exception to fail the job; the job runner turns it into `status = failed`.

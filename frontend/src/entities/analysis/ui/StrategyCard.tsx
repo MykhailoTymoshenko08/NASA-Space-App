@@ -6,6 +6,7 @@ import { MonoLabel } from "@/shared/ui/layout";
 import { MeterBar } from "@/shared/ui/progress";
 import { CRITERION_LABEL, ROLE_LABEL } from "../config/labels";
 import { confidenceText, datasetSource, deltaText, rankLabel } from "../lib/strategies";
+import { StrategyBudget } from "./StrategyBudget";
 import s from "./analysis.module.css";
 
 type Props = {
@@ -57,6 +58,8 @@ export function StrategyCard({ strategy: st, index, baselineScore, open, onToggl
             ))}
         </ol>
       )}
+
+      {st.budget && <StrategyBudget budget={st.budget} />}
 
       <Button variant="secondary" className={s.toggle} onClick={onToggle} aria-expanded={open} aria-controls={detailsId}>
         {open ? "Hide details" : "Show details"}

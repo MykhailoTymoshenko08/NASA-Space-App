@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Field Shift API",
-    "version": "0.8.0",
-    "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it), so analysis still works.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one PMTiles file read with HTTP\n  Range requests; its URL is `coverage.field_tiles.url_template`. By default the backend serves it at\n  `GET /tiles/fields.pmtiles`; a deployment may point the URL at external static hosting instead.\n"
+    "version": "0.11.0",
+    "description": "Contract between the frontend and backend of the Field Shift farmer map\n(NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.\nChange it first (PR + entry in CONTRACT_CHANGELOG.md), then change code.\n\n## Conventions (apply everywhere)\n- Base path `/v1`. JSON, UTF-8. Timestamps are ISO 8601 UTC (`2026-11-14T12:00:00Z`). Dates are `YYYY-MM-DD`.\n- Coordinates in our own objects are `{ \"lat\": number, \"lon\": number }` (WGS84). NEVER bare arrays.\n  The only exception is GeoJSON and bbox, which follow the GeoJSON spec: `[lon, lat]` and `[west, south, east, north]`.\n- All numeric values are SI (m, mm, degC, m3/m3, g/kg, ha). The frontend converts to US units for display.\n- A metric that cannot be provided is returned with `value: null` and `quality: unavailable` plus a reason. Never omit it and never invent it.\n- Every metric states its `source` and `resolution_m`, because satellite data is often much coarser than a field.\n- Errors always use the `ErrorResponse` envelope. Every response carries an `X-Request-Id` header.\n- Coverage: contiguous US (CONUS). Field polygons exist only in the supported states listed by\n  `GET /meta/coverage` (v0.3: Iowa, Illinois, Nebraska). Elsewhere in CONUS a point resolves to a\n  buffered point (a circle around it). ML analysis covers IA/IL/NE/KS and requires crop history\n  outside its precomputed fields; unavailable coverage or inputs are reported as failed jobs.\n- The selectable unit is an **estimated field area** from USDA NASS Crop Sequence Boundaries (CSB).\n  CSB polygons are an algorithmic estimate, not a legal or ownership boundary: a real field may be\n  split into several polygons or merged with a neighbour. The UI must say \"estimated field area\".\n- Field polygons are NEVER sent as bulk GeoJSON. They are drawn from one PMTiles file read with HTTP\n  Range requests; its URL is `coverage.field_tiles.url_template`. By default the backend serves it at\n  `GET /tiles/fields.pmtiles`; a deployment may point the URL at external static hosting instead.\n"
   },
   "servers": [
     {
@@ -726,7 +726,7 @@
         ],
         "operationId": "estimateProfitability",
         "summary": "Rough profit per acre for one crop (low / base / high)",
-        "description": "Profit per acre = yield x price - costs, for a low, base and high price. Synchronous and\ndeterministic: static baseline tables, no price forecast, no external calls.\nYield is `predicted_yield` when given (from the ML yield model), else a per-crop, per-state\ndefault. Costs are the baseline for the crop and state; `land_rent_per_acre` replaces the\nbaseline rent and `total_cost_per_acre` replaces all costs. Corn after soybeans gets a nitrogen\ncredit on fertilizer. `assumptions` explains each number in plain English for the UI.\nBaseline prices are per crop and state (NASS marketing-year averages: base = last 3 years,\nlow / high = 10th / 90th percentile of the last 10); yields are NASS 5-year state means; costs come\nfrom 2026 extension budgets. `baseline.is_placeholder` is true when any baseline number this\nestimate used is still a placeholder (for example Iowa winter wheat, or land rent).\n",
+        "description": "Profit per acre = yield x price - costs, for a low, base and high price. Synchronous and\ndeterministic: static baseline tables, no price forecast, no external calls.\nYield is `predicted_yield` when supplied by a separate yield model, else a per-crop, per-state\ndefault matched to the selected extension production-cost profile. Costs are the baseline for\nthe crop and state; `land_rent_per_acre` replaces the\nbaseline rent and `total_cost_per_acre` replaces all costs. Published after-soybean budgets\nalready include rotation effects; no additional fertilizer credit is subtracted.\n`assumptions` explains each number in plain English for the UI.\nBaseline prices are per crop and state (NASS marketing-year averages: base = last 3 years,\nlow / high = 10th / 90th percentile of the last 10); reference yields and costs come\nfrom 2026 extension budgets. `baseline.is_placeholder` is true when any baseline number this\nestimate used is still a placeholder (for example Iowa winter wheat, or land rent).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -2629,7 +2629,11 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 5,
-                "default": 3
+                "default": 3,
+                "description": "Number of future years evaluated by the rotation planner."
+              },
+              "budget": {
+                "$ref": "#/components/schemas/RotationBudgetOptions"
               }
             }
           }
@@ -2747,8 +2751,8 @@
           },
           "strategies": {
             "type": "array",
-            "description": "At least 3 rotation strategies, one of which has `is_current = true`. Sorted by `score` descending.",
-            "minItems": 3,
+            "description": "Current rotation and available alternatives, with exactly one `is_current = true`. Sorted by `score` descending. Fewer alternatives may be returned when agronomic constraints rule out other crops; warnings explain missing alternatives.",
+            "minItems": 1,
             "items": {
               "$ref": "#/components/schemas/Strategy"
             }
@@ -2769,6 +2773,11 @@
           "disclaimer": {
             "type": "string",
             "description": "Shown verbatim on the results page. The tool supports, not replaces, local expertise."
+          },
+          "ml_analysis": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Original ML /ml/v1/analyze response, preserved without rewriting its fields. Includes detected_rotation, summary, vulnerability_timeline, strategies, sources, warnings, and (in real mode) crop_suitability, score_notes and feature_source. Present for ML jobs; omitted for the explicit development stub. Income scores are relative indices, not money."
           }
         }
       },
@@ -3009,6 +3018,370 @@
           "needs_local_review": {
             "type": "boolean",
             "description": "True when local agronomist or extension review is specifically advised."
+          },
+          "budget": {
+            "$ref": "#/components/schemas/RotationBudget"
+          }
+        }
+      },
+      "BudgetAmounts": {
+        "type": "object",
+        "required": [
+          "low",
+          "base",
+          "high"
+        ],
+        "properties": {
+          "low": {
+            "type": "number"
+          },
+          "base": {
+            "type": "number"
+          },
+          "high": {
+            "type": "number"
+          }
+        }
+      },
+      "CropBudgetInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "crop",
+          "revenue_per_acre",
+          "production_cost_per_acre"
+        ],
+        "properties": {
+          "crop": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*(\\+[a-z][a-z0-9_]*)?$",
+            "description": "ML crop slug, e.g. sorghum, oats, barley, alfalfa or fallow. For a specific double-crop budget, join both main slugs in growing order, e.g. winter_wheat+soybean."
+          },
+          "revenue_per_acre": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "low",
+              "base",
+              "high"
+            ],
+            "description": "Farmer's gross USD/acre revenue scenarios, in increasing order. Each must be nonnegative.",
+            "properties": {
+              "low": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "base": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "high": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100000
+              }
+            }
+          },
+          "production_cost_per_acre": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "All non-land production costs; excludes cover crops. Replaces the crop baseline; no additional nitrogen credit is subtracted from this farmer total."
+          }
+        }
+      },
+      "RotationBudgetOptions": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "land_rent_per_acre": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 5000,
+            "description": "Annual USD/acre land cost, counted once per year. Zero means no land charge."
+          },
+          "cover_cost_per_acre": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 2000,
+            "description": "USD/acre for each cover planting, including seed, sowing and termination. Required for a complete budget when cover crops occur. Missing is unknown, never zero; program implementation schedules and survey direct costs are not silently used as all-in farm costs."
+          },
+          "crop_overrides": {
+            "type": "array",
+            "maxItems": 16,
+            "uniqueItems": true,
+            "description": "One entry per unique ML crop slug. Supplies missing crop budgets or replaces defaults.",
+            "items": {
+              "$ref": "#/components/schemas/CropBudgetInput"
+            }
+          }
+        }
+      },
+      "BudgetScenario": {
+        "type": "object",
+        "required": [
+          "revenue_per_acre",
+          "cost_per_acre",
+          "profit_per_acre",
+          "field_profit"
+        ],
+        "properties": {
+          "revenue_per_acre": {
+            "type": "number"
+          },
+          "cost_per_acre": {
+            "type": "number"
+          },
+          "profit_per_acre": {
+            "type": "number",
+            "description": "Negative means a loss."
+          },
+          "field_profit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Profit multiplied by the field's estimated acres; null when area is unknown."
+          },
+          "return_before_land_per_acre": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Revenue minus production and cover costs, before land cost. Not cash flow; published production budgets include labor, depreciation and ownership allowances."
+          }
+        }
+      },
+      "BudgetScenarios": {
+        "type": "object",
+        "required": [
+          "low",
+          "base",
+          "high"
+        ],
+        "properties": {
+          "low": {
+            "$ref": "#/components/schemas/BudgetScenario"
+          },
+          "base": {
+            "$ref": "#/components/schemas/BudgetScenario"
+          },
+          "high": {
+            "$ref": "#/components/schemas/BudgetScenario"
+          }
+        }
+      },
+      "BudgetYear": {
+        "type": "object",
+        "required": [
+          "year",
+          "main_crops",
+          "cover_crops",
+          "production_cost_per_acre",
+          "land_rent_per_acre",
+          "cover_cost_per_acre",
+          "nitrogen_credit_per_acre",
+          "yield_per_acre",
+          "yield_unit",
+          "scenarios"
+        ],
+        "properties": {
+          "year": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "main_crops": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cover_crops": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "production_cost_per_acre": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "land_rent_per_acre": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "cover_cost_per_acre": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "nitrogen_credit_per_acre": {
+            "type": "number"
+          },
+          "yield_per_acre": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Yield matched to the extension cost profile, not an ML prediction; null for a farmer-supplied gross revenue budget."
+          },
+          "yield_unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Published enterprise budget and reference yield used for this year."
+          },
+          "break_even_price_per_unit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Total modeled cost, including land and cover costs, divided by reference yield."
+          },
+          "scenarios": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BudgetScenarios"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RotationBudget": {
+        "type": "object",
+        "required": [
+          "status",
+          "currency",
+          "horizon_years",
+          "area_acres",
+          "years",
+          "annual_average",
+          "horizon_total",
+          "delta_vs_current_per_acre",
+          "is_illustrative",
+          "uses_placeholders",
+          "baseline_version",
+          "assumptions",
+          "missing_inputs",
+          "sources"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "estimated",
+              "partial",
+              "unavailable"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD"
+            ]
+          },
+          "horizon_years": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "area_acres": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "years": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetYear"
+            }
+          },
+          "annual_average": {
+            "description": "Average annual USD/acre figures, including one land charge per year. Null unless all years are budgeted.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BudgetScenarios"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "horizon_total": {
+            "description": "Undiscounted USD/acre totals over the full horizon. No inflation or price forecast.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BudgetScenarios"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delta_vs_current_per_acre": {
+            "description": "Difference in average annual profit against the current rotation under matching low/base/high scenarios. Null unless both budgets cover every year over the same horizon. These are paired scenarios, not confidence interval bounds; the differences need not be increasing.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BudgetAmounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_illustrative": {
+            "type": "boolean",
+            "const": true
+          },
+          "uses_placeholders": {
+            "type": "boolean"
+          },
+          "baseline_version": {
+            "type": "string"
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Missing crop/rent/double-crop budgets. Missing amounts are never treated as zero."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetRef"
+            }
           }
         }
       },
@@ -3059,7 +3432,7 @@
               "null"
             ],
             "maxLength": 100,
-            "description": "Last season's crop (e.g. newest `crop_history` entry). \"Soybeans\" before Corn lowers the corn fertilizer cost (nitrogen credit). Other values are ignored."
+            "description": "Last season's crop (e.g. newest `crop_history` entry). \"Soybeans\" before Corn selects the published corn-after-soybeans cost/yield profile. Illinois soybeans after soybeans select their own profile. Published rotation effects receive no extra nitrogen discount."
           },
           "cost_overrides": {
             "type": "object",
@@ -3152,7 +3525,8 @@
             "enum": [
               "baseline",
               "farmer",
-              "baseline_with_nitrogen_credit"
+              "baseline_with_nitrogen_credit",
+              "baseline_rotation"
             ]
           }
         }
@@ -3188,8 +3562,16 @@
             "type": "string",
             "enum": [
               "model",
-              "baseline_default"
+              "baseline_default",
+              "budget_reference"
             ]
+          },
+          "cost_profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Published production-cost profile. Its own reference yield is used by default; with a farmer total cost, the independent state-average yield remains the fallback."
           },
           "costs": {
             "type": "array",

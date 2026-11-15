@@ -190,6 +190,22 @@ def test_priorities_matter():
     assert [s["scores"]["overall"] for s in a["strategies"]] != [s["scores"]["overall"] for s in b["strategies"]]
 
 
+@pytest.mark.parametrize("horizon", [1, 2, 4, 5])
+def test_backend_planning_horizon_is_evaluated(horizon):
+    r = post(body(**{"options.horizon_years": horizon}))
+    assert r.status_code == 200, r.text
+    for strategy in r.json()["strategies"]:
+        assert {s["year"] for s in strategy["sequence"]} == set(range(1, horizon + 1))
+    # The next request must keep the default; per-request options cannot mutate cached settings.
+    default = post(body()).json()
+    assert max(s["year"] for s in default["strategies"][0]["sequence"]) == 3
+
+
+@pytest.mark.parametrize("horizon", [0, 6])
+def test_invalid_backend_planning_horizon_is_rejected(horizon):
+    assert_error(post(body(**{"options.horizon_years": horizon})), 422, "INVALID_INPUT")
+
+
 def test_farmer_input():
     j = post(body(**{"farmer_input": {"current_rotation": ["corn", "corn", "soybean"], "excluded_crops": ["sorghum", "alfalfa"],
                                       "irrigated": True, "has_livestock": False}})).json()

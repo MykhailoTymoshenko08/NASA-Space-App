@@ -37,11 +37,19 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
     notes: list[str] = []
     crop, state = req.crop.value, req.state.value
     used = {("prices", crop, state)}  # baseline tables this estimate reads, for the placeholder flag
+    entry = t.cost_entry(req.crop, req.state, req.previous_crop)
+    has_rotation_profile = entry is not t.DATA["costs"][crop][state]
+    overrides = req.cost_overrides
 
     # Yield
     if req.predicted_yield is not None:
         yld, yield_source = round(req.predicted_yield, 1), "model"
         notes.append(f"Yield = {_num(yld)} {unit}/acre, from the yield model.")
+    elif entry.get("reference_yield_per_acre") is not None and overrides.total_cost_per_acre is None:
+        yld, yield_source = float(entry["reference_yield_per_acre"]), "budget_reference"
+        notes.append(f"Yield = {_num(yld)} {unit}/acre, matched to the published production-cost "
+                     f"profile: {entry['source']['table']}. "
+                     "This is a reference enterprise, not a field forecast.")
     else:
         yld, yield_source = float(t.DEFAULT_YIELD[key]), "baseline_default"
         used.add(("default_yield", crop, state))
@@ -51,7 +59,6 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
         )
 
     # Costs
-    overrides = req.cost_overrides
     costs: list[ProfitCostItem] = []
     if overrides.total_cost_per_acre is not None:
         costs.append(ProfitCostItem(
@@ -64,10 +71,15 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
     else:
         used.add(("costs", crop, state))
         credit = 0.0
-        if req.crop == ProfitCrop.corn and (req.previous_crop or "").strip().lower() == "soybeans":
+        if (not has_rotation_profile and req.crop == ProfitCrop.corn
+                and (req.previous_crop or "").strip().lower() in {"soybean", "soybeans"}):
             credit = t.NITROGEN_CREDIT_LB_PER_ACRE * t.NITROGEN_PRICE_PER_LB
-        for name, amount in t.COSTS[key].items():
-            source = "baseline"
+        if has_rotation_profile:
+            notes.append("Published after-soybean budget already includes rotation effects; "
+                         "no extra nitrogen credit is subtracted.")
+        for name in t.COST_KEYS:
+            amount = entry[name]
+            source = "baseline_rotation" if has_rotation_profile else "baseline"
             if name == "fertilizer" and credit:
                 amount = max(0.0, amount - credit)
                 source = "baseline_with_nitrogen_credit"
@@ -94,6 +106,9 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
         notes.append(f"Land rent = {_money(rent)}/acre, {rent_note}.")
         notes.append(f"Costs = {breakdown} = {_money(sum(c.amount_per_acre for c in costs))}/acre.")
     total_cost = round(sum(c.amount_per_acre for c in costs), 2)
+    notes.append("Costs include the published machinery ownership/depreciation, labor and overhead "
+                 "allowances, not only cash paid this season. "
+                 "Government and insurance payments are excluded.")
 
     # Scenarios: only the price changes.
     def scenario(price: float) -> ProfitScenario:
@@ -125,4 +140,5 @@ def estimate_profit(req: ProfitEstimateRequest, tables: ModuleType = default_tab
         crop=req.crop, state=req.state, yield_per_acre=yld, yield_unit=unit, yield_source=yield_source,
         costs=costs, scenarios=ProfitScenarios(low=low, base=base, high=high), assumptions=notes,
         baseline=ProfitBaselineInfo(version=t.BASELINE_VERSION, is_placeholder=bool(placeholders)),
+        cost_profile=entry.get("source", {}).get("table") if overrides.total_cost_per_acre is None else None,
     )

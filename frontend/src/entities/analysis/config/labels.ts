@@ -27,7 +27,7 @@ export const CRITERION_LABEL: Record<Criterion, string> = {
   erosion: "Erosion",
   nitrogen: "Nitrogen",
   pest_cycle: "Pest cycle",
-  income: "Income",
+  income: "Income index",
   climate_risk: "Climate risk",
 };
 

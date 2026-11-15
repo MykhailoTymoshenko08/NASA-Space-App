@@ -1,5 +1,5 @@
 {
-  "version": "usda-extension-2026-11-14",
+  "version": "usda-extension-2026-11-15-audited",
   "generated": "2026-11-14",
   "generated_by": "backend/scripts/build_profit_baseline.py",
   "units": {
@@ -13,7 +13,7 @@
   "method": {
     "price": "base = mean NASS marketing-year average price received over the last 3 years; low / high = 10th / 90th percentile (linear) over the last 10 years.",
     "yield": "mean NASS state yield per harvested acre over the last 5 years.",
-    "costs": "2026 state extension budgets; corn uses corn-after-corn so the API's soybean nitrogen credit is not counted twice. other_operating = all non-land lines except seed, fertilizer and chemicals (machinery, fuel, repairs, drying, insurance, labor, interest, overhead)."
+    "costs": "2026 extension enterprise budgets paired with their published reference yields. After-soybean profiles already include rotation effects; no additional nitrogen credit. Full non-land costs include ownership, depreciation, labor and overhead."
   },
   "prices": {
     "Corn": {
@@ -482,11 +482,54 @@
         "source": {
           "publisher": "Iowa State University Extension and Outreach (Ag Decision Maker)",
           "document": "Estimated Costs of Crop Production in Iowa - 2026, FM 1712 / File A1-20, revised January 2026",
-          "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20.pdf",
+          "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20_2026.pdf",
           "year": 2026,
           "table": "p. 2, Corn Following Corn, middle column (193 bu/acre)",
-          "retrieved": "2026-11-14",
+          "retrieved": "2026-11-15",
           "note": "Non-land costs; land is a separate line."
+        },
+        "reference_yield_per_acre": 193,
+        "after_soybeans": {
+          "seed": 113.7,
+          "fertilizer": 169.44,
+          "chemicals": 56.0,
+          "other_operating": 298.84,
+          "unit": "USD/acre",
+          "data_years": "2026",
+          "line_items": {
+            "seed": {
+              "Seed": 113.7
+            },
+            "fertilizer": {
+              "Nitrogen": 84.27,
+              "Phosphate": 56.88,
+              "Potash": 24.57,
+              "Lime": 3.72
+            },
+            "chemicals": {
+              "Herbicide": 56.0
+            },
+            "other": {
+              "Preharvest machinery fixed": 34.8,
+              "Preharvest machinery variable": 24.6,
+              "Crop insurance": 17.1,
+              "Miscellaneous": 13.7,
+              "Interest": 19.65,
+              "Harvest machinery fixed": 67.56,
+              "Harvest machinery variable": 69.41,
+              "Labor": 52.02
+            }
+          },
+          "reference_yield_per_acre": 211,
+          "source": {
+            "publisher": "Iowa State University Extension and Outreach (Ag Decision Maker)",
+            "document": "Estimated Costs of Crop Production in Iowa - 2026, FM 1712 / File A1-20, revised January 2026",
+            "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20_2026.pdf",
+            "year": 2026,
+            "table": "p. 3, Corn Following Soybeans, middle column (211 bu/acre)",
+            "retrieved": "2026-11-15",
+            "note": "Non-land rotation budget; includes rotation effects. Do not subtract another nitrogen credit."
+          }
         }
       },
       "IL": {
@@ -520,8 +563,45 @@
           "url": "https://farmdoc.illinois.edu/assets/management/crop-budgets/crop_budgets_2026_May.pdf",
           "year": 2026,
           "table": "Table 2, Corn-after-Corn (231 bu/acre)",
-          "retrieved": "2026-11-14",
+          "retrieved": "2026-11-15",
           "note": "Non-land costs; land is a separate line."
+        },
+        "reference_yield_per_acre": 231,
+        "after_soybeans": {
+          "seed": 129,
+          "fertilizer": 229,
+          "chemicals": 116,
+          "other_operating": 359,
+          "unit": "USD/acre",
+          "data_years": "2026",
+          "line_items": {
+            "seed": {
+              "Seed": 129
+            },
+            "fertilizer": {
+              "Fertilizers": 229
+            },
+            "chemicals": {
+              "Pesticides": 116
+            },
+            "other": {
+              "Drying": 15,
+              "Storage": 14,
+              "Crop insurance": 31,
+              "Total power costs": 181,
+              "Total overhead costs": 118
+            }
+          },
+          "reference_yield_per_acre": 241,
+          "source": {
+            "publisher": "University of Illinois, farmdoc (Schnitkey and Paulson)",
+            "document": "2026 Crop Budgets, revised May 2026, Table 2: Central Illinois - High Productivity Farmland",
+            "url": "https://farmdoc.illinois.edu/assets/management/crop-budgets/crop_budgets_2026_May.pdf",
+            "year": 2026,
+            "table": "Table 2, Corn-after-Soybeans (241 bu/acre)",
+            "retrieved": "2026-11-15",
+            "note": "Non-land rotation budget; includes rotation effects. Do not subtract another nitrogen credit."
+          }
         }
       },
       "NE": {
@@ -559,8 +639,49 @@
           "url": "https://cap.unl.edu/sites/unl.edu.ianr.agecon.center-for-ag-profitability/files/media/file/2026-nebraska-crop-budgets-r_0.pdf",
           "year": 2026,
           "table": "p. 75, #020 Corn, Dryland, No Till, Continuous, Eastern Neb. (180 bu/acre)",
-          "retrieved": "2026-11-14",
+          "retrieved": "2026-11-15",
           "note": "Non-land costs; land is a separate line."
+        },
+        "reference_yield_per_acre": 180,
+        "after_soybeans": {
+          "seed": 105.01,
+          "fertilizer": 116.5,
+          "chemicals": 97.1,
+          "other_operating": 197.64,
+          "unit": "USD/acre",
+          "data_years": "2026",
+          "line_items": {
+            "seed": {
+              "Seed": 105.01
+            },
+            "fertilizer": {
+              "Fertilizer": 116.5
+            },
+            "chemicals": {
+              "Pesticide": 97.1
+            },
+            "other": {
+              "Custom services": 33.25,
+              "Labor": 10.44,
+              "Fuel and energy": 8.69,
+              "Repairs and maintenance": 13.89,
+              "Other (insurance, scouting, drying)": 18.9,
+              "Interest on operating capital": 16.15,
+              "General overhead": 28.0,
+              "Equipment depreciation": 52.94,
+              "Equipment opportunity cost": 15.38
+            }
+          },
+          "reference_yield_per_acre": 195,
+          "source": {
+            "publisher": "University of Nebraska-Lincoln, Center for Agricultural Profitability",
+            "document": "2026 Nebraska Crop Budgets",
+            "url": "https://cap.unl.edu/sites/unl.edu.ianr.agecon.center-for-ag-profitability/files/media/file/2026-nebraska-crop-budgets-r_0.pdf",
+            "year": 2026,
+            "table": "p. 87, #024 Corn, Dryland, No Till after Soybeans (195 bu/acre)",
+            "retrieved": "2026-11-15",
+            "note": "Non-land rotation budget; includes rotation effects. Do not subtract another nitrogen credit."
+          }
         }
       }
     },
@@ -598,12 +719,13 @@
         "source": {
           "publisher": "Iowa State University Extension and Outreach (Ag Decision Maker)",
           "document": "Estimated Costs of Crop Production in Iowa - 2026, FM 1712 / File A1-20, revised January 2026",
-          "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20.pdf",
+          "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20_2026.pdf",
           "year": 2026,
           "table": "p. 5, Herbicide Tolerant Soybeans Following Corn, middle column (61 bu)",
-          "retrieved": "2026-11-14",
+          "retrieved": "2026-11-15",
           "note": "Non-land costs; land is a separate line."
-        }
+        },
+        "reference_yield_per_acre": 61
       },
       "IL": {
         "seed": 83,
@@ -636,8 +758,45 @@
           "url": "https://farmdoc.illinois.edu/assets/management/crop-budgets/crop_budgets_2026_May.pdf",
           "year": 2026,
           "table": "Table 2, Soybeans-after-Corn (76 bu/acre)",
-          "retrieved": "2026-11-14",
+          "retrieved": "2026-11-15",
           "note": "Non-land costs; land is a separate line."
+        },
+        "reference_yield_per_acre": 76,
+        "after_soybeans": {
+          "seed": 83,
+          "fertilizer": 66,
+          "chemicals": 75,
+          "other_operating": 292,
+          "unit": "USD/acre",
+          "data_years": "2026",
+          "line_items": {
+            "seed": {
+              "Seed": 83
+            },
+            "fertilizer": {
+              "Fertilizers": 66
+            },
+            "chemicals": {
+              "Pesticides": 75
+            },
+            "other": {
+              "Drying": 0,
+              "Storage": 8,
+              "Crop insurance": 11,
+              "Total power costs": 160,
+              "Total overhead costs": 113
+            }
+          },
+          "reference_yield_per_acre": 74,
+          "source": {
+            "publisher": "University of Illinois, farmdoc (Schnitkey and Paulson)",
+            "document": "2026 Crop Budgets, revised May 2026, Table 2: Central Illinois - High Productivity Farmland",
+            "url": "https://farmdoc.illinois.edu/assets/management/crop-budgets/crop_budgets_2026_May.pdf",
+            "year": 2026,
+            "table": "Table 2, Soybeans-after-Soybeans (74 bu/acre)",
+            "retrieved": "2026-11-15",
+            "note": "Non-land rotation budget; includes rotation effects. Do not subtract another nitrogen credit."
+          }
         }
       },
       "NE": {
@@ -675,9 +834,10 @@
           "url": "https://cap.unl.edu/sites/unl.edu.ianr.agecon.center-for-ag-profitability/files/media/file/2026-nebraska-crop-budgets-r_0.pdf",
           "year": 2026,
           "table": "p. 199, #060 Soybeans, Dryland, No Till after Corn (50 bu/acre)",
-          "retrieved": "2026-11-14",
+          "retrieved": "2026-11-15",
           "note": "Non-land costs; land is a separate line."
-        }
+        },
+        "reference_yield_per_acre": 50
       }
     },
     "Winter Wheat": {
@@ -721,9 +881,10 @@
           "url": "https://farmdoc.illinois.edu/assets/management/crop-budgets/crop_budgets_2026_May.pdf",
           "year": 2026,
           "table": "Table 2, Wheat (89 bu/acre)",
-          "retrieved": "2026-11-14",
+          "retrieved": "2026-11-15",
           "note": "Non-land costs; land is a separate line."
-        }
+        },
+        "reference_yield_per_acre": 89
       },
       "NE": {
         "seed": 36.9,
@@ -760,9 +921,10 @@
           "url": "https://cap.unl.edu/sites/unl.edu.ianr.agecon.center-for-ag-profitability/files/media/file/2026-nebraska-crop-budgets-r_0.pdf",
           "year": 2026,
           "table": "p. 249, #075 Wheat, No Till, Southwest, after Row Crop (55 bu/acre)",
-          "retrieved": "2026-11-14",
+          "retrieved": "2026-11-15",
           "note": "Non-land costs; land is a separate line."
-        }
+        },
+        "reference_yield_per_acre": 55
       }
     }
   },

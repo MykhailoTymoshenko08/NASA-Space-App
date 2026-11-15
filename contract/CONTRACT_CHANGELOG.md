@@ -3,6 +3,49 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.11.0 (2026-11-15): profitability input audit
+
+- Default reference yields now match the production-cost enterprise budget, avoiding the combination
+  of high-productivity Illinois costs with lower statewide yields and dryland Nebraska costs with
+  mixed irrigated/dryland state yields. Independent NASS yields remain the fallback with farmer total costs.
+- Published corn-after-soybeans cost/yield profiles replace the universal corn-after-corn minus one
+  nitrogen credit shortcut. Illinois soybean-after-soybean budgets are also distinguished. Rotation
+  profiles include their existing effects, without a second nitrogen discount.
+- `ProfitEstimate.yield_source` adds `budget_reference`; cost lines add `baseline_rotation`.
+  `cost_profile` documents the selected enterprise. Existing farmer/model yield and cost overrides remain.
+- The $99.85 program-schedule cover cost is no longer applied automatically. Local incremental cover
+  costs are required; unknown costs yield an incomplete budget. A separately labeled farm-survey
+  direct-cost benchmark is informational and is never substituted as an all-in production cost.
+- Budgets show return before land and per-crop break-even prices. The UI distinguishes full modeled
+  production returns from cash flow, and historical price sensitivity from forecasts. Losses remain losses.
+
+## 0.10.0 (2026-11-15): rough budgets for ML rotations
+
+- `AnalysisRequest.options.budget` accepts annual land rent, cost per cover planting, and per-crop
+  revenue/cost overrides. Changed assumptions participate in normal analysis job deduplication.
+- ML strategies gain an optional `budget`: year-by-year costs and low/base/high revenues, average
+  annual profit, undiscounted horizon totals, estimated field totals and paired differences from current.
+- ML selects crops; backend state baselines supply cash figures. ML income scores never become dollar
+  multipliers or yield predictions. Budgeting does not change agronomic strategy scores or ranking.
+- Land is charged once per year; cover sowing and termination cost extra with no harvested revenue.
+  State baseline corn after soybeans receives the existing nitrogen credit, using actual prior history
+  in year one. Farmer production totals are not discounted again.
+- Missing crop, rent or double-crop budgets produce explicit gaps and null full-horizon aggregates.
+  Estimates are always illustrative; placeholders and out-of-state reference costs are flagged.
+
+## 0.9.0 (2026-11-15): real ML analysis integration
+
+- Existing asynchronous `/analyses` jobs now use the ML service by default. Field IDs, crop history
+  and farmer priorities are translated at the backend boundary; frontend request shapes stay unchanged.
+- `AnalysisResult.ml_analysis` optionally contains the original ML response, including crop suitability,
+  monthly vulnerability, summary, quantitative metrics, confidence and source references.
+- Strategies remain sorted by score and include exactly one current rotation. The minimum count is
+  relaxed from three to one: agronomic constraints can leave fewer valid alternatives. No strategies
+  or unsupported criterion scores are invented to fill the result.
+- `horizon_years` is forwarded to the ML planner. Income remains a relative index, not a profit estimate.
+- Failed jobs preserve meaningful validation, coverage and upstream-data error codes; transient failures
+  include retry guidance. A partial ML result remains a successful job with its warnings.
+
 ## 0.8.0 (2026-11-14): survey townships and sections
 
 Additive.

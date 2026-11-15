@@ -1,6 +1,10 @@
 # API contract: ML service ↔ Backend ↔ Frontend (v1)
 
-Frontend → Backend → ML service. Frontend never calls ML directly. Backend proxies analysis and returns the ML JSON unchanged (may add `cached: true`).
+Frontend → Backend → ML service. Frontend never calls ML directly. The backend keeps its asynchronous
+`/v1/analyses` job contract and adapts strategies for the existing frontend. The complete ML JSON is
+returned unchanged under `result.ml_analysis`; partial data, numeric confidence and added fields survive.
+The backend also attaches an illustrative `budget` to each adapted strategy using its crop sequence,
+state baseline economics and optional farmer costs. It never converts `scores.income` to dollars.
 ML service is stateless: field + priorities in, analysis out. No users, sessions or field db in ML.
 
 ## conventions
@@ -68,6 +72,9 @@ rules:
 - `scenario.temp_delta_c` in -2..+4, `scenario.precip_change_pct` in -40..+20, default 0/0
 - `farmer_input` all nullable; `null` = "detect yourself"; `current_rotation` overrides detection
 - `n_strategies` = alternatives, not counting the current one (current is always returned)
+- `options.horizon_years` = real rotation planning horizon, integer 1..5, default 3. The backend forwards
+  its existing `horizon_years` option. Each returned sequence covers these years; scores evaluate that
+  horizon. The development mock retains its illustrative rotation cycles.
 
 ### response 200
 ```json

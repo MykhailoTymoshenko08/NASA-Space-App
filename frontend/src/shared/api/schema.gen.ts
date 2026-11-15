@@ -343,12 +343,14 @@ export interface paths {
          * Rough profit per acre for one crop (low / base / high)
          * @description Profit per acre = yield x price - costs, for a low, base and high price. Synchronous and
          *     deterministic: static baseline tables, no price forecast, no external calls.
-         *     Yield is `predicted_yield` when given (from the ML yield model), else a per-crop, per-state
-         *     default. Costs are the baseline for the crop and state; `land_rent_per_acre` replaces the
-         *     baseline rent and `total_cost_per_acre` replaces all costs. Corn after soybeans gets a nitrogen
-         *     credit on fertilizer. `assumptions` explains each number in plain English for the UI.
+         *     Yield is `predicted_yield` when supplied by a separate yield model, else a per-crop, per-state
+         *     default matched to the selected extension production-cost profile. Costs are the baseline for
+         *     the crop and state; `land_rent_per_acre` replaces the
+         *     baseline rent and `total_cost_per_acre` replaces all costs. Published after-soybean budgets
+         *     already include rotation effects; no additional fertilizer credit is subtracted.
+         *     `assumptions` explains each number in plain English for the UI.
          *     Baseline prices are per crop and state (NASS marketing-year averages: base = last 3 years,
-         *     low / high = 10th / 90th percentile of the last 10); yields are NASS 5-year state means; costs come
+         *     low / high = 10th / 90th percentile of the last 10); reference yields and costs come
          *     from 2026 extension budgets. `baseline.is_placeholder` is true when any baseline number this
          *     estimate used is still a placeholder (for example Iowa winter wheat, or land rent).
          */
@@ -1051,8 +1053,12 @@ export interface components {
                     year: number;
                     crop: string;
                 }[];
-                /** @default 3 */
+                /**
+                 * @description Number of future years evaluated by the rotation planner.
+                 * @default 3
+                 */
                 horizon_years: number;
+                budget?: components["schemas"]["RotationBudgetOptions"];
             };
         };
         /** @enum {string} */
@@ -1088,13 +1094,17 @@ export interface components {
             current_conditions: components["schemas"]["Metric"][];
             /** @description Optional history for charts (e.g. soil moisture, precipitation). */
             time_series?: components["schemas"]["TimeSeries"][];
-            /** @description At least 3 rotation strategies, one of which has `is_current = true`. Sorted by `score` descending. */
+            /** @description Current rotation and available alternatives, with exactly one `is_current = true`. Sorted by `score` descending. Fewer alternatives may be returned when agronomic constraints rule out other crops; warnings explain missing alternatives. */
             strategies: components["schemas"]["Strategy"][];
             datasets_used: components["schemas"]["DatasetRef"][];
             /** @description User-visible caveats (coarse data, missing history...). */
             warnings?: string[];
             /** @description Shown verbatim on the results page. The tool supports, not replaces, local expertise. */
             disclaimer: string;
+            /** @description Original ML /ml/v1/analyze response, preserved without rewriting its fields. Includes detected_rotation, summary, vulnerability_timeline, strategies, sources, warnings, and (in real mode) crop_suitability, score_notes and feature_source. Present for ML jobs; omitted for the explicit development stub. Income scores are relative indices, not money. */
+            ml_analysis?: {
+                [key: string]: unknown;
+            };
         };
         TimeSeries: {
             /** @example soil_moisture_surface */
@@ -1157,6 +1167,87 @@ export interface components {
             information_gaps: string[];
             /** @description True when local agronomist or extension review is specifically advised. */
             needs_local_review: boolean;
+            budget?: components["schemas"]["RotationBudget"];
+        };
+        BudgetAmounts: {
+            low: number;
+            base: number;
+            high: number;
+        };
+        CropBudgetInput: {
+            /** @description ML crop slug, e.g. sorghum, oats, barley, alfalfa or fallow. For a specific double-crop budget, join both main slugs in growing order, e.g. winter_wheat+soybean. */
+            crop: string;
+            /** @description Farmer's gross USD/acre revenue scenarios, in increasing order. Each must be nonnegative. */
+            revenue_per_acre: {
+                low: number;
+                base: number;
+                high: number;
+            };
+            /** @description All non-land production costs; excludes cover crops. Replaces the crop baseline; no additional nitrogen credit is subtracted from this farmer total. */
+            production_cost_per_acre: number;
+        };
+        RotationBudgetOptions: {
+            /** @description Annual USD/acre land cost, counted once per year. Zero means no land charge. */
+            land_rent_per_acre?: number | null;
+            /** @description USD/acre for each cover planting, including seed, sowing and termination. Required for a complete budget when cover crops occur. Missing is unknown, never zero; program implementation schedules and survey direct costs are not silently used as all-in farm costs. */
+            cover_cost_per_acre?: number | null;
+            /** @description One entry per unique ML crop slug. Supplies missing crop budgets or replaces defaults. */
+            crop_overrides?: components["schemas"]["CropBudgetInput"][];
+        };
+        BudgetScenario: {
+            revenue_per_acre: number;
+            cost_per_acre: number;
+            /** @description Negative means a loss. */
+            profit_per_acre: number;
+            /** @description Profit multiplied by the field's estimated acres; null when area is unknown. */
+            field_profit: number | null;
+            /** @description Revenue minus production and cover costs, before land cost. Not cash flow; published production budgets include labor, depreciation and ownership allowances. */
+            return_before_land_per_acre?: number | null;
+        };
+        BudgetScenarios: {
+            low: components["schemas"]["BudgetScenario"];
+            base: components["schemas"]["BudgetScenario"];
+            high: components["schemas"]["BudgetScenario"];
+        };
+        BudgetYear: {
+            year: number;
+            main_crops: string[];
+            cover_crops: string[];
+            production_cost_per_acre: number | null;
+            land_rent_per_acre: number | null;
+            cover_cost_per_acre: number | null;
+            nitrogen_credit_per_acre: number;
+            /** @description Yield matched to the extension cost profile, not an ML prediction; null for a farmer-supplied gross revenue budget. */
+            yield_per_acre: number | null;
+            yield_unit: string | null;
+            /** @description Published enterprise budget and reference yield used for this year. */
+            cost_profile?: string | null;
+            /** @description Total modeled cost, including land and cover costs, divided by reference yield. */
+            break_even_price_per_unit?: number | null;
+            scenarios: components["schemas"]["BudgetScenarios"] | null;
+        };
+        RotationBudget: {
+            /** @enum {string} */
+            status: "estimated" | "partial" | "unavailable";
+            /** @enum {string} */
+            currency: "USD";
+            horizon_years: number;
+            area_acres: number | null;
+            years: components["schemas"]["BudgetYear"][];
+            /** @description Average annual USD/acre figures, including one land charge per year. Null unless all years are budgeted. */
+            annual_average: components["schemas"]["BudgetScenarios"] | null;
+            /** @description Undiscounted USD/acre totals over the full horizon. No inflation or price forecast. */
+            horizon_total: components["schemas"]["BudgetScenarios"] | null;
+            /** @description Difference in average annual profit against the current rotation under matching low/base/high scenarios. Null unless both budgets cover every year over the same horizon. These are paired scenarios, not confidence interval bounds; the differences need not be increasing. */
+            delta_vs_current_per_acre: components["schemas"]["BudgetAmounts"] | null;
+            /** @constant */
+            is_illustrative: true;
+            uses_placeholders: boolean;
+            baseline_version: string;
+            assumptions: string[];
+            /** @description Missing crop/rent/double-crop budgets. Missing amounts are never treated as zero. */
+            missing_inputs: string[];
+            sources: components["schemas"]["DatasetRef"][];
         };
         /**
          * @description Crops with baseline data. Names match the CDL class names in `crop_class` / `crop_history`.
@@ -1184,7 +1275,7 @@ export interface components {
             state: components["schemas"]["ProfitState"];
             /** @description Yield per acre from the ML model, in the crop's unit (`bu`). Null or missing uses the baseline default yield. */
             predicted_yield?: number | null;
-            /** @description Last season's crop (e.g. newest `crop_history` entry). "Soybeans" before Corn lowers the corn fertilizer cost (nitrogen credit). Other values are ignored. */
+            /** @description Last season's crop (e.g. newest `crop_history` entry). "Soybeans" before Corn selects the published corn-after-soybeans cost/yield profile. Illinois soybeans after soybeans select their own profile. Published rotation effects receive no extra nitrogen discount. */
             previous_crop?: string | null;
             cost_overrides?: {
                 /** @description Replaces the baseline land rent ($/acre). Use 0 for owned land. */
@@ -1207,7 +1298,7 @@ export interface components {
             label: string;
             amount_per_acre: number;
             /** @enum {string} */
-            source: "baseline" | "farmer" | "baseline_with_nitrogen_credit";
+            source: "baseline" | "farmer" | "baseline_with_nitrogen_credit" | "baseline_rotation";
         };
         ProfitEstimate: {
             crop: components["schemas"]["ProfitCrop"];
@@ -1216,7 +1307,9 @@ export interface components {
             /** @example bu */
             yield_unit: string;
             /** @enum {string} */
-            yield_source: "model" | "baseline_default";
+            yield_source: "model" | "baseline_default" | "budget_reference";
+            /** @description Published production-cost profile. Its own reference yield is used by default; with a farmer total cost, the independent state-average yield remains the fallback. */
+            cost_profile?: string | null;
             /** @description Cost lines that add up to `scenarios.*.cost_per_acre`. One `total` line when the farmer gave `total_cost_per_acre`. */
             costs: components["schemas"]["ProfitCostItem"][];
             /** @description Same yield and costs; only the price differs. */

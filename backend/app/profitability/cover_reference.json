@@ -1,0 +1,21 @@
+{
+  "version": "2026-11-15-audited",
+  "value": 42,
+  "unit": "USD/acre",
+  "informational_only": true,
+  "cost_basis": "Median observed direct expenses, not all-in incremental farm costs",
+  "data_year": 2025,
+  "survey_states": [
+    "MN",
+    "WI",
+    "SD"
+  ],
+  "source": {
+    "publisher": "University of Minnesota, Center for Farm Financial Management",
+    "document": "The Economics of Cover Crops on Upper Midwest Farms, 2025 Data Report",
+    "url": "https://finpack.umn.edu/news/new-cover-crops-report-and-climate-smart-ag-resources-2/",
+    "year": 2026,
+    "retrieved": "2026-11-15"
+  },
+  "note": "Informational survey benchmark only. Never automatically substituted for farm cover cost; operator labor and ownership costs can differ. Enter incremental seed, seeding and termination costs; count only costs beyond the normal cash-crop program."
+}

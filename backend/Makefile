@@ -1,4 +1,4 @@
-.PHONY: install dev test contract-check contract-json lint db up data data-boundaries data-plss data-csb data-tiles demo docker
+.PHONY: install dev test contract-check contract-json lint db ml up data data-boundaries data-plss data-csb data-tiles demo docker
 
 UV ?= uv
 HOST ?= 127.0.0.1
@@ -30,6 +30,10 @@ lint:
 # PostGIS (docker-compose.yml), waits until it accepts connections.
 db:
 	$(COMPOSE) up -d --wait db
+
+# Real ML for the local API (`make dev`), with committed model and precomputed demo fields.
+ml:
+	$(COMPOSE) up -d --build --wait ml
 
 # FORCE=1 rebuilds outputs that already exist.
 FORCE_FLAG = $(if $(FORCE),--force,)

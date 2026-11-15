@@ -10,15 +10,16 @@ def req(**kw) -> ProfitEstimateRequest:
     return ProfitEstimateRequest.model_validate({"crop": "Corn", "state": "IA", **kw})
 
 
-def test_model_yield_with_rent_override_and_nitrogen_credit():
+def test_model_yield_with_rent_override_and_published_rotation_costs():
     est = estimate_profit(req(
         predicted_yield=205, previous_crop="Soybeans", cost_overrides={"land_rent_per_acre": 250},
     ))
     assert est.yield_source == "model" and est.yield_per_acre == 205
     by_key = {c.key: c for c in est.costs}
-    credit = baseline.NITROGEN_CREDIT_LB_PER_ACRE * baseline.NITROGEN_PRICE_PER_LB
-    assert by_key["fertilizer"].amount_per_acre == baseline.COSTS[("Corn", "IA")]["fertilizer"] - credit
-    assert by_key["fertilizer"].source == "baseline_with_nitrogen_credit"
+    assert by_key["fertilizer"].amount_per_acre == 169.44
+    assert by_key["fertilizer"].source == "baseline_rotation"
+    assert not any(c.source == "baseline_with_nitrogen_credit" for c in est.costs)
+    assert "Corn Following Soybeans" in est.cost_profile
     assert by_key["land_rent"].amount_per_acre == 250 and by_key["land_rent"].source == "farmer"
 
     total = sum(c.amount_per_acre for c in est.costs)
@@ -34,20 +35,51 @@ def test_model_yield_with_rent_override_and_nitrogen_credit():
 
 def test_fallback_yield_and_baseline_costs():
     est = estimate_profit(req(crop="Soybeans", state="NE"))
-    assert est.yield_source == "baseline_default"
-    assert est.yield_per_acre == baseline.DEFAULT_YIELD[("Soybeans", "NE")]
+    assert est.yield_source == "budget_reference"
+    assert est.yield_per_acre == 50
     assert all(c.source == "baseline" for c in est.costs)
     expected = sum(baseline.COSTS[("Soybeans", "NE")].values()) + baseline.LAND_RENT["NE"]
     assert est.scenarios.base.cost_per_acre == expected
     assert est.baseline.is_placeholder is (("land_rent", "NE") in baseline.PLACEHOLDERS)
 
 
-def test_no_nitrogen_credit_for_corn_after_corn_or_for_soybeans():
+def test_published_soybeans_after_soybeans_profile_is_used_without_extra_nitrogen_credit():
     fert = baseline.COSTS[("Corn", "IL")]["fertilizer"]
     corn_on_corn = estimate_profit(req(state="IL", previous_crop="Corn"))
     assert next(c for c in corn_on_corn.costs if c.key == "fertilizer").amount_per_acre == fert
-    soy_after_soy = estimate_profit(req(crop="Soybeans", previous_crop="Soybeans"))
-    assert all(c.source == "baseline" for c in soy_after_soy.costs)
+    soy_after_soy = estimate_profit(req(crop="Soybeans", state="IL", previous_crop="Soybeans"))
+    assert soy_after_soy.yield_per_acre == 74
+    assert soy_after_soy.scenarios.base.cost_per_acre == 516 + baseline.LAND_RENT["IL"]
+    assert all(c.source != "baseline_with_nitrogen_credit" for c in soy_after_soy.costs)
+
+
+def test_iowa_rotation_uses_published_cost_and_yield_pair_without_a_second_credit():
+    est = estimate_profit(req(previous_crop="soybean", cost_overrides={"land_rent_per_acre": 274}))
+    # ISU 2026 A1-20 p. 3, middle column: 211 bu and $911.98 total including $274 land.
+    assert est.yield_per_acre == 211
+    assert est.scenarios.base.cost_per_acre == 911.98
+    assert est.yield_source == "budget_reference"
+
+
+def test_illinois_reference_reproduces_extension_crop_only_returns(monkeypatch):
+    # farmdoc May 2026 Table 2. Its reported farmer returns also include $25 ARC/PLC;
+    # our crop-only calculation excludes that payment and must not fake it as crop revenue.
+    monkeypatch.setitem(baseline.PRICES, ("Corn", "IL"), (4, 4.50, 5))
+    monkeypatch.setitem(baseline.PRICES, ("Soybeans", "IL"), (10, 11.50, 13))
+    corn = estimate_profit(req(state="IL", previous_crop="Soybeans",
+                               cost_overrides={"land_rent_per_acre": 321}))
+    soy = estimate_profit(req(crop="Soybeans", state="IL", previous_crop="Corn",
+                              cost_overrides={"land_rent_per_acre": 321}))
+    assert corn.yield_per_acre == 241 and corn.scenarios.base.cost_per_acre == 1154
+    assert corn.scenarios.base.profit_per_acre == -69.50  # A real loss must remain negative.
+    assert soy.yield_per_acre == 76 and soy.scenarios.base.cost_per_acre == 832
+    assert soy.scenarios.base.profit_per_acre == 42
+
+
+def test_farmer_total_preserves_independent_state_yield_fallback():
+    est = estimate_profit(req(state="IL", cost_overrides={"total_cost_per_acre": 700}))
+    assert est.yield_per_acre == baseline.DEFAULT_YIELD[("Corn", "IL")]
+    assert est.yield_source == "baseline_default" and est.cost_profile is None
 
 
 def test_total_cost_override_replaces_everything():

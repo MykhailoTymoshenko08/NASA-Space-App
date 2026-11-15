@@ -113,6 +113,7 @@ class FarmerInput(_Strict):
 
 class Options(_Strict):
     n_strategies: int = Field(default=3, ge=1, le=5)
+    horizon_years: int = Field(default=3, ge=1, le=5)
     language: Literal["en", "uk"] = "en"
     include_monthly_series: bool = False
 

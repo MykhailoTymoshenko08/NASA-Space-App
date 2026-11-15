@@ -1,7 +1,7 @@
 # Field Shift backend
 
 FastAPI backend for Field Shift, a NASA Space Apps crop-rotation decision-support tool for US farmers.
-It implements `../contract/openapi.yaml` (v0.7.0). The contract is the source of truth; see
+It implements `../contract/openapi.yaml` (v0.11.0). The contract is the source of truth; see
 `../contract/CONTRACT_CHANGELOG.md` for changes.
 
 ## Setup
@@ -27,9 +27,10 @@ cd backend
 cp .env.example .env      # optional, defaults work
 git lfs pull              # data/csb_ia_il_ne.pmtiles, if the clone did not fetch it
 make db                   # PostGIS on localhost:5433 (docker compose)
+make ml                   # real ML service on localhost:8001 (model and demo data are committed)
 make data-boundaries data-csb   # boundaries + CSB import into PostGIS (~15 min, 3.8 GB download once)
 make dev                  # http://localhost:8000/v1/health, docs at /v1/docs
-# or run the API in docker too: make up  (PostGIS + API, the PMTiles mounted read-only)
+# or run the API in docker too: make up  (PostGIS + ML + API, the PMTiles mounted read-only)
 ```
 
 | Command | What it does |
@@ -38,15 +39,16 @@ make dev                  # http://localhost:8000/v1/health, docs at /v1/docs
 | `make dev` | API with auto-reload on `HOST:PORT` (default `127.0.0.1:8000`) |
 | `make demo` | install, build data if missing, run the API without reload |
 | `make db` | start PostGIS (`docker-compose.yml`, host port 5433) and wait until it is ready |
+| `make ml` | build and start the real ML service on localhost:8001; works with `make dev` |
 | `make test` | full test suite: no network, no `make data` needed (synthetic fixtures in a scratch PostGIS database; needs `make db`) |
 | `make contract-check` | contract tests (real responses validated against the YAML) + `openapi.json` sync check |
 | `make contract-json` | regenerate `../contract/openapi.json` from the YAML |
-| `make up` | PostGIS + API in docker compose; `data/csb_ia_il_ne.pmtiles` is a read-only volume |
+| `make up` | PostGIS + ML + API in docker compose; `data/csb_ia_il_ne.pmtiles` is a read-only volume |
 | `make data` / `data-boundaries` / `data-csb` / `data-tiles` | build boundaries, import CSB into PostGIS, build `data/csb_ia_il_ne.pmtiles` (only needed after a data change; commit the new file, it is in LFS); add `FORCE=1` to rebuild (downloads stay cached) |
 | `make lint` | ruff |
 | `make docker` | build image `field-shift-backend` with the boundary data baked in |
 
-Docker: `make up` (compose: PostGIS + API), or `make docker` and then
+Docker: `make up` (compose: PostGIS + ML + API), or `make docker` and then
 `docker run --rm -p 8000:8000 -e FRONTEND_ORIGIN=<frontend url> -e DATABASE_URL=<postgis url> -v "$PWD/data/csb_ia_il_ne.pmtiles:/app/data/csb_ia_il_ne.pmtiles:ro" field-shift-backend`.
 The image holds only the boundary data (~10 MB). Field polygons live in PostGIS and the field PMTiles
 is mounted as a volume, so neither is in the image.
@@ -164,6 +166,9 @@ curl -s -X POST localhost:8000/v1/fields/resolve -H 'content-type: application/j
 | `FIELDS_PMTILES_FILE` | `csb_ia_il_ne.pmtiles` | field PMTiles in `DATA_DIR`, served at `/v1/tiles/fields.pmtiles` |
 | `FIELDS_PMTILES_URL` | empty | optional absolute URL of the same file on external hosting; empty = `coverage.field_tiles.url_template` is the backend's own `/v1/tiles/fields.pmtiles` |
 | `LOG_LEVEL` | `INFO` | every log line carries the request id |
+| `ANALYSIS_ENGINE` | `ml` | real HTTP ML engine; `stub` explicitly enables the old development demo |
+| `ML_BASE_URL` | `http://127.0.0.1:8001` | ML origin for a local API; Compose sets `http://ml:8001` inside the API container |
+| `ML_TIMEOUT_S` | `30` | timeout for an ML HTTP request; must be positive |
 | `STUB_DURATION_S` | `6` | analysis stub run time |
 | `STUB_FAIL_RATE` | `0` | 0..1, share of analysis jobs that fail on purpose |
 | `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_S` | `30` / `60` | per-IP limit on `POST /analyses`, `POST /locations/resolve`, `POST /auth/register` and `POST /auth/login` |
@@ -242,13 +247,112 @@ startup if missing). Passwords are hashed with argon2id.
     says which was used.
   - The area query takes about 2-4 s, so a first snapshot of a field takes about 4 s; repeat
     requests are served from the cache.
-- **Analyses:** `POST /analyses` returns 202 and runs an asyncio background task. The stub baseline
-  ("Continue current rotation: ...") comes from `options.crop_history` when the farmer sent a
-  correction, else from the CSB `crop_history` of the selection. With neither (buffered points), it is
-  "Continue current practice (crops unknown)" and every strategy lists "No crop history provided". Jobs live in an
-  in-memory store and are lost on restart. Identical requests within 10 min reuse the job.
-  The ML model plugs in through `app/analyses/engine.py: AnalysisEngine`; set it in
-  `app/services.py` in place of `StubAnalysisEngine`.
+- **Analyses:** `POST /analyses` returns 202 and runs an asyncio background task. After fetching the
+  existing snapshot, `app/analyses/ml.py` calls `POST /ml/v1/analyze`. Jobs live in an in-memory store
+  and are lost on restart. Identical requests within 10 min reuse the job; failed jobs can be retried.
+  The backend strips `csb2025_` from a field ID, sends the anchor/geometry, county, area and mapped
+  history, and translates crop names to ML slugs and CDL codes (including fallow and double crops).
+  `options.crop_history` replaces mapped history when supplied. Selected priorities get weight 1.0,
+  others 0.5; `low_input_cost` maps to ML's income index, like the previous stub. `horizon_years`
+  reaches the real planner. Balanced requests use 0.5 for each of the five ML priorities.
+  The adapter returns real scores, source-linked evidence and local-review notes in the existing
+  frontend shape, sorted by score. Confidence bands are low below 0.5, medium below 0.8, high otherwise.
+  Only the five scored criteria appear; pest-cycle and climate-risk scores are not invented.
+  `result.ml_analysis` preserves the entire ML JSON, including crop suitability, month-by-month
+  vulnerability, metrics, summary, deltas and numeric confidence. Climate normals are not inserted
+  into historical `time_series`. The existing results UI continues to use adapted strategies.
+  ML `partial` is a successful job with caveats. Constraints may leave fewer than three strategies;
+  the adapter never manufactures alternatives. Income is an index, not a yield or dollar forecast.
+  Each strategy also receives a rough dollar budget from the backend's existing crop calculator;
+  this ML service predicts no yields. See "Rotation budgets" below.
+  Coverage is IA/IL/NE/KS. Outside precomputed fields, crop history is required; missing history fails
+  with `VALIDATION_ERROR`, unsupported states with `OUTSIDE_COVERAGE`. Service/network failures use
+  `UPSTREAM_DATA_UNAVAILABLE`; temporary failures include `details.retry_after_s: 60`.
+  Errors never switch to demonstration results. `ANALYSIS_ENGINE=stub` explicitly selects the old stub;
+  `STUB_DURATION_S` and `STUB_FAIL_RATE` only apply there.
+
+### Rotation budgets
+
+`result.strategies[].budget` connects the actual ML crop sequence to the existing
+`POST /profitability/estimate` calculation. ML's `scores.income` remains a separate relative index:
+there is no calibrated conversion from that index, fit score or confidence to yield or dollars.
+The frontend shows the budget on each strategy and optional local land/cover cost inputs during setup.
+
+- For corn, soybeans and winter wheat in IA/IL/NE, use the historical low/base/high crop prices and
+  published enterprise production costs. The default yield matches the selected cost profile: a
+  high-productivity Illinois budget is never silently paired with a lower statewide yield, nor a
+  dryland Nebraska budget with a mixed statewide yield. Reference yields are not field forecasts.
+- Land cost is added once each year. Published corn-after-soybeans profiles replace the full cost and
+  yield pair; their rotation effects receive no extra nitrogen discount. Year one uses actual
+  mapped/farmer history, not the end of the proposed rotation. `cost_profile` identifies each budget.
+- A terminated cover crop adds seed, planting and termination cost, with no grain revenue or automatic
+  income for biological nitrogen, carbon, grazing or cost-share. There is no automatic all-in cover
+  cost: supply local incremental seed, seeding and termination costs beyond the normal crop program.
+  The former $99.85 program-schedule default has been removed. An observed
+  [2025 direct-expense median](https://finpack.umn.edu/news/new-cover-crops-report-and-climate-smart-ag-resources-2/)
+  is shown only as context; it is not a complete cost quote and is never inserted into calculations.
+- `options.budget.land_rent_per_acre` replaces annual land cost; zero is valid. The equivalent
+  `cover_cost_per_acre` replaces cost per cover planting. These assumptions never go to ML or alter ranking.
+- `options.budget.crop_overrides` supplies gross revenue scenarios and all non-land production costs
+  for a crop. It can fill missing sorghum/oats/barley/alfalfa/fallow budgets, or replace existing defaults.
+  Crop keys are ML slugs. Farmer production totals receive no extra nitrogen discount. This advanced
+  input is available through the API; the current setup UI exposes land and cover costs only. A
+  combined slug such as `winter_wheat+soybean` supplies one full-year double-crop budget in growing order.
+- Unknown crop costs, missing land costs or double crops produce `missing_inputs`; incomplete years
+  have `scenarios: null`. No full-horizon total, annual average or current-rotation comparison is shown
+  until every year is budgeted. Two full-yield single-crop budgets are not substituted for a double crop.
+  Rotation cards omit the entire profitability block for incomplete budgets or budgets using placeholder
+  inputs. Complete estimates remain visible even when their return is zero or negative. The API retains
+  missing-input details for clients that need them.
+- `annual_average` and `horizon_total` give USD/acre and estimated field profits. Field area is converted
+  from hectares; field totals stay null when area is unknown. Deltas compare average annual profit
+  under matching price scenarios and equal horizons. They are not confidence intervals.
+- `return_before_land_per_acre` distinguishes the production return available to pay the land charge
+  from net return after costs. Neither is cash flow: extension costs include labor, machinery ownership,
+  depreciation and overhead. Per-year break-even prices divide modeled costs by reference yield.
+- Every result is `is_illustrative: true`, with assumptions, sources and a separate `uses_placeholders`
+  flag. Unverified rent and Iowa wheat defaults remain flagged. No inflation, discounting, future
+  yield forecast or weather/soil suitability adjustment is applied to these dollar figures.
+
+The [profitability audit](docs/profitability-audit.md) records verified sources, corrected assumptions,
+and numerical comparisons. Negative economic returns remain possible and are not clipped to zero.
+
+Example request using example farmer costs (not reference prices):
+
+```json
+{
+  "selection": {"field_id": "csb2025_191825000314326"},
+  "options": {
+    "horizon_years": 3,
+    "budget": {
+      "land_rent_per_acre": 250,
+      "cover_cost_per_acre": 45,
+      "crop_overrides": [{
+        "crop": "barley",
+        "revenue_per_acre": {"low": 350, "base": 500, "high": 650},
+        "production_cost_per_acre": 300
+      }]
+    }
+  }
+}
+```
+
+### Running ML without Docker
+
+From the repository root, in a separate terminal:
+
+```sh
+cd ml
+uv venv --python 3.12
+uv pip install -r requirements-service.txt
+ML_POWER_CACHE_DIR="$PWD/deploy/data/features/power_cache" \
+  .venv/bin/uvicorn ml_service.main:app --host 127.0.0.1 --port 8001
+```
+
+Then run `make dev` in `backend/`. `curl http://127.0.0.1:8001/ml/health` must report `mode: real`.
+The committed POWER cells cover the demo counties. New cells and soil queries need internet access;
+the first request can return retry guidance while a climate cell downloads in the background.
+The standalone ML Docker setup remains available in [`../ml/README_BACKEND.md`](../ml/README_BACKEND.md).
 
 ## Password change and recovery (Brevo SMTP)
 

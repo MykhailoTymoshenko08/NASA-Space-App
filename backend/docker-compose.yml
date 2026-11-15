@@ -14,6 +14,10 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Field Shift}
+      ANALYSIS_ENGINE: ${ANALYSIS_ENGINE:-ml}
+      # Override the host's localhost URL: containers reach ML by its Compose service name.
+      ML_BASE_URL: http://ml:8001
+      ML_TIMEOUT_S: ${ML_TIMEOUT_S:-30}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -22,6 +26,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      ml:
+        condition: service_healthy
+
+  ml:
+    build: ../ml
+    image: fieldshift-ml:0.2.0
+    environment:
+      PORT: 8001
+      ML_MODE: ${ML_MODE:-real}
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - ml_ssurgo_cache:/app/data/features/ssurgo_cache
+    restart: unless-stopped
 
   db:
     image: postgis/postgis:16-3.5
@@ -44,3 +62,4 @@ services:
 
 volumes:
   pgdata:
+  ml_ssurgo_cache:

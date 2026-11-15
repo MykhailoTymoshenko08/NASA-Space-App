@@ -44,6 +44,13 @@ COSTS: dict[tuple[ProfitCrop, ProfitState], dict[str, float]] = {
     k: {name: float(_entry("costs", *k)[name]) for name in COST_KEYS} for k in _KEYS
 }
 
+
+def cost_entry(crop: ProfitCrop, state: ProfitState, previous_crop: str | None = None) -> dict:
+    entry = _entry("costs", crop, state)
+    if (previous_crop or "").strip().lower() in {"soybean", "soybeans"}:
+        return entry.get("after_soybeans", entry)
+    return entry
+
 # Cash rent for cropland ($/acre), per state.
 LAND_RENT: dict[ProfitState, float] = {s: float(DATA["land_rent"][s.value]["value"]) for s in ProfitState}
 

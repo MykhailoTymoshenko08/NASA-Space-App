@@ -20,6 +20,7 @@ export function buildAnalysisRequest(input: {
   crops: readonly CropRow[];
   mapped: readonly CropRow[];
   horizon: number;
+  budget?: NonNullable<AnalysisRequest["options"]>["budget"];
 }): AnalysisRequest {
   const cleaned = input.crops
     .map((c) => ({ year: c.year, crop: c.crop.trim() }))
@@ -33,6 +34,7 @@ export function buildAnalysisRequest(input: {
       priorities: [...input.priorities],
       horizon_years: input.horizon,
       ...(changed ? { crop_history: cleaned } : {}),
+      ...(input.budget ? { budget: input.budget } : {}),
     },
   };
 }
@@ -40,6 +42,8 @@ export function buildAnalysisRequest(input: {
 export function useAnalysisSetup(selection: FieldSelection | null) {
   const [priorities, setPriorities] = useState<Priority[]>([]);
   const [horizon, setHorizon] = useState(DEFAULT_HORIZON);
+  const [landRent, setLandRent] = useState("");
+  const [coverCost, setCoverCost] = useState("");
   const [crops, setCrops] = useState<CropRow[] | null>(null);
   const mapped = initialCropRows(selection);
   const rows = crops ?? mapped;
@@ -53,10 +57,15 @@ export function useAnalysisSetup(selection: FieldSelection | null) {
   const submit = () => {
     if (!selection) return Promise.reject(new Error("No field"));
     const ref: SelectionRef = selection.field_id ? { field_id: selection.field_id } : { point: selection.anchor };
-    return create.mutateAsync(buildAnalysisRequest({ selection: ref, priorities, crops: rows, mapped, horizon }));
+    const budget = landRent !== "" || coverCost !== "" ? {
+      ...(landRent !== "" ? { land_rent_per_acre: Number(landRent) } : {}),
+      ...(coverCost !== "" ? { cover_cost_per_acre: Number(coverCost) } : {}),
+    } : undefined;
+    return create.mutateAsync(buildAnalysisRequest({ selection: ref, priorities, crops: rows, mapped, horizon, budget }));
   };
 
-  return { priorities, togglePriority, horizon, setHorizon, crops: rows, setCrop, submit, create };
+  return { priorities, togglePriority, horizon, setHorizon, crops: rows, setCrop, submit, create,
+    landRent, setLandRent, coverCost, setCoverCost };
 }
 
 export type AnalysisSetupState = ReturnType<typeof useAnalysisSetup>;

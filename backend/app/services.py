@@ -66,16 +66,23 @@ class Services:
 
         self.field_info = FieldInfoService(self.data_client, timeout_s=settings.source_timeout_s)
 
+        from app.analyses.ml import MLAnalysisEngine
         from app.analyses.service import AnalysisService
         from app.analyses.store import InMemoryJobStore
         from app.analyses.stub import StubAnalysisEngine
 
+        self.ml_client = httpx.AsyncClient(
+            base_url=str(settings.ml_base_url).rstrip("/") + "/",
+            timeout=httpx.Timeout(settings.ml_timeout_s, connect=min(5.0, settings.ml_timeout_s)),
+        )
+
         self.analyses = AnalysisService(
             InMemoryJobStore(),
-            StubAnalysisEngine(duration_s=settings.stub_duration_s),
+            (StubAnalysisEngine(duration_s=settings.stub_duration_s)
+             if settings.analysis_engine == "stub" else MLAnalysisEngine(self.ml_client)),
             self.snapshots,
             dedupe_ttl_s=settings.analysis_dedupe_ttl_s,
-            fail_rate=settings.stub_fail_rate,
+            fail_rate=settings.stub_fail_rate if settings.analysis_engine == "stub" else 0.0,
         )
 
         self.boundary_tiles = self._tiles(d / "boundaries.pmtiles")
@@ -126,6 +133,8 @@ class Services:
         return self._fields
 
     async def aclose(self) -> None:
+        await self.analyses.aclose()
+        await self.ml_client.aclose()
         await self.link_client.aclose()
         await self.field_info.aclose()
         await self.snapshots.aclose()

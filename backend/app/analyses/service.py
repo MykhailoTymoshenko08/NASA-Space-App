@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 from app.analyses.engine import AnalysisEngine
 from app.analyses.store import JobRecord, JobStore
-from app.core.errors import ErrorCode
+from app.core.errors import ApiException, ErrorCode
 from app.models import (
     AnalysisJob,
     AnalysisOptions,
@@ -75,6 +75,12 @@ class AnalysisService:
         rec = self.store.get(job_id)
         return rec.job if rec else None
 
+    async def aclose(self) -> None:
+        tasks = list(self._tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     async def _run(self, job: AnalysisJob, selection: FieldSelection, options: AnalysisOptions) -> None:
         def progress(percent: int, stage: str) -> None:
             # Never go backwards, never claim 100 % before the result is stored.
@@ -91,6 +97,10 @@ class AnalysisService:
             job.result = result
             job.progress = Progress(percent=100, stage="Done")
             job.status = JobStatus.succeeded
+        except ApiException as e:
+            log.warning("analysis %s failed: %s", job.job_id, e.code)
+            job.error = ApiError(code=e.code, message=e.message, details=e.details)
+            job.status = JobStatus.failed
         except Exception as e:  # noqa: BLE001 - a failed job is reported, never raised
             log.warning("analysis %s failed: %r", job.job_id, e)
             job.error = ApiError(

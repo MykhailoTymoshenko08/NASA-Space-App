@@ -41,4 +41,11 @@ describe("analysis setup", () => {
       { year: 2023, crop: "" },
     ]);
   });
+
+  it("preserves an explicit zero land cost and local cover cost", () => {
+    const req = buildAnalysisRequest({ selection: { field_id: "csb2025_1" }, priorities: [],
+      crops: mapped, mapped, horizon: 3,
+      budget: { land_rent_per_acre: 0, cover_cost_per_acre: 35 } });
+    expect(req.options?.budget).toEqual({ land_rent_per_acre: 0, cover_cost_per_acre: 35 });
+  });
 });

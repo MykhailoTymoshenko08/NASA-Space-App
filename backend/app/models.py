@@ -1,4 +1,4 @@
-"""Pydantic models mirroring `contract/openapi.yaml` (v0.4.0).
+"""Pydantic models mirroring `contract/openapi.yaml` (v0.11.0).
 
 Keep names and enums identical to the contract. The contract tests validate real responses
 against the YAML, so drift is caught there.
@@ -240,10 +240,45 @@ class Priority(StrEnum):
     nitrogen_fixing = "nitrogen_fixing"
 
 
+class BudgetRevenueInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    low: float = Field(ge=0, le=100000, allow_inf_nan=False)
+    base: float = Field(ge=0, le=100000, allow_inf_nan=False)
+    high: float = Field(ge=0, le=100000, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> "BudgetRevenueInput":
+        if not self.low <= self.base <= self.high:
+            raise ValueError("Revenue scenarios must satisfy low <= base <= high")
+        return self
+
+
+class CropBudgetInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    crop: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*(\+[a-z][a-z0-9_]*)?$")
+    revenue_per_acre: BudgetRevenueInput
+    production_cost_per_acre: float = Field(ge=0, le=10000, allow_inf_nan=False)
+
+
+class RotationBudgetOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    land_rent_per_acre: float | None = Field(default=None, ge=0, le=5000, allow_inf_nan=False)
+    cover_cost_per_acre: float | None = Field(default=None, ge=0, le=2000, allow_inf_nan=False)
+    crop_overrides: list[CropBudgetInput] = Field(default_factory=list, max_length=16)
+
+    @model_validator(mode="after")
+    def _unique_crops(self) -> "RotationBudgetOptions":
+        crops = [x.crop for x in self.crop_overrides]
+        if len(crops) != len(set(crops)):
+            raise ValueError("Provide only one budget override per crop")
+        return self
+
+
 class AnalysisOptions(BaseModel):
     priorities: list[Priority] = Field(default_factory=list, max_length=6)
     crop_history: list[CropYear] | None = Field(default=None, max_length=10)
     horizon_years: int = Field(default=3, ge=1, le=5)
+    budget: RotationBudgetOptions = Field(default_factory=RotationBudgetOptions)
 
 
 class AnalysisRequest(BaseModel):
@@ -276,6 +311,58 @@ class DatasetRef(BaseModel):
     url: str | None = None
     resolution_m: float | None = None
     coverage_period: str | None = None
+
+
+class BudgetAmounts(BaseModel):
+    low: float
+    base: float
+    high: float
+
+
+class BudgetScenario(BaseModel):
+    revenue_per_acre: float
+    cost_per_acre: float
+    profit_per_acre: float
+    field_profit: float | None
+    return_before_land_per_acre: float | None = None
+
+
+class BudgetScenarios(BaseModel):
+    low: BudgetScenario
+    base: BudgetScenario
+    high: BudgetScenario
+
+
+class BudgetYear(BaseModel):
+    year: int
+    main_crops: list[str]
+    cover_crops: list[str]
+    production_cost_per_acre: float | None
+    land_rent_per_acre: float | None
+    cover_cost_per_acre: float | None
+    nitrogen_credit_per_acre: float
+    yield_per_acre: float | None
+    yield_unit: str | None
+    scenarios: BudgetScenarios | None
+    cost_profile: str | None = None
+    break_even_price_per_unit: float | None = None
+
+
+class RotationBudget(BaseModel):
+    status: Literal["estimated", "partial", "unavailable"]
+    currency: Literal["USD"] = "USD"
+    horizon_years: int
+    area_acres: float | None
+    years: list[BudgetYear]
+    annual_average: BudgetScenarios | None
+    horizon_total: BudgetScenarios | None
+    delta_vs_current_per_acre: BudgetAmounts | None = None
+    is_illustrative: Literal[True] = True
+    uses_placeholders: bool
+    baseline_version: str
+    assumptions: list[str]
+    missing_inputs: list[str]
+    sources: list[DatasetRef]
 
 
 class TimeSeriesPoint(BaseModel):
@@ -341,6 +428,7 @@ class Strategy(BaseModel):
     evidence: list[Evidence]
     information_gaps: list[str]
     needs_local_review: bool
+    budget: RotationBudget | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class AnalysisResult(BaseModel):
@@ -349,10 +437,11 @@ class AnalysisResult(BaseModel):
     model_version: str
     current_conditions: list[Metric]
     time_series: list[TimeSeries] = Field(default_factory=list)
-    strategies: list[Strategy] = Field(min_length=3)
+    strategies: list[Strategy] = Field(min_length=1)
     datasets_used: list[DatasetRef]
     warnings: list[str] = Field(default_factory=list)
     disclaimer: str
+    ml_analysis: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class AnalysisJob(BaseModel):
@@ -404,7 +493,7 @@ class ProfitCostItem(BaseModel):
     key: Literal["seed", "fertilizer", "chemicals", "other_operating", "land_rent", "total"]
     label: str
     amount_per_acre: float
-    source: Literal["baseline", "farmer", "baseline_with_nitrogen_credit"]
+    source: Literal["baseline", "farmer", "baseline_with_nitrogen_credit", "baseline_rotation"]
 
 
 class ProfitScenarios(BaseModel):
@@ -423,11 +512,12 @@ class ProfitEstimate(BaseModel):
     state: ProfitState
     yield_per_acre: float
     yield_unit: str
-    yield_source: Literal["model", "baseline_default"]
+    yield_source: Literal["model", "baseline_default", "budget_reference"]
     costs: list[ProfitCostItem]
     scenarios: ProfitScenarios
     assumptions: list[str]
     baseline: ProfitBaselineInfo
+    cost_profile: str | None = None
 
 
 # --- Auth -------------------------------------------------------------------------------------------
@@ -562,3 +652,4 @@ class SavedField(BaseModel):
 class SavedFieldList(BaseModel):
     items: list[SavedField]
     limit: int
+

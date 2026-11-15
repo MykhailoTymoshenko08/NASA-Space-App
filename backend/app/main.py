@@ -42,7 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         lifespan=lifespan,
         title="Field Shift API",
-        version="0.7.0",
+        version="0.11.0",
         docs_url=f"{API_PREFIX}/docs",
         openapi_url=f"{API_PREFIX}/openapi-generated.json",
     )

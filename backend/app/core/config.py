@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
+from pydantic import AnyHttpUrl, EmailStr, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     contract_path: Path = REPO_DIR / "contract" / "openapi.yaml"
+
+    # Real ML is the default. The development stub must be selected explicitly.
+    analysis_engine: Literal["ml", "stub"] = "ml"
+    ml_base_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8001")
+    ml_timeout_s: float = Field(default=30.0, gt=0)
 
     # Analysis stub knobs.
     stub_fail_rate: float = Field(default=0.0, ge=0.0, le=1.0)

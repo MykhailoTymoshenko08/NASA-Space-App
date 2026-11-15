@@ -48,6 +48,7 @@ def make_settings(data_dir, tmp_path, **kw) -> Settings:
         stub_duration_s=0,
         log_level="WARNING",
         database_url="",
+        analysis_engine="stub",
     )
     return Settings(**{**base, **kw})
 

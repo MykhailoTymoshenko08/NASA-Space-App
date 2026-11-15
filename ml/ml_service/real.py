@@ -315,7 +315,8 @@ def _flatten(tokens: list[str]) -> list[str]:
 # --------------------------------------------------------------------------- the entry point
 
 def analyze_real(req) -> dict:
-    a, cfg = assets(), settings()
+    a = assets()
+    cfg = {**settings(), "horizon_years": req.options.horizon_years}
     lang = req.options.language
     t = RT[lang]
     fi = req.farmer_input
@@ -342,7 +343,8 @@ def analyze_real(req) -> dict:
 
     prio = req.priorities.model_dump()
     plan = plan_rotations(ctx, a, priorities=prio, lang=lang, n_strategies=req.options.n_strategies, stress=stress, forced_cycle=forced,
-                          farmer_input={"irrigated": fi.irrigated, "has_livestock": fi.has_livestock, "excluded_crops": list(excluded)})
+                          farmer_input={"irrigated": fi.irrigated, "has_livestock": fi.has_livestock, "excluded_crops": list(excluded)},
+                          settings=cfg)
     rank = rank_crops(ctx, a, lang, fi.irrigated, explain=True, fit=True, excluded=excluded)
 
     cur = plan["details"]["current"]

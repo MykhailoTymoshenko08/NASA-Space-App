@@ -78,7 +78,7 @@ ISU = {
     "publisher": "Iowa State University Extension and Outreach (Ag Decision Maker)",
     "document": "Estimated Costs of Crop Production in Iowa - 2026, FM 1712 / File A1-20, "
                 "revised January 2026",
-    "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20.pdf",
+    "url": "https://www.extension.iastate.edu/agdm/crops/pdf/a1-20_2026.pdf",
     "year": 2026,
 }
 FARMDOC = {
@@ -96,8 +96,8 @@ UNL = {
 }
 
 # Costs in USD/acre, copied from the budgets. `other` lists every non-land line not in seed, fertilizer or
-# chemicals; other_operating is their sum. Corn uses corn-after-corn budgets because the API subtracts the
-# soybean nitrogen credit itself.
+# chemicals; other_operating is their sum. Corn-after-corn is the standard profile; published
+# after-soybean profiles below replace the full cost and yield pair when the predecessor is known.
 BUDGETS = {
     ("Corn", "IA"): (ISU, "p. 2, Corn Following Corn, middle column (193 bu/acre)", {
         "seed": {"Seed": 113.70},
@@ -150,6 +150,41 @@ BUDGETS = {
                   "Repairs and maintenance": 5.39, "Other (insurance, scouting)": 18.00,
                   "Interest on operating capital": 7.49, "General overhead": 28.00,
                   "Equipment depreciation": 22.41, "Equipment opportunity cost": 7.50},
+    }),
+}
+
+# Match each cost profile to its own published yield. State-average NASS yields remain useful
+# context, but cannot be paired silently with a high-productivity or dryland enterprise budget.
+BUDGET_YIELDS = {
+    ("Corn", "IA"): 193, ("Soybeans", "IA"): 61,
+    ("Corn", "IL"): 231, ("Soybeans", "IL"): 76, ("Winter Wheat", "IL"): 89,
+    ("Corn", "NE"): 180, ("Soybeans", "NE"): 50, ("Winter Wheat", "NE"): 55,
+}
+AFTER_SOYBEANS = {
+    ("Corn", "IA"): (ISU, "p. 3, Corn Following Soybeans, middle column (211 bu/acre)", 211, {
+        "seed": {"Seed": 113.70},
+        "fertilizer": {"Nitrogen": 84.27, "Phosphate": 56.88, "Potash": 24.57, "Lime": 3.72},
+        "chemicals": {"Herbicide": 56.00},
+        "other": {"Preharvest machinery fixed": 34.80, "Preharvest machinery variable": 24.60,
+                  "Crop insurance": 17.10, "Miscellaneous": 13.70, "Interest": 19.65,
+                  "Harvest machinery fixed": 67.56, "Harvest machinery variable": 69.41, "Labor": 52.02},
+    }),
+    ("Corn", "IL"): (FARMDOC, "Table 2, Corn-after-Soybeans (241 bu/acre)", 241, {
+        "seed": {"Seed": 129}, "fertilizer": {"Fertilizers": 229}, "chemicals": {"Pesticides": 116},
+        "other": {"Drying": 15, "Storage": 14, "Crop insurance": 31, "Total power costs": 181,
+                  "Total overhead costs": 118},
+    }),
+    ("Soybeans", "IL"): (FARMDOC, "Table 2, Soybeans-after-Soybeans (74 bu/acre)", 74, {
+        "seed": {"Seed": 83}, "fertilizer": {"Fertilizers": 66}, "chemicals": {"Pesticides": 75},
+        "other": {"Drying": 0, "Storage": 8, "Crop insurance": 11, "Total power costs": 160,
+                  "Total overhead costs": 113},
+    }),
+    ("Corn", "NE"): (UNL, "p. 87, #024 Corn, Dryland, No Till after Soybeans (195 bu/acre)", 195, {
+        "seed": {"Seed": 105.01}, "fertilizer": {"Fertilizer": 116.50}, "chemicals": {"Pesticide": 97.10},
+        "other": {"Custom services": 33.25, "Labor": 10.44, "Fuel and energy": 8.69,
+                  "Repairs and maintenance": 13.89, "Other (insurance, scouting, drying)": 18.90,
+                  "Interest on operating capital": 16.15, "General overhead": 28.00,
+                  "Equipment depreciation": 52.94, "Equipment opportunity cost": 15.38},
     }),
 }
 
@@ -342,7 +377,19 @@ def build_costs(today: str) -> dict:
                 "line_items": lines,
                 "source": {**src, "table": where, "retrieved": today,
                            "note": "Non-land costs; land is a separate line."},
+                "reference_yield_per_acre": BUDGET_YIELDS[(crop, st)],
             }
+            if (crop, st) in AFTER_SOYBEANS:
+                alt_src, alt_where, alt_yield, alt = AFTER_SOYBEANS[(crop, st)]
+                entry["after_soybeans"] = {
+                    **{k: round(sum(alt[k].values()), 2) for k in ("seed", "fertilizer", "chemicals")},
+                    "other_operating": round(sum(alt["other"].values()), 2),
+                    "unit": "USD/acre", "data_years": str(alt_src["year"]), "line_items": alt,
+                    "reference_yield_per_acre": alt_yield,
+                    "source": {**alt_src, "table": alt_where, "retrieved": today,
+                               "note": "Non-land rotation budget; includes rotation effects. "
+                                       "Do not subtract another nitrogen credit."},
+                }
             out.setdefault(crop, {})[st] = entry
     return out
 
@@ -393,8 +440,9 @@ def main() -> None:
                      "years; "
                      f"low / high = 10th / 90th percentile (linear) over the last {RANGE_YEARS} years.",
             "yield": f"mean NASS state yield per harvested acre over the last {YIELD_YEARS} years.",
-            "costs": "2026 state extension budgets; corn uses corn-after-corn so the API's soybean "
-                     "nitrogen credit is not counted twice. other_operating = all non-land lines except "
+            "costs": "2026 extension enterprise budgets paired with their published reference yields; "
+                     "after-soybean profiles include rotation effects with no additional nitrogen credit. "
+                     "other_operating = all non-land lines except "
                      "seed, fertilizer and chemicals (machinery, fuel, repairs, drying, insurance, labor, "
                      "interest, overhead).",
         },
