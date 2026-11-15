@@ -1,4 +1,5 @@
 .header {
+  --burger-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -33,15 +34,84 @@
   background: var(--color-paper-wash);
 }
 
-/* Menu under the header, 48 px rows. */
+/* Burger icon: three bars that morph into an X when open. */
+.burgerIcon {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 14px;
+}
+.burgerIcon > span {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  transition:
+    transform 240ms var(--burger-ease),
+    opacity 160ms ease,
+    top 240ms var(--burger-ease);
+}
+.burgerIcon > span:nth-child(1) {
+  top: 0;
+}
+.burgerIcon > span:nth-child(2) {
+  top: 6px;
+}
+.burgerIcon > span:nth-child(3) {
+  top: 12px;
+}
+.burger[aria-expanded="true"] .burgerIcon > span:nth-child(1) {
+  top: 6px;
+  transform: rotate(45deg);
+}
+.burger[aria-expanded="true"] .burgerIcon > span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0.2);
+}
+.burger[aria-expanded="true"] .burgerIcon > span:nth-child(3) {
+  top: 6px;
+  transform: rotate(-45deg);
+}
+
+/* Menu under the header, 48 px rows. Height animates via grid rows 0fr -> 1fr. */
 .menu {
   flex-basis: 100%;
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 280ms var(--burger-ease),
+    opacity 200ms ease,
+    visibility 0s linear 280ms;
+}
+.menu[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 280ms var(--burger-ease),
+    opacity 200ms ease 40ms,
+    visibility 0s;
+}
+.menuClip {
+  min-height: 0;
+  overflow: hidden;
+}
+.menuInner {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
-  margin-top: var(--s-4);
+  margin-top: var(--s-12);
   padding: var(--s-8) 0 var(--s-12);
   border-top: 1px solid var(--color-line);
+  transform: translateY(-8px);
+  transition: transform 280ms var(--burger-ease);
+}
+.menu[data-open="true"] .menuInner {
+  transform: none;
 }
 .menu .row {
   width: 100%;
@@ -57,12 +127,20 @@
 @media (max-width: 760px) {
   .header {
     padding: var(--s-12) var(--s-16);
-    gap: var(--s-8);
+    gap: 0 var(--s-8); /* no row gap: the always-mounted menu row would add space while closed */
   }
   .nav {
     display: none;
   }
   .burger {
     display: inline-flex;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .burgerIcon > span,
+  .menu,
+  .menu[data-open="true"],
+  .menuInner {
+    transition: none;
   }
 }
