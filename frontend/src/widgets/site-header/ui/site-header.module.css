@@ -6,7 +6,7 @@
   gap: var(--s-16);
   max-width: var(--page-max);
   margin: 0 auto;
-  padding: var(--s-20) var(--page-gutter);
+  padding: 14px var(--page-gutter);
 }
 .nav {
   display: flex;

@@ -20,11 +20,11 @@
   min-width: 48px;
   padding: 0 var(--s-16);
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--color-ink);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: var(--text-small);
   font-weight: 600;
   cursor: pointer;
 }
@@ -36,7 +36,7 @@
   background: var(--color-surface);
 }
 .on {
-  background: var(--color-green-700);
+  background: var(--color-button);
   color: var(--color-white);
 }
 .chip {

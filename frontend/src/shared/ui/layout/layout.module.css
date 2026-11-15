@@ -7,13 +7,13 @@
 }
 
 .card {
-  padding: var(--s-24);
+  padding: 18px;
   border-radius: var(--radius-card);
   background: var(--color-surface);
   border: 1px solid var(--color-line);
 }
 .cardCompact {
-  padding: var(--s-20);
+  padding: var(--s-16);
 }
 
 /* Section eyebrow: wheat, mono caps. */
@@ -41,7 +41,7 @@
 .panel {
   display: flex;
   flex-direction: column;
-  padding: var(--s-20) var(--s-24);
+  padding: 18px;
   border-radius: var(--radius-stage);
   background: var(--color-surface);
   border: 1px solid var(--color-line);
@@ -54,8 +54,8 @@
 }
 
 .intro {
-  padding-top: var(--s-16);
-  padding-bottom: var(--s-24);
+  padding-top: var(--s-12);
+  padding-bottom: var(--s-20);
 }
 .back {
   gap: 6px;
@@ -83,14 +83,14 @@
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--s-24);
-  padding-bottom: var(--s-64);
+  padding-bottom: var(--s-48);
 }
 .main {
   flex: 999 1 640px;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-24);
+  gap: var(--s-16);
 }
 .aside {
   flex: 1 1 320px;
@@ -124,12 +124,12 @@
 .formWrap {
   display: flex;
   justify-content: center;
-  padding: var(--s-64) var(--page-gutter) var(--s-96);
+  padding: 40px var(--page-gutter) 56px;
 }
 .formCard {
   width: 100%;
   max-width: 480px;
-  padding: var(--s-32);
+  padding: 22px;
   border-radius: var(--radius-stage);
   background: var(--color-surface);
   border: 1px solid var(--color-line);

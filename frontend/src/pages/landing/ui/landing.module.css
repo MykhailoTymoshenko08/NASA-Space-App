@@ -4,8 +4,8 @@
 
 /* Hero */
 .hero {
-  padding-top: var(--s-48);
-  padding-bottom: var(--s-32);
+  padding-top: var(--s-32);
+  padding-bottom: var(--s-24);
 }
 .heroEyebrow {
   margin-bottom: var(--s-16);
@@ -46,8 +46,8 @@
 
 /* How it works */
 .how {
-  padding-top: var(--s-96);
-  padding-bottom: var(--s-32);
+  padding-top: 56px;
+  padding-bottom: var(--s-24);
 }
 .sectionTitle {
   margin-bottom: 40px;
@@ -82,8 +82,8 @@
 
 /* CTA band */
 .ctaWrap {
-  padding-top: var(--s-64);
-  padding-bottom: var(--s-96);
+  padding-top: 40px;
+  padding-bottom: 56px;
 }
 .cta {
   display: flex;
@@ -91,9 +91,9 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--s-24);
-  padding: var(--s-48);
+  padding: var(--s-32);
   border-radius: var(--radius-band);
-  background: var(--color-green-700);
+  background: var(--color-button);
   color: var(--color-white);
 }
 .ctaTitle {

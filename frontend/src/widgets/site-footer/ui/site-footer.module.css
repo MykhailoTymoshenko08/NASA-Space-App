@@ -5,7 +5,7 @@
   gap: var(--s-12);
   max-width: var(--page-max);
   margin: 0 auto;
-  padding: 0 var(--page-gutter) var(--s-48);
+  padding: 0 var(--page-gutter) var(--s-32);
   font-size: var(--text-small);
   line-height: var(--text-small-lh);
   color: var(--color-ink-muted);

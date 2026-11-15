@@ -1,14 +1,16 @@
 /*
  * Fieldline design tokens — the only place hex values live.
- * Source: design canvas, DS-Foundations (color, type, space, shape, depth)
- * and DS-Map (map colors). Components use var(--…) only.
+ * Source: design/Fieldline map and design system.html, boards "Design system 1 Foundations"
+ * (color, type, space, shape, depth), "2 Components" and "3 Map language" (map colors).
+ * Components use var(--…) only.
  */
 :root {
   /* Ground and ink */
-  --color-paper: #f5f2e9; /* paper-50: page ground */
+  --color-paper: #edf4e4; /* paper-50: page ground, #D9E8C6 at 47% on white */
+  --color-paper-warm: #f5f2e9; /* tiles inside cards, compare bar, header sample */
   --color-paper-wash: #eae5d6; /* paper-100: hover wash, tracks */
   --color-hint: #f0ebdc; /* info hint panel ground */
-  --color-map-ground: #e8e3d3; /* water and land beyond the data */
+  --color-map-ground: #ffeed1; /* water and land beyond the data, #FFE3B3 at 60% on white */
   --color-surface: #fffdf8; /* cards, panels, map controls */
   --color-white: #ffffff; /* input fields, text on green */
   --color-line: #d3cdbb; /* hairlines, card borders (decorative) */
@@ -19,7 +21,8 @@
   --color-ink-muted: #4f5a50; /* secondary text */
 
   /* Field green (primary) */
-  --color-green-900: #163a29;
+  --color-green-900: #2c4638; /* primary button hover */
+  --color-button: #395747; /* primary button fill, selected segments, CTA band. White on it 8.0:1 */
   --color-green-700: #1f4d38;
   --color-green-300: #a9c09b;
   --color-green-100: #dce6d3;
@@ -28,6 +31,7 @@
   --color-wheat-700: #8a5a00;
   --color-wheat-500: #e2a62b;
   --color-wheat-300: #f0b93b;
+  --color-wheat-100: #ffe3b3; /* CTA button on the button-green band */
 
   /* Status: always paired with an icon and a sentence */
   --color-success-bg: #e3efdd;
@@ -58,7 +62,7 @@
   --color-map-field-selected: #f0b93b;
   --color-map-state: #cbd7be;
   --color-map-state-fields: #9fbe84;
-  --color-map-state-hover: #7fa463;
+  --color-map-state-hover: #7fa463; /* darker than state-fields, so hover reads on supported states */
   --color-map-county: #d5e0c8;
   --color-map-region-line: #8fa67c;
   --color-map-outline: #17211b;
@@ -74,7 +78,7 @@
   --color-map-crop-other: #a99bd0;
 
   /* Map labels: text color and the halo that keeps it readable on any fill */
-  --color-map-label: #17211b;
+  --color-map-label: #2f4a3a; /* state labels */
   --color-map-label-muted: #3d4a40;
   --color-map-label-halo: #fffdf8;
 
@@ -84,9 +88,9 @@
   --focus-offset: 2px;
 
   /* Type families */
-  --font-display: "Space Grotesk", system-ui, sans-serif;
-  --font-body: Inter, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Open Sans", system-ui, sans-serif; /* 500, 600, 700: headlines, numbers, card titles */
+  --font-body: "Open Sans", system-ui, sans-serif; /* 400, 500, 600: body, forms, buttons */
+  --font-mono: "Open Sans", system-ui, sans-serif; /* 500: coordinates, field IDs, caps labels */
 
   /* Type scale: size / line height */
   --text-display: 72px;
@@ -126,12 +130,13 @@
   --s-96: 96px;
 
   /* Radius */
-  --radius-control-inner: 8px;
-  --radius-control: 10px;
-  --radius-panel: 12px;
-  --radius-card: 14px;
-  --radius-stage: 16px;
-  --radius-band: 20px;
+  --radius-swatch: 2px; /* legend swatches, meters */
+  --radius-control-inner: 4px; /* items inside a control group */
+  --radius-control: 5px; /* buttons, inputs, selects */
+  --radius-panel: 6px; /* map controls and legends */
+  --radius-card: 7px; /* cards and popovers */
+  --radius-stage: 8px; /* map stage and large panels */
+  --radius-band: 10px; /* CTA band */
   --radius-pill: 999px;
 
   /* Depth: two shadows only, no gradients */
@@ -142,8 +147,8 @@
   --control-min: 44px;
   --control-md: 48px;
   --control-lg: 52px;
-  --page-max: 1280px;
-  --page-gutter: 32px;
+  --page-max: 1400px;
+  --page-gutter: 20px;
 }
 
 @media (max-width: 760px) {

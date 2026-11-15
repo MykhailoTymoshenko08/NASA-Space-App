@@ -45,7 +45,7 @@
 
 /* Variants */
 .primary {
-  background: var(--color-green-700);
+  background: var(--color-button);
   color: var(--color-white);
   font-weight: 600;
 }
@@ -53,9 +53,9 @@
   background: var(--color-green-900);
 }
 
-/* Wheat 500 fill, ink text — only on Green 700 bands. */
+/* Light wheat fill, ink text — only on button-green bands. */
 .amber {
-  background: var(--color-wheat-500);
+  background: var(--color-wheat-100);
   color: var(--color-ink);
   font-weight: 600;
 }
