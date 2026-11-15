@@ -116,7 +116,7 @@ def test_a_file_that_is_too_broken_is_refused(world):
     with pytest.raises(ingest.Refused, match="more than the allowed"):
         ingest.validate("smap_monthly.csv", read("smap_monthly.csv"), known, 0.05)
     with pytest.raises(ingest.Refused, match="missing columns"):
-        ingest.validate("terrain.csv", read("terrain.csv").drop(columns="twi"), known, 0.05)
+        ingest.validate("terrain.csv", read("terrain.csv").drop(columns="slope_pct"), known, 0.05)
     with pytest.raises(ingest.Refused, match="no rows"):
         ingest.validate("terrain.csv", read("terrain.csv").head(0), known, 0.05)
 
@@ -212,3 +212,77 @@ def test_service_uses_the_files_for_a_sample_table_field(tmp_path, monkeypatch):
     assert j["feature_source"] == "tables" and {"nasadem", "smap"} <= {s["id"] for s in j["sources"]}
     assert not any("TWI" in w or "SMAP" in w or "NASADEM" in w for w in j["warnings"])
     assert any("NASADEM" in e["source_ids"] or "nasadem" in e["source_ids"] for s in j["strategies"][1:] for e in s["evidence"])
+
+
+# ---------------------------------------------------------------- Lina's real GEE output formats (ml/gee/*.py)
+
+HER_YEARS = range(2015, 2026)             # her scripts start in 2015
+
+
+def her_files(incoming: Path, ids=IDS, deg=None):
+    """hls_ndvi_monthly_long.csv, smap_monthly_long.csv and terrain2.csv exactly as the notebooks write them (no twi)"""
+    incoming.mkdir(exist_ok=True)
+    rng = np.random.default_rng(5)
+    ndvi = [(f, f"{y}-{m:02d}", y, m, round(float(np.clip(0.2 + 0.6 * np.exp(-((m - 7.5) ** 2) / 4) + rng.normal(0, 0.02), -1, 1)), 4), 4)
+            for f in ids for y in HER_YEARS for m in range(4, 11)]
+    smap = [(f, f"{y}-{m:02d}", y, m, round(float(0.3 + rng.normal(0, 0.02) - (0.15 if f == "P1" and y % 2 == 0 else 0)), 3))
+            for f in ids for y in HER_YEARS for m in (6, 7, 8)]
+    deg = deg or [1.0 + 0.5 * i for i in range(len(ids))]
+    terrain = [(f, d, round(d * 1.8, 2)) for f, d in zip(ids, deg)]
+    pd.DataFrame(ndvi, columns=["field_id", "date", "year", "month", "ndvi_hls", "n_obs"]).to_csv(incoming / "hls_ndvi_monthly_long.csv", index=False)
+    pd.DataFrame(smap, columns=["field_id", "date", "year", "month", "smap_rootzone"]).to_csv(incoming / "smap_monthly_long.csv", index=False)
+    pd.DataFrame(terrain, columns=["field_id", "slope_deg", "slope_deg_p90"]).to_csv(incoming / "terrain2.csv", index=False)
+    return terrain
+
+
+def test_her_files_are_converted_and_installed(world):
+    terrain = her_files(world["incoming"])
+    assert run(world) == 0
+    ndvi = pd.read_csv(world["lina"] / "ndvi_monthly.csv", dtype={"field_id": str})
+    assert list(ndvi.columns) == ["field_id", "year", "month", "ndvi_mean", "n_obs"] and ndvi["year"].min() == 2015       # ndvi_hls renamed, date dropped, 2015 kept
+    smap = pd.read_csv(world["lina"] / "smap_monthly.csv", dtype={"field_id": str})
+    assert list(smap.columns) == ["field_id", "year", "month", "smap_rootzone"] and smap["year"].min() == 2015
+    t = pd.read_csv(world["lina"] / "terrain.csv", dtype={"field_id": str}).set_index("field_id")
+    f, deg, deg90 = terrain[3]
+    assert t.loc[f, "slope_pct"] == pytest.approx(np.tan(np.radians(deg)) * 100, abs=0.01)                                # percent, not degrees
+    assert t.loc[f, "slope_pct_p90"] == pytest.approx(np.tan(np.radians(deg90)) * 100, abs=0.01) and "twi" not in t.columns
+    county = pd.read_parquet(world["pre"] / "19153.parquet").set_index("field_id")
+    assert county.loc["P2", "slope_pct"] == pytest.approx(np.tan(np.radians(terrain[4][1])) * 100, abs=0.01)
+    assert county["twi"].isna().all() and county["smap_deficit_share"].notna().all()                                       # no TWI in her file
+    assert county.loc["P1", "smap_deficit_share"] >= 0.4                                                                   # 11 years: the dry Julys of P1 show
+
+
+def test_impossible_slopes_in_her_file_are_dropped(world):
+    deg = [1.0, 2.0, 3.0, 90.0, -1.0, float("nan")]                      # 90 -> infinite percent, negative, empty
+    her_files(world["incoming"], deg=deg)
+    assert run(world) == 1                                               # 3 of 6 bad is over 5%: terrain is refused (exit code 1) ...
+    assert not (world["lina"] / "terrain.csv").exists()
+    assert run(world, "--max-bad-share", "0.6") == 0                     # ... unless the limit is raised: the bad rows are then dropped
+    pct = pd.read_csv(world["lina"] / "terrain.csv")["slope_pct"]
+    assert pct.between(0, 100).all() and len(pct) == 3
+
+
+def test_service_with_her_files_still_says_twi_is_missing(world):
+    her_files(world["incoming"])
+    run(world)
+    after = analyze("P1")
+    assert {"nasadem", "smap", "landsat_ndvi"} <= {s["id"] for s in after["sources"]}
+    text = " ".join(after["warnings"])
+    assert "NDVI" not in text and "SMAP" not in text and "TWI" in text and after["status"] == "partial"     # the TWI rule is off, and it is said
+    cs = {c["crop"]: c for c in after["crop_suitability"]}
+    assert cs["corn"]["parts"]["rules"] < 1.0 < cs["sorghum"]["parts"]["rules"]                              # SMAP still drives the dry-July rules
+
+
+def test_merge_adds_a_second_field_set(world):
+    her_files(world["incoming"], ids=SAMPLE)
+    assert run(world) == 0
+    second = world["tmp"] / "incoming2"
+    her_files(second, ids=COUNTY)
+    world["incoming"] = second
+    assert run(world, "--merge") == 0
+    t = pd.read_csv(world["lina"] / "terrain.csv", dtype={"field_id": str})
+    assert sorted(t["field_id"]) == sorted(IDS)                                                              # both sets, nothing lost
+    assert pd.read_csv(world["lina"] / "ndvi_monthly.csv", dtype={"field_id": str})["field_id"].nunique() == 6
+    assert set(pd.read_parquet(world["lina"] / "derived.parquet")["field_id"]) == set(IDS)
+    run(world)                                                                                               # without --merge the second set replaces the first
+    assert sorted(pd.read_csv(world["lina"] / "terrain.csv", dtype={"field_id": str})["field_id"]) == sorted(COUNTY)
