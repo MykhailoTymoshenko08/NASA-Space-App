@@ -53,4 +53,6 @@ def apply(ctx: FieldContext) -> FieldContext:
     share = _num(r.get("smap_deficit_share"))
     if share is not None:
         changes["smap_deficit_share"] = share
+        src = r.get("smap_source")
+        changes["smap_source"] = src if src in ("own", "nearest_field") else None
     return dataclasses.replace(ctx, **changes) if changes else ctx

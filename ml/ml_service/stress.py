@@ -32,17 +32,40 @@ class StressSignal:
     intensity: float = 0.0              # 0 when off, 0.5 at the threshold, 1 from z <= threshold - 1.5
 
 
+NDVI_DTYPES = {"field_id": "category", "year": "int16", "month": "int8", "ndvi_mean": "float32", "n_obs": "float32"}   # 3M rows: keep it small
+
+
 def load_ndvi_monthly(lina_dir: str | Path) -> pd.DataFrame | None:
-    p = Path(lina_dir) / NDVI_FILE
-    if not p.exists():
+    """ndvi_monthly.parquet (what the Docker image carries) or ndvi_monthly.csv; field_id is a category so that filtering 3M rows is cheap"""
+    d = Path(lina_dir)
+    if (d / NDVI_FILE.replace(".csv", ".parquet")).exists():
+        df = pd.read_parquet(d / NDVI_FILE.replace(".csv", ".parquet"))
+    elif (d / NDVI_FILE).exists():
+        df = pd.read_csv(d / NDVI_FILE, dtype=NDVI_DTYPES)
+    else:
         return None
-    return pd.read_csv(p, dtype={"field_id": str})
+    df = df.astype({k: v for k, v in NDVI_DTYPES.items() if k in df.columns})
+    df["field_id"] = df["field_id"].cat.rename_categories(lambda c: str(c))      # the csv parser makes integer categories out of the ids
+    return df
+
+
+def _cached(ndvi: pd.DataFrame, crop_of: pd.DataFrame, key: tuple, build):
+    """the per-crop tables below are the same for every request of a year, so they are kept on crop_of (which itself is cached).
+    the entry also holds the ndvi frame it was built from, so a different frame never gets a stale answer."""
+    cache = crop_of.attrs.setdefault("_stress_cache", {})
+    hit = cache.get(key)
+    if hit is not None and hit[0] is ndvi:
+        return hit[1]
+    val = build()
+    cache[key] = (ndvi, val)
+    return val
 
 
 def peak_months(ndvi: pd.DataFrame, crop_of: pd.DataFrame, crop: str, default: list[int], min_rows: int = 60) -> list[int]:
     """months where the crop's mean NDVI is within 5% of its maximum (at most 3), from all fields that grew it."""
-    d = ndvi.merge(crop_of, on=["field_id", "year"])
-    d = d[(d["crop"] == crop) & (d["n_obs"] > 0)]
+    mine = crop_of[crop_of["crop"] == crop]
+    d = ndvi[ndvi["field_id"].isin(mine["field_id"].unique()) & (ndvi["n_obs"] > 0)]
+    d = d.assign(field_id=d["field_id"].astype(str)).merge(mine[["field_id", "year"]], on=["field_id", "year"])
     if len(d) < min_rows:
         return list(default)
     by_month = d.groupby("month")["ndvi_mean"].mean()
@@ -58,13 +81,17 @@ def compute_stress(ndvi: pd.DataFrame | None, crop_of: pd.DataFrame, state_of: p
     if prev_crop in (None, "other", "unknown"):
         return StressSignal(reason="last year's crop is not a candidate crop")
     default = settings["default_peak_months"].get(prev_crop, [7, 8])
-    months = peak_months(ndvi, crop_of, prev_crop, default)
+    months = _cached(ndvi, crop_of, ("peak", prev_crop), lambda: peak_months(ndvi, crop_of, prev_crop, default))
 
-    d = ndvi[(ndvi["year"] == last_year) & ndvi["month"].isin(months) & (ndvi["n_obs"] > 0)]
-    per_field = d.groupby("field_id")["ndvi_mean"].mean().rename("v").reset_index()
-    per_field = per_field.merge(crop_of[crop_of["year"] == last_year][["field_id", "crop"]], on="field_id")
-    per_field = per_field[per_field["crop"] == prev_crop]
-    per_field["state"] = per_field["field_id"].map(state_of)
+    def build():
+        d = ndvi[(ndvi["year"] == last_year) & ndvi["month"].isin(months) & (ndvi["n_obs"] > 0)]
+        pf = d.groupby("field_id", observed=True)["ndvi_mean"].mean().rename("v").reset_index()
+        pf["field_id"] = pf["field_id"].astype(str)
+        pf = pf.merge(crop_of[crop_of["year"] == last_year][["field_id", "crop"]], on="field_id")
+        pf = pf[pf["crop"] == prev_crop].copy()
+        pf["state"] = pf["field_id"].map(state_of)
+        return pf
+    per_field = _cached(ndvi, crop_of, ("field", last_year, prev_crop, tuple(months)), build)
     if field_id not in set(per_field["field_id"]):
         return StressSignal(reason="the field has no NDVI in the peak months", crop=prev_crop, months=months)
     mine = per_field[per_field["field_id"] == field_id].iloc[0]

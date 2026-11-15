@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .cdl import history_token
+from .cdl import history_token, noncrop_note
 from .ranking import ROOT, Assets, FieldContext
 from .season_climate import CLIMATE_COLS
 
@@ -99,8 +99,10 @@ def context(field_id: str, a: Assets, target_year: int = 2026) -> FieldContext |
         soil=soil, slope_pct=nasadem if nasadem is not None else clean(rec.get("slope_r")),
         slope_ssurgo=clean(rec.get("slope_r")), slope_source="nasadem" if nasadem is not None else "ssurgo",
         twi=clean(rec.get("twi")), smap_deficit_share=clean(rec.get("smap_deficit_share")),
+        smap_source=(str(rec.get("smap_source")) if clean(rec.get("smap_deficit_share")) is not None and rec.get("smap_source") in ("own", "nearest_field") else None),
         climate_norm={c: float(rec[f"norm_{c}"]) for c in CLIMATE_COLS}, climate_lag1={c: float(rec[f"lag1_{c}"]) for c in CLIMATE_COLS},
         winter_tmin_c=float(rec["winter_tmin_c"]), history=history, history_rich=rich, target_year=target_year,
         et0_monthly=monthly["et0"], precip_monthly=monthly["precip"], precip_annual=float(rec["precip_annual"]),
         monthly=monthly, provenance="precomputed", cell=str(rec["cell"]), area_ha=clean(rec.get("area_ha")),
+        notes=[n for n in [noncrop_note({y: int(c) for y, c in codes.items()})] if n],
     )
