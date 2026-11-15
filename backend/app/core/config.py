@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     # Saved fields (per user, in the `database_url` database).
     saved_fields_max_per_user: int = Field(default=50, ge=1)
 
+    # Area rankings (/comparisons/area): most CSB fields one request may rank (the largest county has
+    # about 21,000), and whether missing soil ratings are looked up in the background from Soil Data Access.
+    area_max_fields: int = Field(default=30000, ge=1)
+    area_soil_fill: bool = True
+
     @field_validator("smtp_from_email", mode="before")
     @classmethod
     def _empty_sender(cls, v):

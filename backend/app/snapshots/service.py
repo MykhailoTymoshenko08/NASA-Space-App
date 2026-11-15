@@ -32,15 +32,16 @@ def default_sources() -> list[DataSource]:
     return [PowerSource(), SsurgoSource(), ElevationSource(), SoilGridsSource()]
 
 
+# v3: the SSURGO source added `soil_productivity_nccpi`; older cached snapshots lack it.
 def snapshot_key(sel: FieldSelection) -> str:
     if sel.field_id:
-        return f"snap:v2:field:{sel.field_id}"
-    return f"snap:v2:pt:{sel.anchor.lat:.2f},{sel.anchor.lon:.2f}"
+        return f"snap:v3:field:{sel.field_id}"
+    return f"snap:v3:pt:{sel.anchor.lat:.2f},{sel.anchor.lon:.2f}"
 
 
 def _source_key(src: DataSource, sel: FieldSelection) -> str:
     where = sel.field_id or f"{sel.anchor.lat:.5f},{sel.anchor.lon:.5f}"
-    return f"src:v2:{src.name}:{where}"
+    return f"src:v3:{src.name}:{where}"
 
 
 class SnapshotService:

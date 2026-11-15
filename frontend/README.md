@@ -56,6 +56,7 @@ change the contract first (and add an entry to `CONTRACT_CHANGELOG.md`), then ru
 | Reset password | `/reset-password` | `POST /auth/forgot-password`, `POST /auth/reset-password` |
 | Change password | `/account/password` | `POST /auth/change-password` (account menu link) |
 | My fields, compare | `/my-fields` | `GET`/`POST /me/fields`, `DELETE /me/fields/{id}` (Save field button too). Compare: `POST /snapshots` per field |
+| Compare and rank (to build) | — | `POST /comparisons/saved-fields`, `POST /comparisons/area`: see [docs/field-comparison.md](docs/field-comparison.md) |
 
 Auth: the access token is kept in memory only; the refresh token is the backend's httpOnly cookie
 (`credentials: "include"` on `/auth/*`). "Keep me signed in" off ends the session with the browser tab.

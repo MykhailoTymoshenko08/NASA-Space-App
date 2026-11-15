@@ -85,6 +85,14 @@ class Services:
             fail_rate=settings.stub_fail_rate if settings.analysis_engine == "stub" else 0.0,
         )
 
+        from app.comparisons.area import AreaRankingService, AreaStore, SoilFiller
+
+        self.area_rankings: AreaRankingService | None = None
+        area_store = AreaStore.connect(settings.database_url) if self._fields is not None else None
+        if area_store is not None:
+            filler = SoilFiller(area_store, self.data_client) if settings.area_soil_fill else None
+            self.area_rankings = AreaRankingService(area_store, filler, settings.area_max_fields)
+
         self.boundary_tiles = self._tiles(d / "boundaries.pmtiles")
         self.plss_tiles = self._tiles(d / "plss.pmtiles")
 
@@ -134,6 +142,8 @@ class Services:
 
     async def aclose(self) -> None:
         await self.analyses.aclose()
+        if self.area_rankings is not None:
+            await self.area_rankings.aclose()
         await self.ml_client.aclose()
         await self.link_client.aclose()
         await self.field_info.aclose()

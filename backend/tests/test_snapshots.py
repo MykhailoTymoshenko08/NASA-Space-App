@@ -16,7 +16,7 @@ from tests.fixture_data import F1_POINT
 ALL_KEYS = {
     "relative_humidity_2m", "air_temp_mean_2m", "precip_30d_total", "soil_wetness_surface",
     "soil_wetness_rootzone", "soil_organic_matter_pct", "soil_ph", "soil_texture_class",
-    "elevation_m", "soil_nitrogen_total",
+    "elevation_m", "soil_nitrogen_total", "soil_productivity_nccpi",
 }
 ANCHOR = LatLon(lat=41.6, lon=-93.6)
 
@@ -147,6 +147,31 @@ async def test_ssurgo_area_weighted_over_field_area():
     body = route.calls.last.request.content.decode()
     assert "GetClippedMapunits" in body and "POLYGON ((-93.61 41.59" in body  # lon lat order
     assert route.call_count == 1
+
+
+@respx.mock
+async def test_ssurgo_productivity_index_is_area_weighted():
+    rows = {"Table": [
+        ["mukey", "area", "dom", "nccpi"],
+        ["1", "3.0E-05", "Clarion|85|3.0|6.0|Loam", "0.80"],
+        ["2", "1.0E-05", "Webster|90|5.0|7.0|Clay loam", "0.92"],
+        ["3", "1.0E-05", "Water|100||||", None],  # unrated: not part of the weights
+    ]}
+    route = respx.post(ssurgo.URL).mock(return_value=httpx.Response(200, json=rows))
+    async with httpx.AsyncClient() as c:
+        ms = {m.key: m for m in await ssurgo.SsurgoSource().fetch(c, SEL)}
+    # (0.80 * 3 + 0.92 * 1) / 4 = 0.83 -> 83 on the 0-100 scale.
+    m = ms["soil_productivity_nccpi"]
+    assert (m.value, m.unit, m.quality) == (83, "index", "estimated")
+    assert "NCCPI" in m.note and "Area-weighted" in m.note
+    assert ssurgo.NCCPI_RULE in route.calls.last.request.content.decode()
+    # Older rows without the column: the other soil values still work, productivity is unavailable.
+    respx.post(ssurgo.URL).mock(return_value=httpx.Response(200, json=SSURGO_OK))
+    async with httpx.AsyncClient() as c:
+        ms = {m.key: m for m in await ssurgo.SsurgoSource().fetch(c, SEL)}
+    assert ms["soil_ph"].value == 6.2
+    assert ms["soil_productivity_nccpi"].quality == "unavailable"
+    assert ms["soil_productivity_nccpi"].unavailable_reason
 
 
 @respx.mock

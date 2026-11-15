@@ -1,4 +1,4 @@
-"""Pydantic models mirroring `contract/openapi.yaml` (v0.11.0).
+"""Pydantic models mirroring `contract/openapi.yaml` (v0.12.0).
 
 Keep names and enums identical to the contract. The contract tests validate real responses
 against the YAML, so drift is caught there.
@@ -653,3 +653,248 @@ class SavedFieldList(BaseModel):
     items: list[SavedField]
     limit: int
 
+
+# --- Comparisons ------------------------------------------------------------------------------------
+
+
+class CropHistorySummary(BaseModel):
+    """What a renter reads from past crops. Counts use the years on record, newest first."""
+
+    source: Literal["farmer", "usda_csb", "none"]
+    years_recorded: int
+    first_year: int | None
+    latest_year: int | None
+    latest_crop: str | None
+    corn_years: int
+    soybean_years: int
+    other_years: int
+    distinct_crops: int
+    # Consecutive corn years ending at the latest year (0 when the latest crop is not corn).
+    corn_in_a_row: int
+    pattern: Literal["corn_soybean", "continuous_corn", "continuous_soybean", "mixed", "unknown"]
+
+
+class ComparisonPlanCrop(StrEnum):
+    corn = "corn"
+    soybean = "soybean"
+    winter_wheat = "winter_wheat"
+
+
+class ComparisonPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rotation: list[ComparisonPlanCrop] = Field(
+        default_factory=lambda: [ComparisonPlanCrop.corn, ComparisonPlanCrop.soybean],
+        min_length=1, max_length=3,
+    )
+    horizon_years: int = Field(default=2, ge=1, le=5)
+
+
+class SavedFieldComparisonRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    saved_field_ids: list[UUID] = Field(min_length=2, max_length=4)
+    # Asking cash rent per saved field id, USD/acre/year. Fields left out use the state reference rent.
+    rent_per_acre: dict[str, float] = Field(default_factory=dict)
+    plan: ComparisonPlan = Field(default_factory=ComparisonPlan)
+    crop_overrides: list[CropBudgetInput] = Field(default_factory=list, max_length=16)
+    home: LatLon | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "SavedFieldComparisonRequest":
+        if len(set(self.saved_field_ids)) != len(self.saved_field_ids):
+            raise ValueError("saved_field_ids must be unique")
+        ids = {str(i) for i in self.saved_field_ids}
+        rents: dict[str, float] = {}
+        for key, value in self.rent_per_acre.items():
+            try:
+                norm = str(UUID(key))
+            except ValueError:
+                raise ValueError(f"rent_per_acre key {key!r} is not a saved field id") from None
+            if norm not in ids:
+                raise ValueError(f"rent_per_acre key {key!r} is not in saved_field_ids")
+            if not (0 <= value <= 5000) or value != value:
+                raise ValueError("rent_per_acre values must be between 0 and 5000")
+            rents[norm] = value
+        self.rent_per_acre = rents
+        crops = [x.crop for x in self.crop_overrides]
+        if len(crops) != len(set(crops)):
+            raise ValueError("Provide only one budget override per crop")
+        return self
+
+
+class RentUsed(BaseModel):
+    per_acre: float | None
+    source: Literal["farmer", "state_baseline", "none"]
+    is_placeholder: bool
+
+
+class ComparedField(BaseModel):
+    saved_field_id: UUID
+    label: str
+    name: str
+    field_id: str | None
+    state: str
+    county: CountyRef | None
+    anchor: LatLon
+    boundary_type: BoundaryType
+    area_ha: float | None
+    rent: RentUsed
+    budget: RotationBudget | None
+    net_return_per_acre: BudgetAmounts | None
+    net_return_field: BudgetAmounts | None
+    break_even_rent_per_acre: BudgetAmounts | None
+    history: CropHistorySummary
+    strengths: list[str]
+    cautions: list[str]
+    data_as_of: datetime | None
+    info_as_of: datetime | None
+
+
+class ValueRange(BaseModel):
+    min: float
+    max: float
+
+
+class ComparisonCell(BaseModel):
+    saved_field_id: UUID
+    value: float | str | None
+    quality: Quality
+    note: str | None = None
+
+
+class ComparisonRow(BaseModel):
+    key: str
+    label: str
+    group: Literal["money", "land", "soil", "history", "climate"]
+    unit: str
+    better: Literal["higher", "lower", "target", "none"]
+    target: ValueRange | None = None
+    cells: list[ComparisonCell]
+    best: list[UUID]
+    same_for_all: bool
+    note: str | None = None
+
+
+class ComparisonBest(BaseModel):
+    net_return: list[UUID]
+    soil_productivity: list[UUID]
+    rent_value: list[UUID]
+
+
+class FieldComparison(BaseModel):
+    generated_at: datetime
+    plan: ComparisonPlan
+    fields: list[ComparedField]
+    rows: list[ComparisonRow]
+    best: ComparisonBest
+    warnings: list[str]
+    disclaimer: str
+
+
+class AreaCountyRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    county_fips: CountyFips
+
+
+class AreaBBoxRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    bbox: BBox
+
+
+class AreaPolygonRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    polygon: GeoJSONPolygon
+
+
+AreaRef = AreaCountyRef | AreaBBoxRef | AreaPolygonRef
+
+
+class AreaFilters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    min_area_ha: float | None = Field(default=None, ge=0, le=100000)
+    max_area_ha: float | None = Field(default=None, ge=0, le=100000)
+    min_productivity: float | None = Field(default=None, ge=0, le=100)
+    latest_crops: list[str] = Field(default_factory=list, max_length=10)
+    exclude_continuous_corn: bool = False
+
+
+class AreaSort(StrEnum):
+    productivity = "productivity"
+    area = "area"
+    distance = "distance"
+
+
+class AreaRankingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    area: AreaRef
+    filters: AreaFilters = Field(default_factory=AreaFilters)
+    sort: AreaSort = AreaSort.productivity
+    near: LatLon | None = None
+    pinned_field_ids: list[Annotated[str, Field(min_length=1, max_length=64)]] = Field(
+        default_factory=list, max_length=4,
+    )
+    limit: int = Field(default=25, ge=1, le=100)
+    offset: int = Field(default=0, ge=0, le=50000)
+
+    @model_validator(mode="after")
+    def _check(self) -> "AreaRankingRequest":
+        if self.sort == AreaSort.distance and self.near is None:
+            raise ValueError("sort=distance needs `near`")
+        f = self.filters
+        if f.min_area_ha is not None and f.max_area_ha is not None and f.min_area_ha > f.max_area_ha:
+            raise ValueError("min_area_ha must not exceed max_area_ha")
+        return self
+
+
+class Quartiles(BaseModel):
+    p25: float
+    median: float
+    p75: float
+
+
+class RankedField(BaseModel):
+    field_id: str
+    rank: int | None
+    matches_filters: bool
+    anchor: LatLon
+    bbox: list[float]
+    county_fips: str
+    area_ha: float
+    history: CropHistorySummary
+    productivity: float | None
+    soil_name: str | None
+    drainage: str | None
+    distance_km: float | None
+    area_percentile: int | None
+    productivity_percentile: int | None
+
+
+class AreaSoilStatus(BaseModel):
+    status: Literal["complete", "partial", "filling", "unavailable"]
+    fields_rated: int
+    fields_total: int
+    method: str
+
+
+class AreaInfo(BaseModel):
+    kind: Literal["county", "bbox", "polygon"]
+    county: CountyRef | None
+    bbox: list[float]
+
+
+class AreaStats(BaseModel):
+    area_ha: Quartiles | None
+    productivity: Quartiles | None
+
+
+class AreaRanking(BaseModel):
+    area: AreaInfo
+    total: int
+    sort: AreaSort
+    offset: int
+    limit: int
+    next_offset: int | None
+    soil: AreaSoilStatus
+    stats: AreaStats
+    items: list[RankedField]
+    pinned: list[RankedField]
+    notes: list[str]

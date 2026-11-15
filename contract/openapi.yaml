@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Field Shift API
-  version: 0.11.0
+  version: 0.12.0
   description: |
     Contract between the frontend and backend of the Field Shift farmer map
     (NASA Space Apps, crop-rotation decision support). THIS FILE IS THE SOURCE OF TRUTH.
@@ -39,6 +39,8 @@ tags:
 - name: auth
 - name: saved-fields
   description: A signed-in farmer's own saved fields. Every route needs a bearer token.
+- name: comparisons
+  description: Compare saved fields side by side and rank the fields of an area. Every route needs a bearer token.
 paths:
   /health:
     get:
@@ -909,6 +911,128 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /comparisons/saved-fields:
+    post:
+      tags:
+      - comparisons
+      operationId: compareSavedFields
+      summary: Compare 2 to 4 of the signed-in user's saved fields side by side
+      description: |
+        Built for a farmer choosing which field to rent. One response holds everything the compare view
+        needs: one column per field (`fields`, labelled A to D in request order) and ready-ranked rows
+        (`rows`), so the frontend does not compute winners itself.
+
+        Data per field:
+        - Soil (`soil_*` rows) from the field snapshot, the same data as `POST /snapshots` for the saved
+          field's CSB id (area-weighted over the estimated field area) or, without one, its centroid.
+          Includes `soil_productivity_nccpi` (USDA NCCPI, 0-100).
+        - Slope, land cover, drainage and long-term climate from the saved `/fields/info` context. A field
+          saved without it is fetched live once (not stored).
+        - Money from an illustrative rotation budget (same rules as `Strategy.budget`) for one shared crop
+          plan (`plan`), charged at the farmer's asking rent (`rent_per_acre`) or the state reference rent.
+          The plan starts with the crop that follows each field's latest crop, so the soybean nitrogen credit
+          lands where it should. Yields and prices are state references: between fields in one state, money
+          differs only by rent, previous crop and size. Soil quality is never turned into yield.
+
+        A source that fails gives `unavailable` cells and a caution; the request still answers 200.
+        Rate limited per client (`429 RATE_LIMITED`).
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedFieldComparisonRequest'
+            example:
+              saved_field_ids: [3f0c2c55-8d64-4f5e-9a51-2d8f8f6f1b10, 9b1e7a40-5c3d-4b7e-8f2a-1c6d5e4f3a21]
+              rent_per_acre: {3f0c2c55-8d64-4f5e-9a51-2d8f8f6f1b10: 265}
+              plan: {rotation: [corn, soybean], horizon_years: 2}
+              home: {lat: 41.98, lon: -93.62}
+      responses:
+        '200':
+          description: The comparison
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldComparison'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: '`NOT_FOUND`: a saved field id that is not the user''s (`details.saved_field_id`).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /comparisons/area:
+    post:
+      tags:
+      - comparisons
+      operationId: rankAreaFields
+      summary: Rank every estimated field in a county, a box or a township outline
+      description: |
+        For screening many fields before a detailed comparison: filter, sort and page all CSB fields of an
+        area, with each field's percentile among the matching fields (where it stands in its county).
+
+        `area` is one of `{county_fips}` (a field-state county), `{bbox}` or `{polygon}` (for a survey
+        township, send the outline drawn on the map). A box or outline spans at most 1 degree each way.
+        A field belongs to the area when a point inside it does. At most 30,000 fields per area
+        (`AREA_MAX_FIELDS`), else `422` with `details.max_fields`.
+
+        Soil (`productivity`, `soil_name`, `drainage`) is SSURGO at one point inside each field: a
+        screening value. Ratings are stored once looked up. Fields without one are looked up in the
+        background: `soil.status` is `filling` meanwhile; ask again (same body) every few seconds until it
+        is `complete`. `partial` / `unavailable` mean the lookup failed; it is retried after about 2
+        minutes. Unrated fields sort last by productivity and fail `min_productivity`.
+        Rate limited per client (`429 RATE_LIMITED`).
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AreaRankingRequest'
+            example:
+              area: {county_fips: '19169'}
+              filters: {min_area_ha: 20, exclude_continuous_corn: true}
+              sort: productivity
+              pinned_field_ids: [csb2025_191825003871492]
+              limit: 25
+      responses:
+        '200':
+          description: One page of ranked fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AreaRanking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: '`NOT_FOUND`: unknown county.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: '`VALIDATION_ERROR` (bad body, area too large, too many fields) or `OUTSIDE_COVERAGE`
+            (county outside Iowa, Illinois, Nebraska).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          description: '`INTERNAL_ERROR`: the field database is not reachable.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -1659,6 +1783,8 @@ components:
             `air_temp_mean_2m`, `precip_30d_total`, `precip_annual_normal`, `soil_organic_matter_pct`,
             `soil_nitrogen_total` (estimated), `soil_ph`, `soil_texture_class`, `elevation_m`, `slope_pct`.
             `soil_wetness_surface` and `soil_wetness_rootzone` (NASA POWER, modeled, unit `fraction`).
+            `soil_productivity_nccpi` (SSURGO, estimated, unit `index`, 0-100: USDA National Commodity Crop
+            Productivity Index v3.0, area-weighted over the field area like the other SSURGO values).
           example: soil_moisture_surface
         label:
           type: string
@@ -2477,3 +2603,406 @@ components:
       properties:
         error:
           $ref: '#/components/schemas/ApiError'
+    CountyRef:
+      type: object
+      required: [fips, name, state_postal]
+      properties:
+        fips:
+          $ref: '#/components/schemas/CountyFips'
+        name:
+          type: string
+        state_postal:
+          type: string
+    CropHistorySummary:
+      type: object
+      description: Past crops as a renter reads them. Counts cover the years on record.
+      required: [source, years_recorded, first_year, latest_year, latest_crop, corn_years, soybean_years,
+        other_years, distinct_crops, corn_in_a_row, pattern]
+      properties:
+        source:
+          type: string
+          enum: [farmer, usda_csb, none]
+          description: '`farmer`: the saved field''s own crop history; `usda_csb`: mapped crops; `none`: no years.'
+        years_recorded: {type: integer, minimum: 0}
+        first_year: {type: [integer, 'null']}
+        latest_year: {type: [integer, 'null']}
+        latest_crop: {type: [string, 'null']}
+        corn_years: {type: integer, minimum: 0}
+        soybean_years: {type: integer, minimum: 0}
+        other_years: {type: integer, minimum: 0, description: Every other crop, including double crops.}
+        distinct_crops: {type: integer, minimum: 0}
+        corn_in_a_row:
+          type: integer
+          minimum: 0
+          description: Consecutive corn years ending at the latest year (0 when the latest crop is not corn).
+        pattern:
+          type: string
+          enum: [corn_soybean, continuous_corn, continuous_soybean, mixed, unknown]
+          description: From the latest 4 years. `continuous_*` also when the same crop runs 3 or more years up
+            to the latest year. `unknown` with fewer than 2 years.
+    ComparisonPlan:
+      type: object
+      additionalProperties: false
+      description: One crop plan budgeted on every field, so the money rows compare like with like.
+      properties:
+        rotation:
+          type: array
+          minItems: 1
+          maxItems: 3
+          default: [corn, soybean]
+          items:
+            type: string
+            enum: [corn, soybean, winter_wheat]
+          description: Crops in order, repeated over the horizon. Each field starts with the crop after its
+            latest crop (after corn, a corn/soybean plan starts with soybeans).
+        horizon_years:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 2
+    SavedFieldComparisonRequest:
+      type: object
+      additionalProperties: false
+      required: [saved_field_ids]
+      properties:
+        saved_field_ids:
+          type: array
+          minItems: 2
+          maxItems: 4
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+          description: The user's saved field ids. Columns come back in this order, labelled A to D.
+        rent_per_acre:
+          type: object
+          additionalProperties:
+            type: number
+            minimum: 0
+            maximum: 5000
+          description: Asking cash rent in USD/acre/year, keyed by saved field id. Fields left out use the
+            state reference rent (still a placeholder in 0.12.0, flagged as such). 0 means no land charge.
+        plan:
+          $ref: '#/components/schemas/ComparisonPlan'
+        crop_overrides:
+          type: array
+          maxItems: 16
+          items:
+            $ref: '#/components/schemas/CropBudgetInput'
+          description: The farmer's own revenue and non-land cost per crop, applied to every field.
+        home:
+          $ref: '#/components/schemas/LatLon'
+          description: The farmstead. Adds a `distance_from_home` row (straight line, km).
+    RentUsed:
+      type: object
+      required: [per_acre, source, is_placeholder]
+      properties:
+        per_acre: {type: [number, 'null'], description: USD/acre/year. Null when the state has no reference.}
+        source: {type: string, enum: [farmer, state_baseline, none]}
+        is_placeholder: {type: boolean, description: The state reference is an unsourced placeholder.}
+    ComparedField:
+      type: object
+      description: One column of the comparison.
+      required: [saved_field_id, label, name, field_id, state, county, anchor, boundary_type, area_ha, rent,
+        budget, net_return_per_acre, net_return_field, break_even_rent_per_acre, history, strengths, cautions,
+        data_as_of, info_as_of]
+      properties:
+        saved_field_id: {type: string, format: uuid}
+        label: {type: string, enum: [A, B, C, D], description: Column letter in request order. Use it on the map.}
+        name: {type: string}
+        field_id: {type: [string, 'null']}
+        state: {type: string}
+        county:
+          oneOf:
+          - $ref: '#/components/schemas/CountyRef'
+          - type: 'null'
+        anchor:
+          $ref: '#/components/schemas/LatLon'
+          description: The saved centroid.
+        boundary_type:
+          type: string
+          enum: [estimated_csb, buffered_point]
+          description: '`buffered_point`: no mapped field; soil is read around a point.'
+        area_ha: {type: [number, 'null'], description: Null for a field saved as a point.}
+        rent:
+          $ref: '#/components/schemas/RentUsed'
+        budget:
+          description: The plan's budget at `rent`. Null only when the state has no rent reference.
+          oneOf:
+          - $ref: '#/components/schemas/RotationBudget'
+          - type: 'null'
+        net_return_per_acre:
+          description: Average return after all costs and rent, USD/acre/year, at low/base/high prices.
+            Null unless every plan year is budgeted.
+          oneOf:
+          - $ref: '#/components/schemas/BudgetAmounts'
+          - type: 'null'
+        net_return_field:
+          description: '`net_return_per_acre` times the field''s acres, USD/year. Null without an area.'
+          oneOf:
+          - $ref: '#/components/schemas/BudgetAmounts'
+          - type: 'null'
+        break_even_rent_per_acre:
+          description: Return before land, USD/acre/year. The highest rent the field carries without a loss.
+          oneOf:
+          - $ref: '#/components/schemas/BudgetAmounts'
+          - type: 'null'
+        history:
+          $ref: '#/components/schemas/CropHistorySummary'
+        strengths:
+          type: array
+          items: {type: string}
+          description: Plain-English points in this field's favour. Safe to show as is.
+        cautions:
+          type: array
+          items: {type: string}
+          description: Plain-English things to check (losses at this rent, corn after corn, slope, missing data).
+        data_as_of:
+          type: [string, 'null']
+          format: date-time
+          description: When the soil snapshot was made. Null when it could not be loaded.
+        info_as_of:
+          type: [string, 'null']
+          format: date-time
+          description: When the saved field context was fetched.
+    ValueRange:
+      type: object
+      required: [min, max]
+      properties:
+        min: {type: number}
+        max: {type: number}
+    ComparisonCell:
+      type: object
+      required: [saved_field_id, value, quality]
+      properties:
+        saved_field_id: {type: string, format: uuid}
+        value:
+          type: [number, string, 'null']
+          description: In the row's `unit` (metric units for soil, land and climate; USD for money).
+        quality:
+          type: string
+          enum: [measured, modeled, estimated, unavailable]
+        note:
+          type: [string, 'null']
+          description: How the value was obtained, or why it is unavailable.
+    ComparisonRow:
+      type: object
+      required: [key, label, group, unit, better, cells, best, same_for_all]
+      properties:
+        key:
+          type: string
+          description: |
+            Stable key. 0.12.0 rows, in this order: money `net_return_per_acre`, `net_return_field`,
+            `break_even_rent`, `rent`, `rent_per_productivity_point`; land `area` (ha), `slope`, `land_cover`,
+            `distance_from_home` (only with `home`); soil `soil_productivity_nccpi`, `soil_organic_matter_pct`,
+            `soil_ph`, `soil_texture_class`, `soil_drainage`; history `rotation_pattern`, `latest_crop`,
+            `corn_in_a_row`; climate `precipitation_normal`, `temperature_normal`. Render unknown keys generically.
+        label: {type: string}
+        group: {type: string, enum: [money, land, soil, history, climate]}
+        unit: {type: string, description: 'Same unit codes as `Metric.unit`, plus `USD/acre/year`, `USD/year`, `USD/acre/point`, `years`.'}
+        better:
+          type: string
+          enum: [higher, lower, target, none]
+          description: '`target`: closest to `target` wins. `none`: no ranking (texture, size, climate).'
+        target:
+          oneOf:
+          - $ref: '#/components/schemas/ValueRange'
+          - type: 'null'
+        cells:
+          type: array
+          items: {$ref: '#/components/schemas/ComparisonCell'}
+          description: One per field, in `fields` order.
+        best:
+          type: array
+          items: {type: string, format: uuid}
+          description: Fields with the best value (ties allowed). Empty when fewer than two values compare,
+            when every value ties, or when `better` is `none`.
+        same_for_all:
+          type: boolean
+          description: Every field has the same value. The row does not tell the fields apart; the UI may fold it.
+        note: {type: [string, 'null']}
+    ComparisonBest:
+      type: object
+      required: [net_return, soil_productivity, rent_value]
+      description: Shortcuts to the `best` of the three headline rows.
+      properties:
+        net_return:
+          type: array
+          items: {type: string, format: uuid}
+        soil_productivity:
+          type: array
+          items: {type: string, format: uuid}
+        rent_value:
+          type: array
+          items: {type: string, format: uuid}
+    FieldComparison:
+      type: object
+      required: [generated_at, plan, fields, rows, best, warnings, disclaimer]
+      properties:
+        generated_at: {type: string, format: date-time}
+        plan:
+          $ref: '#/components/schemas/ComparisonPlan'
+        fields:
+          type: array
+          minItems: 2
+          maxItems: 4
+          items: {$ref: '#/components/schemas/ComparedField'}
+        rows:
+          type: array
+          items: {$ref: '#/components/schemas/ComparisonRow'}
+        best:
+          $ref: '#/components/schemas/ComparisonBest'
+        warnings:
+          type: array
+          items: {type: string}
+          description: Show above the table. Always says money rows are illustrative state budgets.
+        disclaimer: {type: string}
+    AreaRankingRequest:
+      type: object
+      additionalProperties: false
+      required: [area]
+      properties:
+        area:
+          oneOf:
+          - type: object
+            additionalProperties: false
+            required: [county_fips]
+            properties:
+              county_fips:
+                $ref: '#/components/schemas/CountyFips'
+          - type: object
+            additionalProperties: false
+            required: [bbox]
+            properties:
+              bbox:
+                $ref: '#/components/schemas/BBox'
+          - type: object
+            additionalProperties: false
+            required: [polygon]
+            properties:
+              polygon:
+                $ref: '#/components/schemas/GeoJSONPolygon'
+        filters:
+          type: object
+          additionalProperties: false
+          properties:
+            min_area_ha: {type: [number, 'null'], minimum: 0}
+            max_area_ha: {type: [number, 'null'], minimum: 0}
+            min_productivity: {type: [number, 'null'], minimum: 0, maximum: 100}
+            latest_crops:
+              type: array
+              maxItems: 10
+              items: {type: string}
+              description: Keep fields whose latest mapped crop is one of these CDL names (case-insensitive).
+            exclude_continuous_corn:
+              type: boolean
+              default: false
+              description: Drop fields with corn 3 or more years in a row up to the latest year.
+        sort:
+          type: string
+          enum: [productivity, area, distance]
+          default: productivity
+          description: '`productivity` and `area` descending, `distance` ascending (needs `near`).'
+        near:
+          $ref: '#/components/schemas/LatLon'
+          description: 'Adds `distance_km` to every field; required for `sort: distance`.'
+        pinned_field_ids:
+          type: array
+          maxItems: 4
+          items: {type: string, minLength: 1, maxLength: 64}
+          description: CSB field ids to report in `pinned` whatever the page, e.g. the fields being compared.
+        limit: {type: integer, minimum: 1, maximum: 100, default: 25}
+        offset: {type: integer, minimum: 0, maximum: 50000, default: 0}
+    Quartiles:
+      type: object
+      required: [p25, median, p75]
+      properties:
+        p25: {type: number}
+        median: {type: number}
+        p75: {type: number}
+    RankedField:
+      type: object
+      required: [field_id, rank, matches_filters, anchor, bbox, county_fips, area_ha, history, productivity,
+        soil_name, drainage, distance_km, area_percentile, productivity_percentile]
+      properties:
+        field_id: {type: string}
+        rank: {type: [integer, 'null'], minimum: 1, description: 'Position among matching fields; null for a pinned field that fails the filters.'}
+        matches_filters: {type: boolean}
+        anchor:
+          $ref: '#/components/schemas/LatLon'
+          description: A point inside the field (where its soil is read).
+        bbox:
+          $ref: '#/components/schemas/BBox'
+        county_fips: {type: string}
+        area_ha: {type: number}
+        history:
+          $ref: '#/components/schemas/CropHistorySummary'
+        productivity: {type: [number, 'null'], minimum: 0, maximum: 100, description: NCCPI 0-100 at the field's point.}
+        soil_name: {type: [string, 'null'], description: Dominant soil component at the point.}
+        drainage: {type: [string, 'null'], description: Drainage class of that component.}
+        distance_km: {type: [number, 'null'], description: Straight line from `near`; null without it.}
+        area_percentile:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 100
+          description: Share of the other matching fields that are smaller (0-100). Null with fewer than 2.
+        productivity_percentile:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 100
+          description: Share of the other rated matching fields with a lower rating. Null when unrated.
+    AreaRanking:
+      type: object
+      required: [area, total, sort, offset, limit, next_offset, soil, stats, items, pinned, notes]
+      properties:
+        area:
+          type: object
+          required: [kind, county, bbox]
+          properties:
+            kind: {type: string, enum: [county, bbox, polygon]}
+            county:
+              oneOf:
+              - $ref: '#/components/schemas/CountyRef'
+              - type: 'null'
+            bbox:
+              $ref: '#/components/schemas/BBox'
+        total: {type: integer, minimum: 0, description: Fields matching the filters.}
+        sort: {type: string, enum: [productivity, area, distance]}
+        offset: {type: integer}
+        limit: {type: integer}
+        next_offset: {type: [integer, 'null'], description: Offset of the next page; null on the last page.}
+        soil:
+          type: object
+          required: [status, fields_rated, fields_total, method]
+          properties:
+            status:
+              type: string
+              enum: [complete, partial, filling, unavailable]
+              description: '`filling`: lookups running, ask again in a few seconds. `partial` / `unavailable`:
+                lookups failed for some / all fields.'
+            fields_rated: {type: integer, minimum: 0}
+            fields_total: {type: integer, minimum: 0, description: All fields of the area, before filters.}
+            method: {type: string}
+        stats:
+          type: object
+          required: [area_ha, productivity]
+          description: Quartiles over the matching fields (rated ones for productivity).
+          properties:
+            area_ha:
+              oneOf:
+              - $ref: '#/components/schemas/Quartiles'
+              - type: 'null'
+            productivity:
+              oneOf:
+              - $ref: '#/components/schemas/Quartiles'
+              - type: 'null'
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/RankedField'}
+        pinned:
+          type: array
+          items: {$ref: '#/components/schemas/RankedField'}
+          description: The requested `pinned_field_ids` found in the area, in request order.
+        notes:
+          type: array
+          items: {type: string}

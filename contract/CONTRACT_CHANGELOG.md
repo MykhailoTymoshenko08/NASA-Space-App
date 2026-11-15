@@ -3,6 +3,24 @@
 `openapi.yaml` is the source of truth. `openapi.json` is generated from it
 (`cd backend && make contract-json`). Every change bumps `info.version` and gets an entry here.
 
+## 0.12.0 (2026-11-15): field comparisons and area rankings
+
+Additive. Both routes need a bearer token and share a per-client rate limit.
+
+- `POST /comparisons/saved-fields`: 2 to 4 of the user's saved fields side by side, for choosing a field
+  to rent. Columns `fields` (A to D) carry rent, an illustrative budget for one shared crop `plan`,
+  return after rent, break-even rent, crop history summary, strengths and cautions. `rows` are ready to
+  render: unit, `better` (higher / lower / target / none), per-field `cells`, the `best` field ids and
+  `same_for_all`. Asking rents (`rent_per_acre`) replace the state reference rent per field.
+- `POST /comparisons/area`: filter, sort (soil productivity, size, distance) and page every CSB field
+  of a county, a box or a township outline, with percentiles among the matching fields, quartiles and
+  `pinned` fields. Soil ratings fill in the background (`soil.status: filling`, then `complete`).
+- New snapshot metric `soil_productivity_nccpi` (SSURGO NCCPI v3.0, 0-100, `estimated`), area-weighted
+  over the field area. It also appears in `AnalysisResult.current_conditions`.
+- New schemas: `SavedFieldComparisonRequest`, `ComparisonPlan`, `FieldComparison`, `ComparedField`,
+  `ComparisonRow`, `ComparisonCell`, `ComparisonBest`, `RentUsed`, `ValueRange`, `CropHistorySummary`,
+  `CountyRef`, `AreaRankingRequest`, `AreaRanking`, `RankedField`, `Quartiles`.
+
 ## 0.11.0 (2026-11-15): profitability input audit
 
 - Default reference yields now match the production-cost enterprise budget, avoiding the combination

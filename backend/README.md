@@ -171,11 +171,13 @@ curl -s -X POST localhost:8000/v1/fields/resolve -H 'content-type: application/j
 | `ML_TIMEOUT_S` | `30` | timeout for an ML HTTP request; must be positive |
 | `STUB_DURATION_S` | `6` | analysis stub run time |
 | `STUB_FAIL_RATE` | `0` | 0..1, share of analysis jobs that fail on purpose |
-| `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_S` | `30` / `60` | per-IP limit on `POST /analyses`, `POST /locations/resolve`, `POST /auth/register` and `POST /auth/login` |
+| `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_S` | `30` / `60` | per-IP limit on `POST /analyses`, `POST /locations/resolve`, `POST /auth/register`, `POST /auth/login` and the two `POST /comparisons/*` routes (shared bucket) |
 | `JWT_SECRET` | empty | signs access tokens, min 32 chars (`openssl rand -base64 48`). Empty: random per process, dev only |
 | `ACCESS_TOKEN_TTL_MIN` | `15` | access token (JWT) lifetime |
 | `REFRESH_TOKEN_TTL_DAYS` | `7` | refresh token (cookie) lifetime |
 | `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | `false` / `lax` | refresh cookie flags; see Auth below |
+| `AREA_MAX_FIELDS` | `30000` | most fields one `POST /comparisons/area` request ranks (the largest county has about 21,000) |
+| `AREA_SOIL_FILL` | `true` | look up missing field soil ratings in the background (USDA Soil Data Access) |
 
 Tests use `TEST_DATABASE_ADMIN_URL` (default `postgresql://fieldshift:fieldshift@localhost:5433/postgres`)
 to create and drop a scratch database.
@@ -353,6 +355,34 @@ Then run `make dev` in `backend/`. `curl http://127.0.0.1:8001/ml/health` must r
 The committed POWER cells cover the demo counties. New cells and soil queries need internet access;
 the first request can return retry guidance while a climate cell downloads in the background.
 The standalone ML Docker setup remains available in [`../ml/README_BACKEND.md`](../ml/README_BACKEND.md).
+
+## Field comparisons
+
+Two signed-in routes (contract 0.12.0, code in `app/comparisons/`). The frontend guide is
+[`frontend/docs/field-comparison.md`](../frontend/docs/field-comparison.md).
+
+- `POST /comparisons/saved-fields`: 2 to 4 saved fields side by side for a renter. Soil comes from the
+  field snapshot (SSURGO area-weighted, now with the NCCPI productivity index), slope, drainage and
+  climate from the saved `/fields/info` context, and money from the rotation budget
+  (`app/profitability/rotation.py`) for one shared crop plan at each field's asking rent. The server
+  ranks each row (`best`, `same_for_all`), so the UI never computes winners. Yields and prices are state
+  references: money differs between fields only by rent, previous crop and size, and the response says so.
+- `POST /comparisons/area`: every CSB field of a county, box or township outline, filtered, sorted (soil
+  productivity, size, distance), paged, with percentiles and quartiles. One SQL query per request, about
+  0.4 s for a typical county and 1 to 2 s for the largest. Fully rated areas are cached for 5 minutes.
+
+Soil ratings for rankings live in `field_soil` (created on startup, with an index on
+`fields.county_fips`). A missing rating is looked up in the background from Soil Data Access: one point
+per field, batches of 400, one batch at a time per process, about 6 s per batch. A failed area is
+retried after 2 minutes. To fill counties ahead of a demo:
+
+```bash
+uv run python scripts/prepare_field_soil.py --county 19153 --county 19169
+uv run python scripts/prepare_field_soil.py --state IA     # all 629,000 Iowa fields, about 2.5 hours
+```
+
+Soil Data Access sometimes hangs for minutes, even on trivial queries. The API stays up: comparisons show
+unavailable soil cells, and rankings report `soil.status: partial` or `unavailable`.
 
 ## Password change and recovery (Brevo SMTP)
 

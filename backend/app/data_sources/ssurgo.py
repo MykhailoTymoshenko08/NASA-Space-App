@@ -7,7 +7,9 @@ Checked live 2026-11-14 with POST /Tabular/post.rest, format JSON+COLUMNNAME (~2
 
 For an estimated CSB field area we clip the soil map units to the polygon and area-weight the dominant
 major component of each map unit (surface horizon, hzdept_r = 0): organic matter and pH are
-area-weighted means, texture is the class covering the largest area. If that query fails or returns
+area-weighted means, texture is the class covering the largest area. Soil productivity is NCCPI
+(National Commodity Crop Productivity Index, v3.0, 0-1 in SSURGO, reported 0-100): the component-percent
+weighted mean over each map unit's major components, then area-weighted. If that query fails or returns
 nothing (or the selection is a buffered point) we sample the map unit at the anchor point and say so
 in the metric note. Values are survey "representative values", not a lab test of this land.
 """
@@ -39,6 +41,13 @@ PH = MetricSpec("soil_ph", "Soil pH (topsoil, 1:1 water)", MetricCategory.soil, 
                 Quality.measured, SRC, None, BASE_NOTE)
 TEX = MetricSpec("soil_texture_class", "Soil texture (topsoil)", MetricCategory.soil, "class",
                  Quality.measured, SRC, None, BASE_NOTE)
+PRODUCTIVITY = MetricSpec(
+    "soil_productivity_nccpi", "Soil productivity index (NCCPI, 0-100)", MetricCategory.soil, "index",
+    Quality.estimated, SRC, None,
+    "USDA NCCPI v3.0: how well the soil and climate suit non-irrigated commodity crops. Higher is better. "
+    "A survey rating, not a yield forecast.",
+)
+NCCPI_RULE = "NCCPI - National Commodity Crop Productivity Index (Ver 3.0)"
 
 # Dominant major component of a map unit, surface horizon. Values joined with '|' (NULL -> '').
 _DOMINANT = """(SELECT TOP 1 CONCAT(c.compname, '|', c.comppct_r, '|', ch.om_r, '|', ch.ph1to1h2o_r, '|',
@@ -49,16 +58,24 @@ _DOMINANT = """(SELECT TOP 1 CONCAT(c.compname, '|', c.comppct_r, '|', ch.om_r, 
    WHERE c.mukey = mu.mukey AND c.majcompflag = 'Yes'
    ORDER BY c.comppct_r DESC)"""
 
+# NCCPI of a map unit (0-1): component-percent weighted over its rated major components.
+_NCCPI = """(SELECT SUM(c.comppct_r * ci.interphr)
+       / NULLIF(SUM(CASE WHEN ci.interphr IS NOT NULL THEN c.comppct_r END), 0)
+   FROM component c
+   LEFT JOIN cointerp ci ON ci.cokey = c.cokey AND ci.ruledepth = 0
+     AND ci.mrulename = '""" + NCCPI_RULE + """'
+   WHERE c.mukey = mu.mukey AND c.majcompflag = 'Yes')"""
+
 AREA_QUERY = """~DeclareGeometry(@aoi)~
 select @aoi = geometry::STPolyFromText('{wkt}', 4326)
 ~DeclareIdGeomTable(@clipped)~
 ~GetClippedMapunits(@aoi,polygon,geo,@clipped)~
-SELECT mu.mukey, SUM(t.geom.STArea()) AS area, """ + _DOMINANT + """ AS dom
+SELECT mu.mukey, SUM(t.geom.STArea()) AS area, """ + _DOMINANT + """ AS dom, """ + _NCCPI + """ AS nccpi
 FROM @clipped t INNER JOIN mapunit mu ON mu.mukey = t.id
 GROUP BY mu.mukey
 """
 
-POINT_QUERY = """SELECT TOP 1 mu.mukey, 1 AS area, """ + _DOMINANT + """ AS dom
+POINT_QUERY = """SELECT TOP 1 mu.mukey, 1 AS area, """ + _DOMINANT + """ AS dom, """ + _NCCPI + """ AS nccpi
 FROM mapunit mu
 WHERE mu.mukey IN (SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('point({lon} {lat})'))
 """
@@ -79,8 +96,8 @@ def _rows(payload) -> list[dict]:
 
 
 def summarise(rows: list[dict]) -> dict:
-    """Area-weighted summary over map units. Each row: mukey, area, dom='name|pct|om|ph|texture'."""
-    om_w = om_s = ph_w = ph_s = 0.0
+    """Area-weighted summary over map units. Each row: mukey, area, dom='name|pct|om|ph|texture', nccpi."""
+    om_w = om_s = ph_w = ph_s = pi_w = pi_s = 0.0
     tex_area: dict[str, float] = {}
     names: dict[str, float] = {}
     for r in rows:
@@ -95,6 +112,9 @@ def summarise(rows: list[dict]) -> dict:
         if (v := _num(ph)) is not None:
             ph_s += v * a
             ph_w += a
+        if (v := _num(r.get("nccpi"))) is not None:
+            pi_s += v * a
+            pi_w += a
         if tex:
             tex_area[tex] = tex_area.get(tex, 0) + a
         if name:
@@ -104,6 +124,8 @@ def summarise(rows: list[dict]) -> dict:
     return {
         "om": round(om_s / om_w, 1) if om_w else None,
         "ph": round(ph_s / ph_w, 1) if ph_w else None,
+        # NCCPI is 0-1 in SSURGO; reported as 0-100 like the published county maps.
+        "nccpi": round(100 * pi_s / pi_w) if pi_w else None,
         "texture": max(tex_area, key=tex_area.get) if tex_area else None,
         "units": len(rows),
         "main_soil": main,
@@ -113,7 +135,7 @@ def summarise(rows: list[dict]) -> dict:
 
 class SsurgoSource:
     name = "ssurgo"
-    specs = [OM, PH, TEX]
+    specs = [OM, PH, TEX, PRODUCTIVITY]
 
     async def _query(self, client: httpx.AsyncClient, q: str) -> list[dict]:
         r = await client.post(URL, json={"query": q, "format": "JSON+COLUMNNAME"})
@@ -157,4 +179,8 @@ class SsurgoSource:
             OM.metric(s["om"], note=note),
             PH.metric(s["ph"], note=note),
             TEX.metric(s["texture"], note=note),
+            PRODUCTIVITY.metric(
+                s["nccpi"], note=f"{PRODUCTIVITY.note} {note}",
+                unavailable_reason="The soil survey has no productivity rating here." if s["nccpi"] is None
+                else None),
         ]
