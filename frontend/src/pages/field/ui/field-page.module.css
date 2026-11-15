@@ -68,13 +68,6 @@
   gap: var(--s-24);
   padding-bottom: var(--s-48);
 }
-/* Quality summary and sources strip: each takes the full width, one under the other. */
-.overviewRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s-12);
-  align-items: stretch;
-}
 
 @media (max-width: 1024px) {
   .top {

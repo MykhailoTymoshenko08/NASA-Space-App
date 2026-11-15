@@ -3,13 +3,6 @@
   flex-direction: column;
   gap: var(--s-16);
 }
-/* Quality summary and sources strip: each takes the full width, one under the other. */
-.overviewRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s-12);
-  align-items: stretch;
-}
 .cards {
   display: flex;
   flex-direction: column;

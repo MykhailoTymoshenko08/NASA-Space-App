@@ -9,7 +9,6 @@ export {
   MetricCard,
   MetricGridSkeleton,
   MetricGroups,
-  QualitySummary,
   SourcesList,
   SourcesStrip,
   useSourceRegistry,
