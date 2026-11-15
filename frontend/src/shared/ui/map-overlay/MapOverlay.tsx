@@ -37,16 +37,20 @@ export function MapStage({ children, height = 720, id }: { children: ReactNode; 
 }
 
 /**
- * Zoom in and out (DS-Map controls, 46 px), plus the full-screen toggle on phones. Going back to a whole
- * area is the widgets' job (breadcrumbs, back button): a "show all" button here only repeated it.
+ * Zoom in and out (DS-Map controls, 46 px), plus the full-screen toggle on phones. With `onReset`, a third
+ * button (expand icon) shows the whole area again, e.g. the whole country on the landing map.
  */
 export function MapZoomControls({
   onZoomIn,
   onZoomOut,
+  onReset,
+  resetLabel = "Show the whole country",
   children,
 }: {
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onReset?: () => void;
+  resetLabel?: string;
   children?: ReactNode;
 }) {
   const stage = useContext(StageContext);
@@ -72,6 +76,11 @@ export function MapZoomControls({
         <button type="button" className={s.ctl} onClick={onZoomOut} aria-label="Zoom out">
           <Icon name="minus" />
         </button>
+        {onReset && (
+          <button type="button" className={s.ctl} onClick={onReset} aria-label={resetLabel} title={resetLabel}>
+            <Icon name="expand" />
+          </button>
+        )}
       </div>
       {children}
     </div>
