@@ -97,7 +97,7 @@ export function AnalysisSetupPage() {
         title="Set up your analysis"
         lead="Optional. Leave everything as it is for a balanced analysis."
       />
-      <PageColumns main={main} aside={aside} asideLabel="Create the analysis" />
+      <PageColumns main={main} aside={aside} asideLabel="Create the analysis" stickyAside />
     </div>
   );
 }
