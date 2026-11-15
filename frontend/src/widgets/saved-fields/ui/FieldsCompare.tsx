@@ -17,7 +17,7 @@ import { Button, ButtonLink } from "@/shared/ui/button";
 import { ErrorPanel, Message, Note, Skeleton } from "@/shared/ui/feedback";
 import { SelectField, TextField } from "@/shared/ui/form";
 import { Icon } from "@/shared/ui/icon";
-import { cellOf, compareValue, hasValue, planText, usd } from "../lib/compare";
+import { cellOf, compareValue, hasValue, usd } from "../lib/compare";
 import { isPoint, savedRings, savedSearch } from "../lib/title";
 import { CompareTable } from "./CompareTable";
 import { FieldLetter } from "./FieldLetter";
@@ -172,25 +172,16 @@ export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[
       {data && (
         <div className={cx(s.results, updating && s.stale)} aria-busy={updating || undefined}>
           {query.isError && <Message tone="warning">Showing the previous comparison. The latest update failed.</Message>}
-          {data.warnings.length > 0 && (
-            <Note tone="warning" title="Before you compare">
-              <ul className={s.warnings}>
-                {data.warnings.map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
-              </ul>
-            </Note>
-          )}
           <Verdicts data={data} />
           <FieldCards data={data} saved={fields} />
           <CompareTable data={data} />
-          <footer className={s.fine}>
-            <p>{data.disclaimer}</p>
-            <p>
-              Comparison from {formatDateTime(data.generated_at)}. Crop plan: {planText(data.plan).toLowerCase()}. Values
-              shown in US units.
-            </p>
-          </footer>
+          <Note tone="warning" title="Before you decide">
+            <ul className={s.warnings}>
+              {[...data.warnings, data.disclaimer].filter(Boolean).map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </Note>
         </div>
       )}
     </div>
