@@ -74,9 +74,9 @@ Send us these; we then configure the backend for your origin.
 
 | Item | Value |
 |---|---|
-| Production frontend origin (scheme + host, no path) | _TBD_ |
-| Option A (proxy) or B (direct)? | _TBD_ |
-| Preview/staging origins that must work too | _TBD_ |
+| Production frontend origin (scheme + host, no path) | `https://selo-ai-seven.vercel.app` (Vercel) |
+| Option A (proxy) or B (direct)? | A: `frontend/vercel.json` rewrites `/v1/*` to the API, built with `VITE_API_BASE_URL=/v1` |
+| Preview/staging origins that must work too | none (Vercel Git previews are off; production deploys from `.github/workflows/frontend.yml`) |
 
 Note: the backend currently allows one browser origin, `http://localhost:5173` (local dev). When we switch it to
 your production origin, field tiles stop loading for `npm run dev:remote` unless we add support for several
