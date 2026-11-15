@@ -1,64 +1,34 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { StrategyBudget } from "@/entities/analysis";
-import { fetchFieldComparison, type ComparisonRow, type FieldComparison, type SavedFieldComparisonRequest } from "@/entities/comparison";
-import { QUALITY } from "@/entities/metric";
+import {
+  fetchFieldComparison,
+  type ComparedField,
+  type FieldComparison,
+  type SavedFieldComparisonRequest,
+} from "@/entities/comparison";
+import { GeometrySketch } from "@/entities/field";
 import type { SavedField } from "@/entities/saved-field";
 import { ApiError, friendlyMessage } from "@/shared/api";
 import { fieldPath, ROUTES } from "@/shared/config";
-import { formatAcres, formatDateTime, toDisplay } from "@/shared/lib";
+import { formatAcres, formatDateTime } from "@/shared/lib";
 import { Button, ButtonLink } from "@/shared/ui/button";
-import { Badge, ErrorPanel, Message, Skeleton } from "@/shared/ui/feedback";
+import { ErrorPanel, Message, Note, Skeleton } from "@/shared/ui/feedback";
 import { SelectField, TextField } from "@/shared/ui/form";
-import { savedSearch } from "../lib/title";
-import s from "./saved-fields.module.css";
+import { Icon } from "@/shared/ui/icon";
+import { cellOf, compareValue, hasValue, planText, usd } from "../lib/compare";
+import { isPoint, savedRings, savedSearch } from "../lib/title";
+import { CompareTable } from "./CompareTable";
+import { FieldLetter } from "./FieldLetter";
+import s from "./compare.module.css";
 
-const GROUPS = { money: "Money · illustrative budget", land: "Land", soil: "Soil", history: "Crop history", climate: "Climate" };
-const money = (value: number) => new Intl.NumberFormat("en-US", {
-  style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2,
-}).format(value);
+const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
-function display(value: string | number, unit: string) {
-  if (typeof value === "number" && unit.startsWith("USD")) {
-    return `${money(value)}${unit === "USD/year" ? " / year" : unit === "USD/acre/point" ? " / acre / point" : " / acre / year"}${value < 0 ? " (loss)" : ""}`;
-  }
-  if (typeof value === "number" && unit === "km") return `${(value * 0.621371).toFixed(1)} mi`;
-  const result = toDisplay(value, unit);
-  return `${result.value}${result.unit ? ` ${result.unit}` : ""}`;
-}
-
-function CompareRow({ row, fields }: { row: ComparisonRow; fields: readonly SavedField[] }) {
-  return (
-    <div role="row" className={`${s.row} ${s.comparisonRow} ${row.same_for_all ? s.sameRow : ""}`}>
-      <div role="rowheader" className={s.rowHead}>
-        <span className={s.rowLabel}>{row.label}</span>
-        {row.target && <span className={s.small}>Best {row.target.min.toFixed(1)} to {row.target.max.toFixed(1)}</span>}
-        {row.same_for_all && <span className={s.small}>Same for all fields</span>}
-        {row.note && <span className={s.small}>{row.note}</span>}
-      </div>
-      {fields.map((field, i) => {
-        const cell = row.cells.find((item) => item.saved_field_id === field.id);
-        const unavailable = !cell || cell.quality === "unavailable" || cell.value === null;
-        const best = row.best.includes(field.id);
-        return (
-          <div role="cell" className={`${s.cell} ${best ? s.bestCell : ""}`} key={field.id}>
-            <span className={s.mobileField}>{"ABCD"[i]} · {field.name}</span>
-            <span className={unavailable ? s.cellNa : s.cellText}>
-              {unavailable ? "Not available" : display(cell.value!, row.unit)}
-            </span>
-            {best && <Badge tone="success">Best</Badge>}
-            {!unavailable && row.group !== "money" && <span className={s.small}>{QUALITY[cell.quality].label}</span>}
-            {cell?.note && (unavailable ? <span className={s.small}>{cell.note}</span>
-              : <details className={s.cellNote}><summary>Data notes</summary><p>{cell.note}</p></details>)}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Server-owned comparison: asking rents, one crop plan, ranked rows and source limitations. */
+/**
+ * Server-owned comparison of 2 to 4 saved fields (POST /comparisons/saved-fields): asking rents, one crop
+ * plan, ranked rows and source limitations. The server picks every winner; this view only presents them.
+ */
 export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[]; userId: string }) {
   const [rents, setRents] = useState<Record<string, string>>({});
   const [rotation, setRotation] = useState("corn,soybean");
@@ -75,11 +45,16 @@ export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[
     refetchOnReconnect: false,
   });
   const previous = useRef<FieldComparison | undefined>(undefined);
-  useEffect(() => { if (query.data) previous.current = query.data; }, [query.data]);
+  useEffect(() => {
+    if (query.data) previous.current = query.data;
+  }, [query.data]);
   const data = query.data ?? previous.current;
   const retryAfter = query.error instanceof ApiError ? query.error.retryAfterSeconds : null;
   useEffect(() => {
-    if (!retryAfter) { setWaiting(false); return; }
+    if (!retryAfter) {
+      setWaiting(false);
+      return;
+    }
     setWaiting(true);
     const timer = setTimeout(() => setWaiting(false), retryAfter * 1000);
     return () => clearTimeout(timer);
@@ -99,19 +74,28 @@ export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[
       rent_per_acre[field.id] = value;
     }
     setValidation(null);
-    const next = { rent_per_acre, plan: {
-      rotation: rotation.split(",") as NonNullable<SavedFieldComparisonRequest["plan"]>["rotation"], horizon_years: years,
-    } };
+    const next = {
+      rent_per_acre,
+      plan: { rotation: rotation.split(",") as NonNullable<SavedFieldComparisonRequest["plan"]>["rotation"], horizon_years: years },
+    };
     if (JSON.stringify(options) === JSON.stringify(next)) void query.refetch();
     else setOptions(next);
   };
   const missing = query.error instanceof ApiError && query.error.status === 404;
   const unauthorized = query.error instanceof ApiError && query.error.status === 401;
+  const updating = query.isFetching && !!data;
 
   return (
-    <div className={s.comparison}>
-      <form onSubmit={submit} noValidate className={s.comparisonForm} aria-label="Comparison settings">
-        <div className={s.settingsGrid}>
+    <div className={s.compare}>
+      <form onSubmit={submit} noValidate className={s.settings} aria-label="Comparison settings">
+        <div>
+          <h2 className={s.h2}>Your numbers</h2>
+          <p className={s.muted}>
+            Money rows budget one crop plan on every field, at each field's asking rent. Each field starts with the crop
+            that follows its last crop.
+          </p>
+        </div>
+        <div className={s.planGrid}>
           <SelectField label="Shared crop rotation" value={rotation} onChange={(e) => setRotation(e.target.value)}>
             <option value="corn,soybean">Corn / soybeans</option>
             <option value="corn">Corn</option>
@@ -119,69 +103,286 @@ export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[
             <option value="winter_wheat">Winter wheat</option>
           </SelectField>
           <SelectField label="Budget horizon" value={years} onChange={(e) => setYears(Number(e.target.value))}>
-            {[1, 2, 3, 4, 5].map((n) => <option value={n} key={n}>{n} {n === 1 ? "year" : "years"}</option>)}
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option value={n} key={n}>
+                {n} {n === 1 ? "year" : "years"}
+              </option>
+            ))}
           </SelectField>
         </div>
-        <p className={s.small}>Each field starts with the crop that follows its last crop. Blank rent uses the state reference; $0 means no land charge.</p>
-        <div className={s.rentGrid}>
+        <fieldset className={s.rents}>
+          <legend className={s.legend}>Asking rent, $ per acre a year</legend>
           {fields.map((field, i) => {
-            const used = data?.fields.find((f) => f.saved_field_id === field.id)?.rent;
-            return <TextField key={field.id} label={`${"ABCD"[i]} · ${field.name} asking rent`}
-              type="number" inputMode="decimal" min={0} max={5000} step="0.01"
-              value={rents[field.id] ?? ""} placeholder={used?.source === "state_baseline" && used.per_acre != null ? String(used.per_acre) : "State reference"}
-              onChange={(e) => setRents((old) => ({ ...old, [field.id]: e.target.value }))}
-              hint={used?.is_placeholder ? "State reference unavailable. Enter asking rent ($/acre/year)." : "USD per acre per year"} />;
+            const compared = data?.fields.find((f) => f.saved_field_id === field.id);
+            const used = compared?.rent;
+            return (
+              <TextField
+                key={field.id}
+                label={`${"ABCD"[i]} · ${field.name} asking rent`}
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={5000}
+                step="0.01"
+                value={rents[field.id] ?? ""}
+                placeholder={used?.source === "state_baseline" && used.per_acre != null ? String(used.per_acre) : "State reference"}
+                onChange={(e) => setRents((old) => ({ ...old, [field.id]: e.target.value }))}
+                hint={rentHint(compared)}
+              />
+            );
           })}
+        </fieldset>
+        {validation && (
+          <Message tone="error" role="alert">
+            {validation}
+          </Message>
+        )}
+        <div className={s.settingsActions}>
+          <Button type="submit" variant="primary" disabled={query.isFetching || waiting}>
+            {query.isFetching ? "Updating comparison…" : "Update comparison"}
+          </Button>
+          <span className={s.muted}>Blank rent uses the state reference; $0 means no land charge.</span>
         </div>
-        {validation && <Message tone="error" role="alert">{validation}</Message>}
-        <Button type="submit" variant="primary" disabled={query.isFetching || waiting}>
-          {query.isFetching ? "Updating comparison…" : "Update comparison"}
-        </Button>
       </form>
-      {query.isFetching && <div role="status">{data ? "Updating comparison. Previous results remain below." : "Loading comparison, soil data and budgets…"}</div>}
-      {query.isPending && <Skeleton height={240} />}
-      {query.isError && <ErrorPanel title={missing ? "One selected field is no longer available" : "We could not update the comparison"}
-        message={missing ? "Return to Saved fields and select the fields again." : friendlyMessage(query.error)}
-        actions={unauthorized
-          ? <ButtonLink to={`${ROUTES.signIn}?next=${encodeURIComponent(ROUTES.myFields)}`}>Sign in again</ButtonLink>
-          : !missing && <Button onClick={() => void query.refetch()} disabled={query.isFetching || waiting}>Try again</Button>} />}
-      {data && <>
-        {query.isError && <Message tone="warning">Showing the previous comparison. The latest update failed.</Message>}
-        <div className={s.small}>Comparison from {formatDateTime(data.generated_at)}. Values shown in US units.</div>
-        {data.warnings.map((warning) => <Message tone="warning" key={warning}>{warning}</Message>)}
-        <div className={s.summaryGrid}>
-          {data.fields.map((field) => <section className={s.summaryCard} key={field.saved_field_id} aria-label={`${field.label} · ${field.name} summary`}>
-            <h2 className={s.colTitle}>{field.label} · {field.name}</h2>
-            <p className={s.small}>{field.county ? `${field.county.name}, ${field.state}` : field.state} · {field.area_ha == null ? "Point, no mapped field" : `About ${formatAcres(field.area_ha)} acres`}</p>
-            <div className={s.small}>Return after rent · per acre / year</div>
-            <strong className={s.cellBig}>{field.net_return_per_acre ? money(field.net_return_per_acre.base) : "Not available"}</strong>
-            {field.net_return_per_acre && field.net_return_per_acre.base < 0 && <span>Loss at base prices</span>}
-            <p className={s.small}>Break-even rent: {field.break_even_rent_per_acre ? `${money(field.break_even_rent_per_acre.base)} / acre` : "Not available"}</p>
-            {field.strengths.length > 0 && <ul className={s.comparisonBullets}>{field.strengths.map((text) => <li key={text}>{text}</li>)}</ul>}
-            {field.cautions.length > 0 && <details><summary>Things to check ({field.cautions.length})</summary><ul className={s.comparisonBullets}>{field.cautions.map((text) => <li key={text}>{text}</li>)}</ul></details>}
-            {field.data_as_of && <p className={s.small}>Soil data from {formatDateTime(field.data_as_of)}</p>}
-            {field.budget?.status === "estimated" && !field.budget.uses_placeholders && field.budget.missing_inputs.length === 0 &&
-              <details><summary>How is this calculated?</summary><StrategyBudget budget={field.budget} /></details>}
-            <Link to={fieldPath(savedSearch(fields.find((saved) => saved.id === field.saved_field_id)!))}>Open field {field.label}</Link>
-          </section>)}
+
+      {query.isFetching && (
+        <div role="status" className={s.muted}>
+          {data ? "Updating comparison. Previous results remain below." : "Loading comparison, soil data and budgets…"}
         </div>
-        <div className={s.tableWrap}>
-          <div role="table" aria-label="Comparison of selected fields" className={`${s.table} ${s.comparisonTable}`} style={{ "--compare-columns": fields.length } as CSSProperties}>
-            <div role="row" className={`${s.row} ${s.headRow} ${s.comparisonRow}`}>
-              <div role="columnheader" className={s.colHeadLabel}>Measure</div>
-              {fields.map((field, i) => <div role="columnheader" className={s.colHead} key={field.id}>
-                <span className={s.colTitle}>{"ABCD"[i]} · {field.name}</span>
-                <Link to={fieldPath(savedSearch(field))}>Open field</Link>
-              </div>)}
-            </div>
-            {(Object.keys(GROUPS) as (keyof typeof GROUPS)[]).map((group) => <div role="rowgroup" key={group}>
-              <div role="row" className={s.groupRow}><div role="cell" aria-colspan={fields.length + 1}>{GROUPS[group]}</div></div>
-              {data.rows.filter((row) => row.group === group).map((row) => <CompareRow row={row} fields={fields} key={row.key} />)}
-            </div>)}
+      )}
+      {query.isError && (
+        <ErrorPanel
+          title={missing ? "One selected field is no longer available" : "We could not update the comparison"}
+          message={missing ? "Return to Saved fields and select the fields again." : friendlyMessage(query.error)}
+          actions={
+            unauthorized ? (
+              <ButtonLink to={`${ROUTES.signIn}?next=${encodeURIComponent(ROUTES.myFields)}`}>Sign in again</ButtonLink>
+            ) : (
+              !missing && (
+                <Button onClick={() => void query.refetch()} disabled={query.isFetching || waiting}>
+                  Try again
+                </Button>
+              )
+            )
+          }
+        />
+      )}
+      {!data && query.isPending && <CompareSkeleton count={fields.length} />}
+
+      {data && (
+        <div className={cx(s.results, updating && s.stale)} aria-busy={updating || undefined}>
+          {query.isError && <Message tone="warning">Showing the previous comparison. The latest update failed.</Message>}
+          {data.warnings.length > 0 && (
+            <Note tone="warning" title="Before you compare">
+              <ul className={s.warnings}>
+                {data.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </Note>
+          )}
+          <Verdicts data={data} />
+          <FieldCards data={data} saved={fields} />
+          <CompareTable data={data} />
+          <footer className={s.fine}>
+            <p>{data.disclaimer}</p>
+            <p>
+              Comparison from {formatDateTime(data.generated_at)}. Crop plan: {planText(data.plan).toLowerCase()}. Values
+              shown in US units.
+            </p>
+          </footer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function rentHint(f: ComparedField | undefined): string {
+  if (!f) return "USD per acre per year";
+  const r = f.rent;
+  if (r.source === "farmer" && r.per_acre != null) return `Using your ${usd(r.per_acre, r.per_acre % 1 ? 2 : 0)} per acre.`;
+  if (r.is_placeholder || r.per_acre == null) return "State reference unavailable. Enter asking rent ($/acre/year).";
+  return `Blank uses the ${f.state} reference, ${usd(r.per_acre)}.`;
+}
+
+/* ---------- quick answers ---------- */
+
+const VERDICTS = [
+  { key: "net_return", row: "net_return_per_acre", title: "Best return after rent", icon: "check" },
+  { key: "soil_productivity", row: "soil_productivity_nccpi", title: "Most productive soil", icon: "layers" },
+  { key: "rent_value", row: "rent_per_productivity_point", title: "Most soil for the rent", icon: "pin" },
+] as const;
+
+function Verdicts({ data }: { data: FieldComparison }) {
+  return (
+    <section className={s.verdicts} aria-label="Quick answers">
+      {VERDICTS.map((v) => {
+        const ids = data.best[v.key];
+        const winners = data.fields.filter((f) => ids.includes(f.saved_field_id));
+        const row = data.rows.find((r) => r.key === v.row);
+        const cell = winners[0] && cellOf(data, v.row, winners[0].saved_field_id);
+        const shown = hasValue(cell) && row ? compareValue(cell.value, row.unit) : null;
+        return (
+          <div key={v.key} className={cx(s.verdict, winners.length > 0 && s.verdictWon)}>
+            <span className={s.verdictTitle}>
+              <Icon name={v.icon} size={16} />
+              {v.title}
+            </span>
+            {winners.length > 0 ? (
+              <>
+                <span className={s.verdictWho}>
+                  {winners.map((w) => (
+                    <FieldLetter key={w.label} label={w.label} size="sm" />
+                  ))}
+                  <span>
+                    {winners.map((w, i) => (
+                      <span key={w.label}>
+                        {i > 0 && " and "}
+                        <span className="visually-hidden">Field {w.label}:</span>{" "}
+                        {w.name}
+                      </span>
+                    ))}
+                  </span>
+                </span>
+                {shown && (
+                  <span className={s.verdictValue}>
+                    {shown.value} <span className={s.unit}>{shown.unit}</span>
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span className={s.verdictNone}>No clear winner</span>
+                <span className={s.unit}>The values tie, or some fields have no data for this.</span>
+              </>
+            )}
           </div>
-        </div>
-        <p className={s.small}>{data.disclaimer}</p>
-      </>}
+        );
+      })}
+    </section>
+  );
+}
+
+/* ---------- one card per field ---------- */
+
+function FieldCards({ data, saved }: { data: FieldComparison; saved: readonly SavedField[] }) {
+  return (
+    <ul className={s.cards} aria-label="Fields compared">
+      {data.fields.map((f) => {
+        const own = saved.find((x) => x.id === f.saved_field_id);
+        const net = f.net_return_per_acre;
+        const place = f.county ? `${f.county.name} County, ${f.county.state_postal}` : f.state;
+        const size = f.area_ha != null ? `About ${formatAcres(f.area_ha)} acres` : "Point, no mapped field";
+        return (
+          <li key={f.saved_field_id} className={s.card}>
+            <div className={s.cardHead}>
+              <FieldLetter label={f.label} />
+              <div className={s.cardTitleBox}>
+                <h3 className={s.cardTitle}>
+                  <span className="visually-hidden">Field {f.label}:</span>{" "}
+                  {f.name}
+                </h3>
+                <span className={s.muted}>
+                  {place} · {size}
+                </span>
+              </div>
+            </div>
+
+            {own && (
+              <div className={s.cardSketch}>
+                <GeometrySketch
+                  rings={savedRings(own)}
+                  anchor={own.centroid}
+                  dashed={isPoint(own)}
+                  label={`Outline of ${f.name}`}
+                  width={240}
+                  height={96}
+                />
+              </div>
+            )}
+
+            <div className={s.money}>
+              <span className={s.moneyLabel}>Return after rent</span>
+              {net ? (
+                <>
+                  <span className={cx(s.moneyValue, net.base < 0 && s.loss)}>
+                    {usd(net.base)} <span className={s.unit}>per acre a year{net.base < 0 && " (loss at base prices)"}</span>
+                  </span>
+                  <span className={s.small}>
+                    {usd(net.low)} at lower prices, {usd(net.high)} at higher prices
+                  </span>
+                </>
+              ) : (
+                <span className={s.na}>Not available</span>
+              )}
+              <span className={s.small}>
+                Break-even rent:{" "}
+                {f.break_even_rent_per_acre ? `${usd(f.break_even_rent_per_acre.base)} per acre` : "Not available"}
+              </span>
+            </div>
+
+            {(f.strengths.length > 0 || f.cautions.length > 0) && (
+              <div className={s.points}>
+                {f.strengths.length > 0 && (
+                  <ul className={s.pointList} aria-label={`Strengths of field ${f.label}`}>
+                    {f.strengths.map((t) => (
+                      <li key={t} className={s.strength}>
+                        <Icon name="check" size={16} />
+                        <span>{t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {f.cautions.length > 0 && (
+                  <ul className={s.pointList} aria-label={`Things to check on field ${f.label}`}>
+                    {f.cautions.map((t) => (
+                      <li key={t} className={s.caution}>
+                        <Icon name="warning" size={16} />
+                        <span>{t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {f.budget?.status === "estimated" && !f.budget.uses_placeholders && f.budget.missing_inputs.length === 0 && (
+              <details className={s.budget}>
+                <summary>How is this calculated?</summary>
+                <StrategyBudget budget={f.budget} />
+              </details>
+            )}
+            {f.data_as_of && <span className={s.small}>Soil data from {formatDateTime(f.data_as_of)}</span>}
+
+            {own && (
+              <Link to={fieldPath(savedSearch(own))} className={s.open}>
+                Open field {f.label}
+                <Icon name="arrow-right" size={16} />
+              </Link>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/* ---------- first load ---------- */
+
+function CompareSkeleton({ count }: { count: number }) {
+  return (
+    <div className={s.results} aria-hidden="true">
+      <div className={s.verdicts}>
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} height={104} />
+        ))}
+      </div>
+      <div className={s.cards}>
+        {Array.from({ length: count }, (_, i) => (
+          <Skeleton key={i} height={320} />
+        ))}
+      </div>
+      <Skeleton height={420} />
     </div>
   );
 }

@@ -7,6 +7,10 @@ behaviour, rendering rules and gotchas.
 Implementation status (2026-11-15): My fields now calls `/comparisons/saved-fields` through
 `entities/comparison`, with asking rents, a shared crop plan, summary cards and grouped responsive rows.
 Changes apply with **Update comparison**, so editing rents does not spend requests on each keystroke.
+Above the rows, three quick answers show the server's `best.net_return`, `best.soil_productivity` and
+`best.rent_value`, and each field card shows its outline, return range, strengths and cautions. In the
+rows, the server's best cell is tinted and labelled "Best"; rows with `same_for_all` fold into one line
+(except money rows) until the user opens them. Phones stack 3 or 4 fields two per line.
 The area-ranking screen and its map integration remain unimplemented; the area endpoint is tested.
 See [comparison-validation.md](comparison-validation.md) for the tested scope and browser test commands.
 The remaining sections are API guidance, including suggestions for those unfinished screens.
@@ -55,7 +59,8 @@ export const comparisonsApi = {
 ```
 
 Current FSD placement: `entities/comparison` owns the typed comparison API;
-`widgets/saved-fields/ui/FieldsCompare.tsx` renders its settings, summary and rows.
+`widgets/saved-fields/ui/FieldsCompare.tsx` renders its settings, quick answers and field cards,
+`CompareTable.tsx` the grouped rows, and `lib/compare.ts` the unit and money formatting.
 The widget uses one comparison request instead of separate `POST /snapshots` calls.
 Suggested placement for the unfinished area screen: `widgets/area-ranking` (list and map highlight).
 
