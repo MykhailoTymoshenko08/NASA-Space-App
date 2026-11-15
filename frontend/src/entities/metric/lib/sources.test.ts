@@ -33,7 +33,7 @@ describe("buildSourceRegistry", () => {
     expect(reg.list[1]!.usedFor).toEqual(["Soil pH", "Soil organic matter"]);
     expect(reg.list[1]!.host).toBe("nrcs.usda.gov");
     expect(reg.list[1]!.detail[0]).toMatch(/^Pixel about/);
-    expect(reg.providersLine).toBe("NASA and USDA NRCS");
+    expect(reg.sourcesLine).toBe("SMAP L3 (NASA) and gSSURGO (USDA NRCS)");
   });
 
   it("appends extra datasets no metric cites, and keeps unknown names", () => {
@@ -46,7 +46,19 @@ describe("buildSourceRegistry", () => {
     expect(reg.list[1]!.what).toBe("");
     expect(reg.list[1]!.usedFor).toEqual([]);
     expect(reg.list[1]!.detail).toContain("2018-2025");
-    expect(reg.providersLine).toBe("NASA and Other");
+    expect(reg.sourcesLine).toBe("SMAP L3 (NASA) and Some new dataset (Other)");
+  });
+
+  it("names one item per source, so the line matches the count", () => {
+    const src = (dataset: string, provider: string) => ({ dataset, provider, url: null });
+    const reg = buildSourceRegistry([
+      metric({ key: "a", source: src("NASA POWER Daily", "NASA") }),
+      metric({ key: "b", category: "soil", source: src("gSSURGO soil survey", "USDA NRCS") }),
+      metric({ key: "c", category: "soil", source: src("SoilGrids 2.0 (nitrogen, 0-5 cm)", "ISRIC") }),
+      metric({ key: "d", category: "terrain", source: src("3DEP elevation", "USGS") }),
+    ]);
+    expect(reg.list).toHaveLength(4);
+    expect(reg.sourcesLine).toBe("NASA POWER, gSSURGO (USDA NRCS), SoilGrids (ISRIC) and 3DEP (USGS)");
   });
 });
 

@@ -125,8 +125,12 @@ export type SourceRegistry = {
   list: SourceEntry[];
   /** Lookup by metric key. */
   forMetric: (key: string) => SourceEntry | undefined;
-  /** "NASA, USDA NRCS and USGS". */
-  providersLine: string;
+  /**
+   * One item per entry in `list`, so the count matches "All N sources":
+   * "NASA POWER, gSSURGO (USDA NRCS) and 3DEP (USGS)". The provider is left out when the short name
+   * already starts with it.
+   */
+  sourcesLine: string;
 };
 
 const keyOf = (dataset: string, provider: string) => `${provider}\u0000${dataset}`;
@@ -202,8 +206,8 @@ export function buildSourceRegistry(
     );
   }
 
-  const providers: string[] = [];
-  for (const e of list) if (!providers.includes(e.provider)) providers.push(e.provider);
+  const named = (e: SourceEntry) =>
+    !e.provider || e.short.toLowerCase().startsWith(e.provider.toLowerCase()) ? e.short : `${e.short} (${e.provider})`;
 
-  return { list, forMetric: (key) => byMetric.get(key), providersLine: joinAnd(providers) };
+  return { list, forMetric: (key) => byMetric.get(key), sourcesLine: joinAnd(list.map(named)) };
 }
