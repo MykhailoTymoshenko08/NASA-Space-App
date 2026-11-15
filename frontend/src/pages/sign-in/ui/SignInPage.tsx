@@ -33,7 +33,7 @@ export function SignInPage() {
             <Icon name="arrow-right" />
           </ButtonLink>
           <ButtonLink to={ROUTES.myFields} variant="secondary" size="md" block>
-            Go to My fields
+            Go to Saved fields
           </ButtonLink>
         </>
       ) : (
