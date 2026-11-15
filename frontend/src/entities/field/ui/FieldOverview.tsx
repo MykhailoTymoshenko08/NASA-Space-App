@@ -1,5 +1,4 @@
 import type { FieldSelection } from "@/shared/api";
-import { Pill } from "@/shared/ui/choice";
 import { Icon } from "@/shared/ui/icon";
 import { MonoLabel } from "@/shared/ui/layout";
 import {
@@ -31,7 +30,9 @@ export function FieldOverview({ selection }: { selection: FieldSelection }) {
           <div className={s.crops}>
             <span className={s.muted}>Mapped crops</span>
             {crops.map((c) => (
-              <Pill key={c}>{c}</Pill>
+              <span key={c} className={s.crop}>
+                {c}
+              </span>
             ))}
           </div>
         )}

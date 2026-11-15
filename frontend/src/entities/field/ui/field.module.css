@@ -5,6 +5,10 @@
   border-radius: var(--radius-panel);
   background: var(--color-map-ground);
 }
+/* Base conditions head card: the sketch sits on paper wash. */
+.overview .sketch {
+  background: var(--color-paper-wash);
+}
 .polygon {
   fill: var(--color-map-field-1);
   stroke: var(--color-map-outline);
@@ -28,7 +32,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-20);
-  padding: var(--s-20);
+  padding: var(--s-16);
   border-radius: var(--radius-stage);
   background: var(--color-surface);
   border: 1px solid var(--color-line);
@@ -68,6 +72,16 @@
   align-items: center;
   gap: var(--s-8);
 }
+/* Mapped crop pill: sage at 59% on surface. */
+.crop {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-crop-pill);
+  font-size: var(--text-caption);
+  line-height: 20px;
+  font-weight: 500;
+}
 .muted {
   font-size: var(--text-small);
   line-height: var(--text-small-lh);
@@ -79,7 +93,7 @@
   gap: var(--s-8);
   padding: var(--s-12) 14px;
   border-radius: var(--radius-control);
-  background: var(--color-paper-wash);
+  background: var(--color-map-ground);
   font-size: var(--text-small);
   line-height: var(--text-small-lh);
 }
