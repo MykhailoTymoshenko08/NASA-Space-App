@@ -163,9 +163,10 @@ export function ExploreMap({ className }: { className?: string } = {}) {
     mapRef.current?.fitBBox(t.bbox, undefined, config.fieldMinZoom + 0.25);
   };
 
-  // A phone fits a whole state below the zoom where counties show: zoom in to the counties instead (the
-  // state's edges may be off screen, the next step is a county anyway).
-  const fitState = (bbox: BBox) => mapRef.current?.fitBBox(bbox, undefined, isNarrowScreen() ? ZOOM.countyLines : undefined);
+  // A phone, or a short desktop window (the landing map is one window tall), fits a tall state such as
+  // Illinois below the zoom where counties show: zoom in to the counties instead (the state's edges may
+  // be off screen, the next step is a county anyway).
+  const fitState = (bbox: BBox) => mapRef.current?.fitBBox(bbox, undefined, ZOOM.countyLines);
 
   const goState = (st: GeoState) => {
     setFocusState({ fips: st.fips, name: st.name, postal: st.postal });
