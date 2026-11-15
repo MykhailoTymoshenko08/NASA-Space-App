@@ -31,7 +31,13 @@ from .texts import DISCLAIMER, MONTHS, SOURCES
 
 MODEL_VERSION_REAL = "0.2.0"
 DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-BARE_NDVI = 0.2               # NDVI under this means bare soil
+# bare soil from HLS NDVI. on the demo counties (2018-2025, scripts/12_check_bare_threshold.py) the NDVI of stubble / residue (corn,
+# soy, sorghum in Nov-Mar) is 0.22-0.26, not under 0.2, so 0.2 finds only 3% of the known bare months. the best split between that
+# residue and green cover (alfalfa, winter wheat, corn / soy in Jul-Aug) is 0.30 (balanced accuracy 0.80 over IA + KS, 0.94 in Iowa).
+# but a winter crop in winter is NDVI 0.31-0.35 in Kansas, so for a field with winter wheat / alfalfa that year the level is 0.25.
+BARE_NDVI = 0.30
+BARE_NDVI_WINTER_CROP = 0.25
+WINTER_CROPS = {"winter_wheat", "alfalfa"}
 FLAGS = {"bare": 0.7, "drought": 0.35, "heat": 0.3, "frost": 0.5, "extreme_rain": 0.3, "waterlogging": 0.25}
 ALWAYS_USED = ["csb", "power", "ssurgo"]
 
@@ -43,6 +49,7 @@ RT = {
         "u_days": "дн.", "u_mm": "мм",
         "w_ndvi": "Немає NDVI від Landsat: голий ґрунт у таймлайні взято з календаря культур, правило стресу минулого сезону вимкнене",
         "w_smap": "Немає даних SMAP: правила про вологу ґрунту не перевірені", "w_twi": "Немає TWI: правила про вологі пониження не перевірені",
+        "w_smap_near": "SMAP (піксель 9 км): для цього поля взято вологу ґрунту найближчого поля з даними (тимчасово), правила про вологу орієнтовні",
         "w_dem": "Немає DEM NASADEM: ухил береться зі SSURGO",
         "w_organic": "organic soil (органіка понад 20%): оцінки для торфових ґрунтів ненадійні",
         "w_rotation": "Чіткого повторюваного циклу в історії культур не знайдено, поточна сівозміна визначена приблизно",
@@ -69,6 +76,7 @@ RT = {
         "u_days": "days", "u_mm": "mm",
         "w_ndvi": "No Landsat NDVI: bare soil in the timeline comes from the crop calendar and the last-season stress rule is off",
         "w_smap": "No SMAP data: soil-moisture rules were not evaluated", "w_twi": "No TWI: low-lying wetness rules were not evaluated",
+        "w_smap_near": "SMAP (9 km pixel): the soil moisture of the nearest field with data is used for this field (temporary), the moisture rules are approximate",
         "w_dem": "No NASADEM DEM: slope comes from SSURGO",
         "w_organic": "organic soil (organic matter over 20%): estimates for peat / muck soils are unreliable",
         "w_rotation": "No stable repeating cycle in the crop history; the current rotation is approximate",
@@ -113,6 +121,14 @@ def warm_up() -> None:
         _tables(str(features.DATA_DIR))
     except OSError:
         pass
+    ndvi = ndvi_monthly()
+    if ndvi is not None:                          # the per-crop NDVI tables of the stress rule: built now, not by the first request
+        a, cfg = assets(), settings()
+        crop_of, state_of = _neighbor_tables(a)
+        last = int(crop_of["year"].max())
+        for crop, info in a.candidates.items():
+            if info.get("role") != "cover":
+                compute_stress(ndvi, crop_of, state_of, "", last, crop, cfg["stress"])
 
 
 def lina_dir() -> Path:
@@ -121,12 +137,14 @@ def lina_dir() -> Path:
 
 @lru_cache(maxsize=2)
 def _read_ndvi(path: str, mtime: float):
-    return pd.read_csv(path, dtype={"field_id": str})
+    return load_ndvi_monthly(path)
 
 
 def ndvi_monthly() -> pd.DataFrame | None:
-    p = lina_dir() / "ndvi_monthly.csv"
-    return _read_ndvi(str(p), p.stat().st_mtime) if p.exists() else None
+    """Lina's monthly NDVI (parquet in the image, csv after an ingest); read once, re-read when the file changes"""
+    d = lina_dir()
+    p = next((d / n for n in ("ndvi_monthly.parquet", "ndvi_monthly.csv") if (d / n).exists()), None)
+    return _read_ndvi(str(d), p.stat().st_mtime) if p else None
 
 
 def _files_key() -> tuple:
@@ -153,7 +171,9 @@ def _neighbor_cached(key: tuple, cdl_to_slug: tuple):
         long["year"] = long["col"].str[5:].astype(int)
         long["crop"] = long["cdl"].astype(int).map(slug).fillna("other")
         parts_c.append(long[["field_id", "year", "crop"]])
-    return pd.concat(parts_c, ignore_index=True), pd.concat(parts_s)
+    crops, states = pd.concat(parts_c, ignore_index=True), pd.concat(parts_s)
+    # the 2000-field sample and a county file can hold the same field: count it once
+    return crops.drop_duplicates(["field_id", "year"]).reset_index(drop=True), states[~states.index.duplicated()]
 
 
 def _neighbor_tables(a: Assets):
@@ -161,12 +181,22 @@ def _neighbor_tables(a: Assets):
     return _neighbor_cached(_files_key(), tuple((c["cdl_code"], s) for s, c in a.candidates.items()))
 
 
-def bare_from_ndvi(ndvi: pd.DataFrame, field_id: str) -> dict[int, float]:
-    """month -> share of years in which the field's NDVI was under the bare-soil level (months with observations only)"""
+def bare_from_ndvi(ndvi: pd.DataFrame, field_id: str, history: dict[int, str] | None = None) -> dict[int, float]:
+    """month -> share of years in which the field's NDVI was under the bare-soil level (months with observations only).
+    history: year -> crop slug; a month that belongs to a winter crop (Jan-Apr of its year, Nov-Dec of the year before) uses the lower level."""
     d = ndvi[(ndvi["field_id"] == field_id) & (ndvi["n_obs"] > 0)]
     if d.empty:
         return {}
-    return {int(m): float((g["ndvi_mean"] < BARE_NDVI).mean()) for m, g in d.groupby("month")}
+    history = history or {}
+
+    def level(year: int, month: int) -> float:
+        crop_year = year + 1 if month >= 11 else year                  # sown in the autumn of `year` = the crop of the next year
+        winter = month >= 11 or month <= 4
+        return BARE_NDVI_WINTER_CROP if winter and history.get(crop_year) in WINTER_CROPS else BARE_NDVI
+
+    lvl = np.array([level(int(y), int(m)) for y, m in zip(d["year"], d["month"])])
+    bare = d["ndvi_mean"].to_numpy() < lvl
+    return {int(m): float(bare[(d["month"] == m).to_numpy()].mean()) for m in sorted(d["month"].unique())}
 
 
 # --------------------------------------------------------------------------- pieces of the response
@@ -339,7 +369,7 @@ def analyze_real(req) -> dict:
     if ndvi is not None:
         crop_of, state_of = _neighbor_tables(a)
         stress = compute_stress(ndvi, crop_of, state_of, req.field.field_id, ctx.target_year - 1, ctx.prev_crops[0], cfg["stress"])
-        ndvi_bare = bare_from_ndvi(ndvi, req.field.field_id)
+        ndvi_bare = bare_from_ndvi(ndvi, req.field.field_id, ctx.history)
 
     prio = req.priorities.model_dump()
     plan = plan_rotations(ctx, a, priorities=prio, lang=lang, n_strategies=req.options.n_strategies, stress=stress, forced_cycle=forced,
@@ -361,6 +391,8 @@ def analyze_real(req) -> dict:
         warnings.append(t["w_ndvi"])
     if ctx.smap_deficit_share is None:
         warnings.append(t["w_smap"])
+    elif ctx.smap_source == "nearest_field":
+        warnings.append(t["w_smap_near"])
     if ctx.twi is None:
         warnings.append(t["w_twi"])
     if ctx.slope_source != "nasadem":

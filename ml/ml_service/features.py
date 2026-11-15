@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from . import lina, power_client, precomputed, season_climate, soil_sda
-from .cdl import history_token
+from .cdl import history_token, noncrop_note
 from .errors import invalid_input, out_of_coverage
 from .field_context import _tables, load_field_context
 from .precomputed import LAST_YEAR

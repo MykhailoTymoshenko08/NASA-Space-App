@@ -158,10 +158,17 @@ curl -s -X POST localhost:8001/ml/v1/analyze -H 'content-type: application/json'
 
 ```bash
 curl localhost:8001/ml/health          # {"status":"ok","model_version":"0.2.0",...,"mode":"real"}
-.venv/bin/python -m pytest -q          # 129 тестів: контракт, помилки, швидкість, файли від Ліни
+.venv/bin/python -m pytest -q          # тести: контракт, помилки, швидкість, файли від Ліни
 ```
 
-## 8. Що ще зміниться
+## 8. Дані від Ліни (демо-округи Polk 19153 і Reno 20155)
 
-Ліна дає NDVI, SMAP і DEM. Після того як Михайло прожене `scripts/10_ingest_lina.py`, у відповідях зникнуть відповідні `warnings`,
-`status` стане `ok`, у `sources` з'являться `landsat_ndvi`, `smap`, `nasadem`. **Формат відповіді не зміниться**: нові поля лише додаються.
+Вже в образі: NDVI (HLS L30, 2015–2026), SMAP L4, схил NASADEM після згладжування. Для цих 26 224 полів `status` = `ok`, у `sources` є `landsat_ndvi`, `smap`, `nasadem`,
+голий ґрунт у таймлайні береться з NDVI (`bare_soil_source: "landsat_ndvi"`). Дані чернетка, Ліна підтвердить.
+
+* **SMAP.** Власні дані мають лише 12% полів, решта отримали ряд найближчого поля (до 10 км). Про це є попередження в `warnings`, `status` від нього не змінюється.
+* **TWI** ще немає: попередження «Немає TWI», на `status` не впливає.
+* **`status: partial`** лишається, коли бракує NDVI або SMAP (поле поза демо-округами, поза 10 км від поля з SMAP), і для органічного ґрунту.
+* **Поле, схоже на не-ріллю.** Якщо у 2 з останніх 5 років CDL показує траву, пасовище чи забудову, у `warnings` є попередження перевірити, що це робоче поле.
+* **Швидкість.** Старт ~3 с (завантажує NDVI), запит ~0,8 с.
+* **Нові дані.** `python scripts/10_ingest_lina.py --incoming <папка> --merge`, потім `python scripts/11_prepare_deploy.py` і `docker compose build`. Формат відповіді не змінюється.

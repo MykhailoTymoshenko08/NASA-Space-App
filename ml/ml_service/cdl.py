@@ -52,3 +52,18 @@ def first_component(token: str) -> str:
 def last_component(token: str) -> str:
     """the crop grown last in that year: what the next year follows"""
     return components(token)[-1]
+
+
+# CDL codes of land that is not cropland: open water, developed, barren, forest, shrub, grass / pasture, wetlands
+NON_CROP_CODES = {111, 112, 121, 122, 123, 124, 131, 141, 142, 143, 152, 176, 190, 195}
+
+
+def noncrop_note(codes: dict[int, int], last_years: int = 5, min_years: int = 2) -> str | None:
+    """a warning when the recent history is mostly not cropland (a lawn, a pasture, a lot at the edge of a town ...):
+    a crop plan for such a parcel is a guess. codes: year -> CDL code."""
+    recent = sorted(codes)[-last_years:]
+    bad = [y for y in recent if int(codes[y]) in NON_CROP_CODES]
+    if len(bad) < min_years:
+        return None
+    return (f"the CDL shows land that is not cropland in {len(bad)} of the last {len(recent)} years ({', '.join(str(y) for y in bad)}: "
+            f"grass, pasture or developed): check that this is a working field before relying on the plan")

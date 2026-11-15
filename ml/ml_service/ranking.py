@@ -109,6 +109,7 @@ class FieldContext:
     winter_tmin_c: float | None = None
     twi: float | None = None
     smap_deficit_share: float | None = None
+    smap_source: str | None = None                  # "own" (the field's SMAP pixel) or "nearest_field" (borrowed from the nearest field with data)
     irrigated: bool | None = None
     # used by the rotation planner (ml_service/rotations.py)
     history: dict = field(default_factory=dict)     # year -> crop slug ("other" = not a candidate), from CSB; what the MODEL sees
