@@ -1,11 +1,18 @@
 """
 step 10 - take Lina's CSV files, check them, install them in data/lina/ and rebuild what depends on them.
 
-files (any of them can be missing; formats from CLAUDE.md):
+files (any of them can be missing). the canonical formats below are what the service reads; Lina's real GEE outputs (ml/gee/*.py)
+are accepted under their own names and converted on the way in:
   ndvi_monthly.csv  field_id, year, month, ndvi_mean, n_obs      NDVI -1..1; n_obs >= 0 (ndvi_mean may be empty only when n_obs = 0)
+     <- hls_ndvi_monthly_long.csv  field_id, date, year, month, ndvi_hls, n_obs     (ndvi_hls -> ndvi_mean, date dropped)
   ndvi_season.csv   field_id, year, ndvi_peak, ndvi_peak_doy     NDVI -1..1; doy 1..366   (kept for the NDVI model, not used by the service yet)
   smap_monthly.csv  field_id, year, month, smap_rootzone         0..0.6 m3/m3
-  terrain.csv       field_id, slope_pct, twi [, slope_class]     slope 0..100 %; twi finite (-10..40); slope_class is free text
+     <- smap_monthly_long.csv      field_id, date, year, month, smap_rootzone          (date dropped)
+  terrain.csv       field_id, slope_pct [, twi, slope_class, slope_pct_p90]   slope 0..100 %; twi finite (-10..40) and optional
+     <- terrain2.csv               field_id, slope_deg, slope_deg_p90    slope_pct = tan(radians(slope_deg)) * 100 (the field median);
+                                   slope_pct_p90 is the same for the 90th percentile and is informational only. no twi in her file:
+                                   the high-TWI rule stays off (ctx.twi is empty) until a TWI arrives
+  years from 2015 on are all kept (ranges allow 2015..2026)
 
 checks: required columns, number formats, ranges, empty values, duplicate keys, field_ids that we do not know (neither in the 2000-field
 sample nor in a precomputed county). bad rows are dropped and counted; when more than --max-bad-share of a file is bad the
@@ -23,6 +30,7 @@ what happens next (this is what makes the service pick the files up automaticall
 usage:
   python scripts/10_ingest_lina.py --incoming ~/Downloads/lina
   python scripts/10_ingest_lina.py --incoming ~/Downloads/lina --dry-run        # only the report
+  python scripts/10_ingest_lina.py --incoming ~/Downloads/lina_demo --merge     # second field set: add to the installed files, not replace
 """
 from __future__ import annotations
 
@@ -47,9 +55,25 @@ SPECS = {
                             ranges={"year": (2015, 2026, "int"), "ndvi_peak": (-1.0, 1.0, "float"), "ndvi_peak_doy": (1, 366, "int")}),
     "smap_monthly.csv": dict(key=["field_id", "year", "month"], required=["field_id", "year", "month", "smap_rootzone"], optional=[],
                              ranges={"year": (2015, 2026, "int"), "month": (1, 12, "int"), "smap_rootzone": (0.0, 0.6, "float")}),
-    "terrain.csv": dict(key=["field_id"], required=["field_id", "slope_pct", "twi"], optional=["slope_class"],
-                        ranges={"slope_pct": (0.0, 100.0, "float"), "twi": (-10.0, 40.0, "float")}),
+    "terrain.csv": dict(key=["field_id"], required=["field_id", "slope_pct"], optional=["twi", "slope_class", "slope_pct_p90"],
+                        ranges={"slope_pct": (0.0, 100.0, "float"), "slope_pct_p90": (0.0, 100.0, "float"), "twi": (-10.0, 40.0, "float")}),
 }
+
+# canonical name -> the names Lina's scripts write (the canonical name wins when both are in the folder)
+ALIASES = {"ndvi_monthly.csv": "hls_ndvi_monthly_long.csv", "smap_monthly.csv": "smap_monthly_long.csv", "terrain.csv": "terrain2.csv"}
+
+
+def adapt(name: str, raw: pd.DataFrame) -> pd.DataFrame:
+    """Lina's column names and units -> ours (a file already in our format passes through unchanged)"""
+    df = raw.copy()
+    if name == "ndvi_monthly.csv" and "ndvi_hls" in df.columns and "ndvi_mean" not in df.columns:
+        df = df.rename(columns={"ndvi_hls": "ndvi_mean"})
+    if name == "terrain.csv" and "slope_deg" in df.columns and "slope_pct" not in df.columns:
+        # percent = tan(angle) * 100. 90 degrees or a negative angle gives a value outside 0..100 and is dropped by the range check
+        for deg, pct in (("slope_deg", "slope_pct"), ("slope_deg_p90", "slope_pct_p90")):
+            if deg in df.columns:
+                df[pct] = (np.tan(np.radians(pd.to_numeric(df[deg], errors="coerce"))) * 100).round(2)
+    return df
 
 
 class Refused(Exception):
@@ -94,6 +118,8 @@ def validate(name: str, raw: pd.DataFrame, known: pd.Series, max_bad_share: floa
     mark(~df["field_id"].isin(known.index), "unknown field_id")
 
     for col, (lo, hi, kind) in spec["ranges"].items():
+        if col not in df.columns:                                   # an optional column the file does not have
+            continue
         num = pd.to_numeric(df[col], errors="coerce")
         empty = num.isna()
         if name == "ndvi_monthly.csv" and col == "ndvi_mean":      # a month without a cloud-free image has no NDVI and n_obs = 0
@@ -171,6 +197,8 @@ def main() -> int:
     ap.add_argument("--fields", default="data/fields")
     ap.add_argument("--precomputed", default="data/precomputed")
     ap.add_argument("--max-bad-share", type=float, default=0.05)
+    ap.add_argument("--merge", action="store_true",
+                    help="add the rows to the installed files instead of replacing them (second field set; same key = the new row wins)")
     ap.add_argument("--dry-run", action="store_true", help="check and report only, write nothing")
     args = ap.parse_args()
 
@@ -181,12 +209,14 @@ def main() -> int:
     refused = []
     for name in SPECS:
         src = incoming / name
+        if not src.exists() and (incoming / ALIASES.get(name, name)).exists():
+            src = incoming / ALIASES[name]
         if not src.exists():
             print(f"\n{name}: not in the incoming folder, skipped")
             continue
-        print(f"\n{name}")
+        print(f"\n{name}" + (f"  (from {src.name})" if src.name != name else ""))
         try:
-            clean, rep = validate(name, pd.read_csv(src, dtype={"field_id": str}), known, args.max_bad_share)
+            clean, rep = validate(name, adapt(name, pd.read_csv(src, dtype={"field_id": str})), known, args.max_bad_share)
         except Refused as e:
             print(f"  REFUSED: {e}")
             refused.append(name)
@@ -209,6 +239,8 @@ def main() -> int:
         if dst.exists():
             (lina / "_previous").mkdir(exist_ok=True)
             shutil.copy2(dst, lina / "_previous" / f"{stamp}-{name}")
+        if args.merge and dst.exists():
+            df = pd.concat([pd.read_csv(dst, dtype={"field_id": str}), df], ignore_index=True).drop_duplicates(SPECS[name]["key"], keep="last")
         df.to_csv(dst, index=False)
         print(f"installed {dst} ({len(df):,} rows)")
 
