@@ -1,4 +1,4 @@
-import type { ComparisonCell, ComparisonPlan, ComparisonRow, FieldComparison } from "@/entities/comparison";
+import type { ComparisonCell, ComparisonRow, FieldComparison } from "@/entities/comparison";
 import { toDisplay, type DisplayValue } from "@/shared/lib";
 
 const MI_PER_KM = 0.621371;
@@ -99,16 +99,6 @@ export function sharedQuality(row: ComparisonRow): ComparisonCell["quality"] | n
 
 /** Groups whose rows never fold away, even when every field has the same value. */
 export const NEVER_FOLD = new Set<string>(["money"]);
-
-const CROP_NAME = { corn: "corn", soybean: "soybeans", winter_wheat: "winter wheat" } as const;
-
-/** "Corn, then soybeans, over 2 years". */
-export function planText(plan: ComparisonPlan): string {
-  const crops = (plan.rotation ?? ["corn", "soybean"]).map((c) => CROP_NAME[c]);
-  const years = plan.horizon_years ?? 2;
-  const list = crops.length === 1 ? `${crops[0]} every year` : crops.join(", then ");
-  return `${list.charAt(0).toUpperCase()}${list.slice(1)}, over ${years} ${years === 1 ? "year" : "years"}`;
-}
 
 /** The headline cell of a row for one field, by row key. */
 export function cellOf(data: FieldComparison, key: string, fieldId: string): ComparisonCell | undefined {
