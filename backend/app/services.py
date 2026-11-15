@@ -74,6 +74,8 @@ class Services:
         self.ml_client = httpx.AsyncClient(
             base_url=str(settings.ml_base_url).rstrip("/") + "/",
             timeout=httpx.Timeout(settings.ml_timeout_s, connect=min(5.0, settings.ml_timeout_s)),
+            headers=({"X-ML-Token": settings.ml_api_token.get_secret_value()}
+                     if settings.ml_api_token.get_secret_value() else None),
         )
 
         self.analyses = AnalysisService(

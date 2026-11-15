@@ -3,6 +3,7 @@
 ML_MODE=real (default) answers with the real analysis; ML_MODE=mock keeps the contract-shaped mock.
 The mode is read on every request, so it can be switched without a restart in tests.
 """
+import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -39,6 +40,18 @@ app = FastAPI(title="FieldShift ML service", version="0.2.0", lifespan=lifespan,
 
 # the frontend never calls ML directly, but CORS stays open for local demos and swagger
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def _require_token(request: Request, call_next):
+    """ML_API_TOKEN set (public hosting): /ml/v1/* needs the same value in X-ML-Token. Health stays open."""
+    token = os.environ.get("ML_API_TOKEN", "")
+    if token and request.url.path.startswith("/ml/v1/"):
+        sent = request.headers.get("x-ml-token", "")
+        if not hmac.compare_digest(sent.encode(), token.encode()):
+            return JSONResponse(error_payload("UNAUTHORIZED", "Missing or wrong X-ML-Token."), status_code=401)
+    return await call_next(request)
+
 
 _ERRORS = {422: {"model": ErrorResponse}, 404: {"model": ErrorResponse},
            503: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}

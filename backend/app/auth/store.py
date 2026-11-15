@@ -17,8 +17,9 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import psycopg
-from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+
+from app.core.db import open_pool
 
 log = logging.getLogger(__name__)
 
@@ -80,10 +81,10 @@ class UserStore:
     @classmethod
     def connect(cls, url: str) -> "UserStore | None":
         """Open a pool and create the tables if missing. None (with a log line) when the DB is unusable."""
-        pool = ConnectionPool(url, min_size=1, max_size=4, open=False, kwargs={"row_factory": dict_row})
+        pool = open_pool(url, max_size=4)
         try:
             pool.open(wait=True, timeout=5)
-            with pool.connection() as c:
+            with pool.connection(timeout=5) as c:
                 c.execute(SCHEMA_SQL)
         except Exception as e:  # noqa: BLE001 - any DB failure means "auth unavailable"
             log.error("auth database unavailable at %s (%s): auth endpoints return 500",

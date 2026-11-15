@@ -12,8 +12,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import shapely
-from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+
+from app.core.db import open_pool
 
 log = logging.getLogger(__name__)
 
@@ -63,10 +64,10 @@ class FieldStore:
     @classmethod
     def connect(cls, url: str) -> "FieldStore | None":
         """Open a pool and check the tables exist. None (with a log line) when they cannot be used."""
-        pool = ConnectionPool(url, min_size=1, max_size=8, open=False, kwargs={"row_factory": dict_row})
+        pool = open_pool(url, max_size=8)
         try:
             pool.open(wait=True, timeout=5)
-            with pool.connection() as c:
+            with pool.connection(timeout=5) as c:
                 ok = c.execute("SELECT to_regclass('public.fields') IS NOT NULL AS ok").fetchone()["ok"]
             if not ok:
                 log.warning("table `fields` missing (run `make data-csb`): points resolve to buffered points")

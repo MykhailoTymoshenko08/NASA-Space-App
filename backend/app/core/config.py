@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     analysis_engine: Literal["ml", "stub"] = "ml"
     ml_base_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8001")
     ml_timeout_s: float = Field(default=30.0, gt=0)
+    # Sent as X-ML-Token when set: the ML service checks it when it runs with the same ML_API_TOKEN.
+    ml_api_token: SecretStr = SecretStr("")
 
     # Analysis stub knobs.
     stub_fail_rate: float = Field(default=0.0, ge=0.0, le=1.0)

@@ -20,7 +20,6 @@ from dataclasses import dataclass
 
 import httpx
 import shapely
-from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pyproj import Geod
 from shapely.geometry import shape
@@ -29,6 +28,7 @@ from starlette.concurrency import run_in_threadpool
 from app.comparisons.history import summarize_history
 from app.comparisons.soil_batch import BATCH_SIZE, fetch_point_soils
 from app.core.config import FIELD_STATES
+from app.core.db import open_pool
 from app.core.errors import ApiException, ErrorCode, not_found
 from app.models import (
     AreaBBoxRef,
@@ -65,7 +65,13 @@ CREATE TABLE IF NOT EXISTS field_soil (
     drainage   text,
     fetched_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS fields_county_fips_idx ON fields (county_fips);
+-- Only on a plain table: in the compact hosted layout (scripts/publish_slim_fields.py) `fields` is a view
+-- and this index already exists on its base table.
+DO $$ BEGIN
+    IF (SELECT relkind FROM pg_class WHERE oid = 'public.fields'::regclass) = 'r' THEN
+        CREATE INDEX IF NOT EXISTS fields_county_fips_idx ON fields (county_fips);
+    END IF;
+END $$;
 """
 
 _SELECT = """
@@ -107,10 +113,10 @@ class AreaStore:
 
     @classmethod
     def connect(cls, url: str) -> "AreaStore | None":
-        pool = ConnectionPool(url, min_size=1, max_size=4, open=False, kwargs={"row_factory": dict_row})
+        pool = open_pool(url, max_size=4)
         try:
             pool.open(wait=True, timeout=5)
-            with pool.connection() as c:
+            with pool.connection(timeout=5) as c:
                 if not c.execute("SELECT to_regclass('public.fields') IS NOT NULL AS ok").fetchone()["ok"]:
                     pool.close()
                     return None
