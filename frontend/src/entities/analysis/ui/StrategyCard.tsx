@@ -4,6 +4,7 @@ import { Button } from "@/shared/ui/button";
 import { Badge } from "@/shared/ui/feedback";
 import { MonoLabel } from "@/shared/ui/layout";
 import { MeterBar } from "@/shared/ui/progress";
+import { TermText } from "@/shared/ui/term-text";
 import { CRITERION_LABEL, ROLE_LABEL } from "../config/labels";
 import { confidenceText, datasetSource, deltaText, rankLabel } from "../lib/strategies";
 import { StrategyBudget } from "./StrategyBudget";
@@ -17,7 +18,10 @@ type Props = {
   onToggle: () => void;
 };
 
-/** One rotation strategy: rank, name, summary, score, seasons and expandable reasons. */
+/**
+ * One rotation strategy: rank, name, summary, score, seasons and expandable reasons.
+ * Summary and reasons mark known terms when a `TermsProvider` (e.g. `GlossaryTerms`) wraps the card.
+ */
 export function StrategyCard({ strategy: st, index, baselineScore, open, onToggle }: Props) {
   const detailsId = useId();
   const titleId = useId();
@@ -33,7 +37,9 @@ export function StrategyCard({ strategy: st, index, baselineScore, open, onToggl
           <h3 id={titleId} className={s.strategyName}>
             {st.name}
           </h3>
-          <p>{st.summary}</p>
+          <p>
+            <TermText>{st.summary}</TermText>
+          </p>
         </div>
         <div className={s.score}>
           <ScoreRing score={st.score} best={index === 0} />
@@ -89,7 +95,9 @@ export function StrategyCard({ strategy: st, index, baselineScore, open, onToggl
                 <ul className={s.evidence}>
                   {st.evidence.map((e, i) => (
                     <li key={i}>
-                      <div>{e.statement}</div>
+                      <div>
+                        <TermText>{e.statement}</TermText>
+                      </div>
                       {e.source && <div className={s.small}>{datasetSource(e.source)}</div>}
                     </li>
                   ))}
@@ -138,7 +146,9 @@ function DetailList({ title, items }: { title: string; items: readonly string[] 
       <MonoLabel as="h4">{title}</MonoLabel>
       <ul className={s.bullets}>
         {items.map((t, i) => (
-          <li key={i}>{t}</li>
+          <li key={i}>
+            <TermText>{t}</TermText>
+          </li>
         ))}
       </ul>
     </div>

@@ -3,6 +3,7 @@ import type { DatasetRef, Metric } from "@/shared/api";
 import { Badge, Skeleton } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import { SectionTitle } from "@/shared/ui/layout";
+import { TermText } from "@/shared/ui/term-text";
 import { GLOSSARY, HINTS, readingFor } from "../lib/glossary";
 import { groupMetrics, presentMetric } from "../lib/present";
 import { buildSourceRegistry, type SourceEntry, type SourceRegistry } from "../lib/sources";
@@ -54,14 +55,18 @@ export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = fal
           <Badge tone={m.quality.tone}>{m.quality.label}</Badge>
         </span>
       </div>
-      {reading && <div className={s.reading}>{reading}</div>}
+      {reading && (
+        <div className={s.reading}>
+          <TermText>{reading}</TermText>
+        </div>
+      )}
       {hint && hintOpen && (
         <div id={hintId} role="note" className={s.hint}>
           <div>
-            <strong>What it is.</strong> {hint.what}
+            <strong>What it is.</strong> <TermText>{hint.what}</TermText>
           </div>
           <div>
-            <strong>How to read it.</strong> {hint.read}
+            <strong>How to read it.</strong> <TermText>{hint.read}</TermText>
           </div>
           <a href={`#${hint.glossaryId}`} className={s.link}>
             See it in the glossary
@@ -69,7 +74,11 @@ export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = fal
         </div>
       )}
       <div className={s.metaCol}>
-        {m.note && <div className={s.note}>{m.note}</div>}
+        {m.note && (
+          <div className={s.note}>
+            <TermText>{m.note}</TermText>
+          </div>
+        )}
         {m.coarse && (
           <div className={s.coarse}>
             <Icon name="warning" size={16} />
@@ -224,7 +233,7 @@ export function SourcesList({ registry }: { registry: SourceRegistry }) {
   );
 }
 
-/** Glossary of the terms the cards and hints use. */
+/** Glossary of the terms the cards and hints use; each term popover links to its entry here. */
 export function Glossary() {
   return (
     <section id="glossary" aria-labelledby="glossary-h" className={s.box}>
@@ -234,6 +243,9 @@ export function Glossary() {
           <div key={t.id} id={t.id} className={s.term}>
             <dt>{t.term}</dt>
             <dd>{t.def}</dd>
+            <dd className={s.termWhy}>
+              <strong>Why it matters.</strong> {t.why}
+            </dd>
           </div>
         ))}
       </dl>

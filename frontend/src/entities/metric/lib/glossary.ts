@@ -1,7 +1,16 @@
 import type { Metric } from "@/shared/api";
 import { mmToInches } from "@/shared/lib";
 
-export type GlossaryTerm = { id: string; term: string; def: string };
+/** A glossary entry; `why` and `match` feed the term popovers in running text (see `GlossaryTerms`). */
+export type GlossaryTerm = {
+  id: string;
+  term: string;
+  def: string;
+  /** Why it matters, in one or two sentences. */
+  why: string;
+  /** Phrases in running text that mean this term (see `TermEntry.match` for the case rule). */
+  match: readonly string[];
+};
 
 /** Glossary at the bottom of Base conditions and Analysis (design copy). */
 export const GLOSSARY: readonly GlossaryTerm[] = [
@@ -9,61 +18,85 @@ export const GLOSSARY: readonly GlossaryTerm[] = [
     id: "gl-ndvi",
     term: "NDVI (plant greenness)",
     def: "A score from about 0 to 1 for how much green plant cover a satellite sees. Bare soil is near 0 and thick healthy crops are above 0.6.",
+    why: "Shows how much living crop or cover is on the field. Low values after harvest mean bare soil that rain and wind can carry away.",
+    match: ["NDVI", "plant greenness"],
   },
   {
     id: "gl-et",
     term: "ET (evapotranspiration)",
     def: "The water that moves from the field to the air, both from soil drying out and from plants releasing it. It is the main way a field loses water besides runoff.",
+    why: "It is the field's water spending. When ET stays above rain for weeks, crops start to run short of water.",
+    match: ["evapotranspiration", "ET"],
   },
   {
     id: "gl-anomaly",
     term: "Soil moisture anomaly",
     def: "The gap between today's soil moisture and what is normal for this date. Negative means drier than normal and positive means wetter.",
+    why: "It tells you if this season is wetter or drier than usual, which says more for planning than the raw moisture number.",
+    match: ["soil moisture anomaly", "soil moisture anomalies", "moisture anomaly", "moisture anomalies", "anomaly", "anomalies"],
   },
   {
     id: "gl-sd",
     term: "Standard deviation (std dev)",
     def: "A yardstick for how unusual a reading is. Within 1 either way is ordinary. Beyond 2 is rare.",
+    why: "It puts different readings on one scale of how unusual they are, so -2 is a real warning and -0.3 is not.",
+    match: ["standard deviation", "standard deviations", "std dev"],
   },
   {
     id: "gl-surface",
     term: "Surface soil moisture",
     def: "Water in the top few centimeters of soil. It changes fast after rain or wind.",
+    why: "It shows recent rain and drying. It matters most for seeding and for young plants with short roots.",
+    match: ["surface soil moisture", "surface moisture"],
   },
   {
     id: "gl-rootzone",
     term: "Root-zone soil moisture",
     def: "Water down to about 1 meter, where most crop roots drink. It changes more slowly.",
+    why: "It is the water crops can reach through the season, so it says more about drought stress than the surface layer.",
+    match: ["root-zone soil moisture", "root zone soil moisture", "root-zone moisture", "root zone moisture", "root-zone", "root zone"],
   },
   {
     id: "gl-vol",
     term: "m³/m³ (volumetric moisture)",
     def: "Share of the soil volume that is water. 0.27 means 27 percent of the soil is water.",
+    why: "It is the unit of the soil moisture readings. A higher number means more water in the soil.",
+    match: ["m³/m³", "volumetric moisture", "volumetric soil moisture"],
   },
   {
     id: "gl-normal",
     term: "Normal (climatology)",
     def: "The long-term average for a place and date, taken from past years.",
+    why: "It is the baseline that every \"drier than normal\" or \"wetter than normal\" is measured against.",
+    match: ["climatology", "long-term average", "normal"],
   },
   {
     id: "gl-pixel",
     term: "Pixel size",
     def: "The size of one square in the source data. One reading covers the whole square, so large pixels describe the area around a field, not the field itself.",
+    why: "It tells you how local a reading is. When the pixel is larger than your field, treat the value as context for the area.",
+    match: ["pixel size", "pixels", "pixel"],
   },
   {
     id: "gl-quality",
     term: "Measured, Modeled, Estimate",
     def: "Measured values come straight from an instrument or survey. Modeled values come from a computer model fed with measurements. An estimate is our own calculation from other values.",
+    why: "It tells you how much to trust a value. Measured is the most direct, and an estimate is a rough guide.",
+    match: ["measured", "modeled", "modelled", "estimate", "estimated", "estimates"],
   },
   {
     id: "gl-som",
     term: "Soil organic matter",
     def: "Decayed plant and animal material in the soil. More of it usually means better water holding and more nutrients.",
+    why: "It sets how much water and nutrients the soil can hold. Rotations with cover crops or forage tend to build it up.",
+    match: ["soil organic matter", "organic matter", "SOM"],
   },
   {
     id: "gl-ph",
     term: "Soil pH",
     def: "How acid or alkaline the soil is. Most crops do best between 6 and 7.",
+    why: "It controls how well crops take up nutrients. Soil well outside 6 to 7 may need lime or other fixes.",
+    match: ["soil pH", "pH"],
   },
 ];
 

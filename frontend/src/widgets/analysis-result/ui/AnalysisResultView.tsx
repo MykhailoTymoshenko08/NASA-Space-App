@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { priorityText, sortStrategies, StrategyCard, TimeSeriesChart, yearsText } from "@/entities/analysis";
 import { fieldSizeM } from "@/entities/field";
-import { Glossary, MetricGroups, SourcesList, SourcesStrip, useSourceRegistry } from "@/entities/metric";
+import { Glossary, GlossaryTerms, MetricGroups, SourcesList, SourcesStrip, useSourceRegistry } from "@/entities/metric";
 import type { AnalysisResult, Priority, TimeSeries } from "@/shared/api";
 import { formatDateTime } from "@/shared/lib";
 import { Note } from "@/shared/ui/feedback";
+import { TermText } from "@/shared/ui/term-text";
 import s from "./analysis-result.module.css";
 
 type Props = {
@@ -32,8 +33,9 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
     .filter(Boolean)
     .join(" ");
 
+  // Glossary terms in strategy texts, readings and warnings open a popover that links to the Glossary below.
   return (
-    <>
+    <GlossaryTerms>
       <section className={s.section} aria-labelledby="strategies-title">
         <div>
           <h2 id="strategies-title" className={s.h2}>
@@ -83,7 +85,9 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
         <Note tone="warning" title="Keep in mind">
           <ul>
             {result.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
+              <li key={i}>
+                <TermText>{w}</TermText>
+              </li>
             ))}
           </ul>
         </Note>
@@ -95,7 +99,7 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
           Model {result.model_version}. Created {formatDateTime(result.generated_at)}.
         </div>
       </Note>
-    </>
+    </GlossaryTerms>
   );
 }
 
