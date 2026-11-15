@@ -117,7 +117,9 @@ def download(out, force: bool) -> None:
         tws, secs, subs = [], [], []
         for postal in postals:
             print(f"fetching {postal} survey townships from BLM ...")
-            tws.append(fetch(c, f"{BLM}/{TOWNSHIP_LAYER}", f"STATEABBR='{postal}'",
+            # By PLSSID, not STATEABBR: BLM leaves STATEABBR empty on some townships (126 in Iowa, e.g.
+            # Pocahontas County's 90N 34W), which left holes in the township layer.
+            tws.append(fetch(c, f"{BLM}/{TOWNSHIP_LAYER}", f"PLSSID LIKE '{postal}%'",
                              "PLSSID,TWNSHPLAB", PLSS_OFFSET_DEG, BLM_PAGE))
             print(f"fetching {postal} sections from BLM ...")
             # PLSSID starts with the state postal code (e.g. IA050850N0470W0).
@@ -135,6 +137,7 @@ def download(out, force: bool) -> None:
 
     tw = tw.rename(columns={"PLSSID": "plssid", "TWNSHPLAB": "label"})
     tw["label"] = tw["label"].fillna("").str.strip()
+    tw["geometry"] = tw.geometry.make_valid()  # some BLM parts self-intersect; dissolve needs valid input
     tw = tw.dissolve(by="plssid", as_index=False, aggfunc="first")  # one row per township
     pts = [label_point(g, 0.001) for g in tw.geometry]
     tw["lx"], tw["ly"] = [p[0] for p in pts], [p[1] for p in pts]

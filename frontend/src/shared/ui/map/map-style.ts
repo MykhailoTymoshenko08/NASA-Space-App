@@ -204,7 +204,7 @@ export function countyLabelText(stateFocused: boolean): ExpressionSpecification 
 }
 
 /** Revision of plss.pmtiles, sent as `?v=`. Bump when scripts/prepare_plss.py changes the layers. */
-export const PLSS_TILES_REV = 1;
+export const PLSS_TILES_REV = 2;
 
 /**
  * Zoom bands from the contract: states < 7, counties 7 to 10, fields from field_tiles.min_zoom.
