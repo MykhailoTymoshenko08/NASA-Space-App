@@ -14,7 +14,7 @@ type Props = {
   horizon: number | null;
 };
 
-/** The result: caveats, ranked strategies, history charts, current conditions, datasets and the disclaimer. */
+/** The result: ranked strategies, history charts, current conditions, sources, glossary, caveats and the disclaimer. */
 export function AnalysisResultView({ result, priorities, horizon }: Props) {
   const strategies = sortStrategies(result.strategies);
   const baseline = strategies.find((st) => st.is_current)?.score ?? null;
@@ -34,16 +34,6 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
 
   return (
     <>
-      {result.warnings && result.warnings.length > 0 && (
-        <Note tone="warning" title="Keep in mind">
-          <ul>
-            {result.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
-        </Note>
-      )}
-
       <section className={s.section} aria-labelledby="strategies-title">
         <div>
           <h2 id="strategies-title" className={s.h2}>
@@ -86,6 +76,16 @@ export function AnalysisResultView({ result, priorities, horizon }: Props) {
 
       <SourcesList registry={registry} />
       <Glossary />
+
+      {result.warnings && result.warnings.length > 0 && (
+        <Note tone="warning" title="Keep in mind">
+          <ul>
+            {result.warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </Note>
+      )}
 
       <Note>
         <div>{result.disclaimer}</div>
