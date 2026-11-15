@@ -22,3 +22,6 @@ backend/data/*
 .DS_Store
 .idea/
 .vscode/
+
+# Vercel CLI (vercel link / vercel pull)
+.vercel/

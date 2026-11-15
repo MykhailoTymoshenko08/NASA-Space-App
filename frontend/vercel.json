@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  },
+  "rewrites": [
+    { "source": "/v1/:path*", "destination": "https://YOUR-HEROKU-APP.herokuapp.com/v1/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
