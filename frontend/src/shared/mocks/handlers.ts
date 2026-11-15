@@ -103,7 +103,7 @@ function parseInput(raw: string): Parsed {
 
 /* ---------- analyses ---------- */
 
-type Job = { created: number; selection: S["FieldSelection"]; fail: boolean };
+type Job = { created: number; selection: S["FieldSelection"]; fail: boolean; options?: S["AnalysisJob"]["options"] };
 const jobs = new Map<string, Job>();
 const JOB_MS = isTest ? 0 : 7000;
 const STAGES: [number, string][] = [
@@ -118,7 +118,7 @@ function jobView(id: string, job: Job): S["AnalysisJob"] {
   const elapsed = Date.now() - job.created;
   const pct = JOB_MS === 0 ? 100 : Math.min(100, Math.round((elapsed / JOB_MS) * 100));
   const stage = [...STAGES].reverse().find(([p]) => pct >= p)?.[1] ?? "Queued";
-  const base = { job_id: id, created_at: new Date(job.created).toISOString() };
+  const base = { job_id: id, created_at: new Date(job.created).toISOString(), options: job.options };
   if (pct < 100) {
     return { ...base, status: pct === 0 ? "queued" : "running", finished_at: null, progress: { percent: pct, stage } };
   }
@@ -335,7 +335,8 @@ export const handlers: AnyHandler[] = [
     if (!point) return errorResponse(404, "NOT_FOUND", "No field with that id.");
     if (!inConus(point)) return errorResponse(422, "OUTSIDE_COVERAGE", "That point is outside the contiguous US.");
     const id = crypto.randomUUID();
-    const job: Job = { created: Date.now(), selection: selectionFor(point, "coordinates", how), fail: point.lat >= 45 };
+    const job: Job = { created: Date.now(), selection: selectionFor(point, "coordinates", how), fail: point.lat >= 45,
+      options: { priorities: [], horizon_years: 3, ...body.options } };
     jobs.set(id, job);
     const view = jobView(id, job);
     return HttpResponse.json<S["AnalysisJob"]>(

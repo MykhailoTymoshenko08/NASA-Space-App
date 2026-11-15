@@ -63,6 +63,14 @@ export function SiteHeader() {
           >
             Saved fields
           </ButtonLink>
+          <ButtonLink
+            to={ROUTES.areaRanking}
+            variant="ghost"
+            current={here(ROUTES.areaRanking)}
+            className={row ? s.row : undefined}
+          >
+            Rank fields
+          </ButtonLink>
           <AccountMenu email={session.user.email} block={row} />
         </>
       ) : (

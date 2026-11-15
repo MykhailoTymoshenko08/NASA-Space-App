@@ -172,12 +172,13 @@ def build_feature_row(ctx: FieldContext, a: Assets) -> pd.DataFrame:
            "slope_pct": ctx.slope_ssurgo if ctx.slope_ssurgo is not None else ctx.slope_pct, "twi": ctx.twi, **ctx.soil}
     row.update({f"norm_{k}": v for k, v in ctx.climate_norm.items()})
     row.update({f"lag1_{k}": v for k, v in ctx.climate_lag1.items()})
-    x = pd.DataFrame([{f: row.get(f, np.nan) for f in a.features}])
-    for c, lv in a.levels.items():
-        x[c] = pd.Categorical(x[c], categories=lv)
-    for c in x.columns.difference(list(a.levels)):   # a missing soil value is None: LightGBM needs floats (NaN)
-        x[c] = pd.to_numeric(x[c], errors="coerce").astype(float)
-    return x
+    numeric = [f for f in a.features if f not in a.levels]
+    # a missing soil value is None: LightGBM needs floats (NaN)
+    values = pd.to_numeric(np.array([row.get(f, np.nan) for f in numeric], dtype=object), errors="coerce").astype(float)
+    columns = {f: [v] for f, v in zip(numeric, values)}
+    columns.update({c: pd.Categorical([row.get(c, np.nan)], categories=lv) for c, lv in a.levels.items()})
+    # Construct all columns together: hypothetical rotations need many rows with the same feature schema.
+    return pd.DataFrame(columns, columns=a.features)
 
 
 def calibrate(p: np.ndarray, cal: dict) -> np.ndarray:

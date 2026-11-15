@@ -51,6 +51,25 @@ describe("buildMapStyle", () => {
     }
   });
 
+  it("keeps the full selection and pin visible across focused area boundaries", () => {
+    for (const fieldTilesUrl of [input.fieldTilesUrl, null]) {
+      const ids = buildMapStyle({ ...input, fieldTilesUrl }).layers.map((l) => l.id);
+      const at = (id: string) => ids.indexOf(id);
+      for (const selected of [LAYER.selectionFill, LAYER.selectionLine, LAYER.selectionDashed, LAYER.pin]) {
+        for (const focused of [
+          LAYER.stateMask, LAYER.countyMask, LAYER.townshipMask,
+          LAYER.focusStateLine, LAYER.focusCountyLine, LAYER.focusTownshipLine,
+        ]) {
+          expect(at(selected)).toBeGreaterThan(at(focused));
+        }
+        expect(at(selected)).toBeLessThan(at(LAYER.countyLabels));
+      }
+      expect(at(LAYER.selectionFill)).toBeLessThan(at(LAYER.selectionLine));
+      expect(at(LAYER.selectionDashed)).toBeLessThan(at(LAYER.pin));
+      if (fieldTilesUrl) expect(at(LAYER.fieldsFill)).toBeLessThan(at(LAYER.townshipMask));
+    }
+  });
+
   it("hides everything outside the focus, and nothing without one", () => {
     const none = focusFilters(null);
     // Without a focus the state names are split by size, never hidden.

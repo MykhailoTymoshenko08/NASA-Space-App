@@ -344,7 +344,8 @@ export interface paths {
          *     page, one card per strategy (sorted by score), current conditions and history charts, then the datasets
          *     and the disclaimer. Values in US units; a missing metric prints "Not available" with its reason.
          *     Sent as an attachment. Available only once the job has `status = succeeded`; the same job always gives the
-         *     same report. No sign-in needed (job ids are unguessable UUIDs, like the job itself).
+         *     same report. Guest links are bearer links. Jobs created while signed in require the same account;
+         *     other callers receive 404. Invalid supplied bearer tokens receive 401.
          */
         get: operations["getAnalysisReport"];
         put?: never;
@@ -1185,11 +1186,17 @@ export interface components {
                  */
                 horizon_years: number;
                 budget?: components["schemas"]["RotationBudgetOptions"];
+                /** @description Farmer confirms whether the field is irrigated; null means unknown. */
+                irrigated?: boolean | null;
+                /** @description Farmer confirms a need for livestock forage; null means unknown. */
+                has_livestock?: boolean | null;
             };
         };
         /** @enum {string} */
         JobStatus: "queued" | "running" | "succeeded" | "failed";
         AnalysisJob: {
+            /** @description Original choices stored with this job. Use these instead of editable URL labels. */
+            options?: components["schemas"]["AnalysisRequest"]["options"];
             /** Format: uuid */
             job_id: string;
             status: components["schemas"]["JobStatus"];
@@ -1262,10 +1269,14 @@ export interface components {
             name: string;
             /** @description True for the baseline (the farmer's existing rotation). */
             is_current: boolean;
-            /** @description Ordered seasons of one rotation cycle. */
+            /** @description Ordered plantings. Explicit year and season preserve main and cover crops in the same year. */
             rotation: {
                 /** @description 0 = first season of the horizon. */
                 season_index: number;
+                /** @description Planning year; omitted for older cycle-only results. */
+                year?: number;
+                /** @enum {string} */
+                season?: "main" | "cover";
                 /** @example Soybean */
                 crop: string;
                 /** @enum {string} */
@@ -2274,6 +2285,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnalysisJob"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             /** @description `OUTSIDE_COVERAGE` or `VALIDATION_ERROR` */
             422: {
@@ -2310,6 +2322,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnalysisJob"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -2335,6 +2348,7 @@ export interface operations {
                     "application/pdf": string;
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             /** @description `ANALYSIS_NOT_READY`: the job is still queued or running, or it failed. `details.status` holds the job status. */
             409: {

@@ -53,8 +53,8 @@ class AnalysisService:
         self.fail_rate = fail_rate
         self._tasks: set[asyncio.Task] = set()
 
-    def create(self, selection: FieldSelection, options: AnalysisOptions) -> AnalysisJob:
-        key = dedupe_key(selection, options)
+    def create(self, selection: FieldSelection, options: AnalysisOptions, owner_id=None) -> AnalysisJob:
+        key = f"{owner_id or 'guest'}|{dedupe_key(selection, options)}"
         existing = self.store.find_recent(key, self.dedupe_ttl_s)
         if existing and existing.job.status != JobStatus.failed:
             return existing.job
@@ -64,9 +64,11 @@ class AnalysisService:
             status=JobStatus.queued,
             created_at=_now(),
             progress=Progress(percent=0, stage="Waiting to start"),
+            options=options,
         )
-        self.store.put(JobRecord(job=job, dedupe_key=key, options=options))
-        task = asyncio.create_task(self._run(job, selection, options))
+        rec = JobRecord(job=job, dedupe_key=key, options=options, owner_id=owner_id)
+        self.store.put(rec)
+        task = asyncio.create_task(self._run(rec, selection, options))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return job
@@ -83,11 +85,14 @@ class AnalysisService:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        self.store.close()
 
-    async def _run(self, job: AnalysisJob, selection: FieldSelection, options: AnalysisOptions) -> None:
+    async def _run(self, rec: JobRecord, selection: FieldSelection, options: AnalysisOptions) -> None:
+        job = rec.job
         def progress(percent: int, stage: str) -> None:
             # Never go backwards, never claim 100 % before the result is stored.
             job.progress = Progress(percent=max(job.progress.percent, min(int(percent), 99)), stage=stage)
+            self.store.save(rec)
 
         try:
             job.status = JobStatus.running
@@ -100,6 +105,13 @@ class AnalysisService:
             job.result = result
             job.progress = Progress(percent=100, stage="Done")
             job.status = JobStatus.succeeded
+        except asyncio.CancelledError:
+            job.error = ApiError(
+                code=ErrorCode.UPSTREAM_DATA_UNAVAILABLE,
+                message="This analysis was interrupted. Please run it again.",
+            )
+            job.status = JobStatus.failed
+            raise
         except ApiException as e:
             log.warning("analysis %s failed: %s", job.job_id, e.code)
             job.error = ApiError(code=e.code, message=e.message, details=e.details)
@@ -114,6 +126,7 @@ class AnalysisService:
             job.status = JobStatus.failed
         finally:
             job.finished_at = _now()
+            self.store.save(rec)
 
 
 def job_json(job: AnalysisJob) -> dict:

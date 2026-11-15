@@ -6,7 +6,7 @@ import { Message } from "@/shared/ui/feedback";
 import { TextField } from "@/shared/ui/form";
 import { Icon } from "@/shared/ui/icon";
 import { Panel, SectionTitle } from "@/shared/ui/layout";
-import type { AnalysisSetupState } from "../model/setup";
+import type { AnalysisSetupState, CropOverrides } from "../model/setup";
 import s from "./setup.module.css";
 
 /** Analysis setup: priorities, crop history, horizon and optional local budget costs. */
@@ -77,14 +77,16 @@ export function AnalysisSetupSections({ setup }: { setup: AnalysisSetupState }) 
 export function CreateAnalysisPanel({
   setup,
   disabled,
+  cropOverrides,
   onCreated,
 }: {
   setup: AnalysisSetupState;
   disabled?: boolean;
+  cropOverrides?: CropOverrides;
   onCreated: (jobId: string) => void;
 }) {
   const onClick = () => {
-    setup.submit().then((job) => onCreated(job.job_id), () => undefined);
+    setup.submit(cropOverrides).then((job) => onCreated(job.job_id), () => undefined);
   };
   const pending = setup.create.isPending;
   return (

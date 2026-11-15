@@ -49,3 +49,13 @@ def get_current_user(
     if user.auth_version != version:
         raise unauthorized("Password changed. Sign in again.", "session_revoked")
     return user
+
+
+def get_optional_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    svc: Services = Depends(get_services),
+) -> User | None:
+    """Keep guest analysis available; authenticate any supplied bearer token before assigning ownership."""
+    if creds is None:
+        return None
+    return get_current_user(creds, svc, get_user_store(svc))

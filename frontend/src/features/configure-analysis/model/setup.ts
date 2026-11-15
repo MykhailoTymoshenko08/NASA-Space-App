@@ -4,6 +4,9 @@ import { createAnalysisJob, DEFAULT_HORIZON } from "@/entities/analysis";
 import type { AnalysisRequest, FieldSelection, Priority, SelectionRef } from "@/shared/api";
 
 export type CropRow = { year: number; crop: string };
+type CropOverride = NonNullable<NonNullable<NonNullable<AnalysisRequest["options"]>["budget"]>["crop_overrides"]>[number];
+/** The farmer's own crop budgets, already parsed; `error` blocks submission. */
+export type CropOverrides = { overrides: CropOverride[]; error: string | null };
 
 /** Mapped history from the field, or the last three years empty when nothing is mapped. */
 export function initialCropRows(selection: FieldSelection | null, now = new Date()): CropRow[] {
@@ -58,12 +61,18 @@ export function useAnalysisSetup(selection: FieldSelection | null) {
 
   const create = useMutation({ mutationFn: createAnalysisJob });
 
-  const submit = () => {
+  const submit = (crop?: CropOverrides) => {
     if (!selection) return Promise.reject(new Error("No field"));
+    if (crop?.error) {
+      setValidationError(crop.error);
+      return Promise.reject(new Error(crop.error));
+    }
     const ref: SelectionRef = selection.field_id ? { field_id: selection.field_id } : { point: selection.anchor };
-    const budget = landRent !== "" || coverCost !== "" ? {
+    const overrides = crop?.overrides ?? [];
+    const budget = landRent !== "" || coverCost !== "" || overrides.length > 0 ? {
       ...(landRent !== "" ? { land_rent_per_acre: Number(landRent) } : {}),
       ...(coverCost !== "" ? { cover_cost_per_acre: Number(coverCost) } : {}),
+      ...(overrides.length > 0 ? { crop_overrides: overrides } : {}),
     } : undefined;
     const request = buildAnalysisRequest({ selection: ref, priorities, crops: rows, mapped, horizon, budget });
     if (request.options?.crop_history?.length === 0) {

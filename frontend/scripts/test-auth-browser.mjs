@@ -73,9 +73,11 @@ async function signup(page, email = newEmail()) {
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await text(page, "Account created.");
+  await go(page, "/my-fields");
   return email;
 }
 async function account(page) {
+  if (["/sign-up", "/sign-in", "/reset-password"].includes(new URL(page.url()).pathname)) await go(page, "/my-fields");
   if (await page.getByRole("button", { name: "Menu", exact: true }).isVisible()) {
     if (!(await page.getByRole("button", { name: "Account", exact: true }).isVisible())) {
       await page.getByRole("button", { name: "Menu", exact: true }).click();
@@ -169,7 +171,7 @@ await test("Login trims email, ignores casing, and returns to the protected rout
   await go(page, "/sign-in?next=%2Fmy-fields");
   await login(page, `  ${email.toUpperCase()}  `);
   await page.waitForURL(origin + "/my-fields");
-  await text(page, "My fields");
+  await text(page, "Saved fields");
 });
 await test("Signup preserves the return route through both auth forms", async (_, page) => {
   await go(page, "/my-fields");
@@ -258,6 +260,7 @@ await test("Nonremembered sessions survive reload but stay off in new tabs", asy
   await page.getByRole("checkbox").uncheck();
   await login(page, email);
   await text(page, "Signed in as");
+  await go(page, "/my-fields");
   await page.reload();
   await page.getByRole("button", { name: "Account", exact: true }).waitFor();
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -266,6 +269,9 @@ await test("Nonremembered sessions survive reload but stay off in new tabs", asy
     await text(tab, "Sign in to see your fields");
     assert.equal(await tab.evaluate(() => localStorage.getItem("fieldline.remember")), "0");
     await tab.close();
+    await restore(page);
+    await until(async () => (await session(page)).status === "authenticated");
+    assert((await context.cookies()).some((cookie) => cookie.name === "refresh_token"));
   }
 });
 await test("A delayed startup failure cannot overwrite signup", async (_, page) => {
@@ -358,7 +364,7 @@ await test("Change password checks confirmation, rejects wrong current, revokes 
     await page.getByRole("button", { name: "Change password", exact: true }).click();
     await text(page, "Your password was changed.");
     assert(!(await context.cookies()).some((cookie) => cookie.name === "refresh_token"));
-    await tab.getByRole("link", { name: "My fields", exact: true }).first().click();
+    await go(tab, "/my-fields");
     await text(tab, "Sign in to see your fields");
     await tab.reload();
     await text(tab, "Sign in to see your fields");
@@ -414,7 +420,7 @@ if (mailFile) {
       await resetFields(page);
       await savePassword(page);
       await text(page, "Your password was changed.");
-      await tab.getByRole("link", { name: "My fields", exact: true }).first().click();
+      await go(tab, "/my-fields");
       await text(tab, "Sign in to see your fields");
       await tab.reload();
       await text(tab, "Sign in to see your fields");

@@ -6,7 +6,7 @@ import { authApi } from "../api/auth-api";
  * Session state for the whole app.
  * - The access token lives in memory only (shared/api), never in storage.
  * - The refresh token is an httpOnly cookie; on start we call /auth/refresh to restore the session.
- * - "Keep me signed in" off: the session ends with the browser tab (we sign out on the next start).
+ * - "Keep me signed in" off: only the tab that signed in restores its session after a reload.
  */
 export type SessionState =
   | { status: "unknown"; user: null }
@@ -129,9 +129,8 @@ export async function restoreSession() {
   const remember = storage.get(local(), REMEMBER_KEY) !== "0";
   const sameTab = storage.get(tab(), TAB_KEY) === "1";
   if (!remember && !sameTab) {
-    // The user asked not to stay signed in and this is a new browser session.
+    // A new tab stays anonymous. The refresh cookie is shared with the original tab: do not revoke it.
     await withAuthLock(async () => {
-      await authApi.logout().catch(() => undefined);
       clear();
     });
     return;

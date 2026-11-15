@@ -82,10 +82,36 @@ it("preserves the nonremembered preference across new tabs", async () => {
   const refresh = vi.spyOn(authApi, "refresh");
   await restoreSession();
   await restoreSession();
-  expect(logout).toHaveBeenCalledTimes(2);
+  expect(logout).not.toHaveBeenCalled();
   expect(refresh).not.toHaveBeenCalled();
   expect(localStorage.getItem("fieldline.remember")).toBe("0");
   expect(getSession().status).toBe("anonymous");
+});
+
+it("keeps the original nonremembered tab refreshable after an independent tab starts", async () => {
+  let cookieValid = true;
+  vi.spyOn(authApi, "login").mockResolvedValue(tokens);
+  const logout = vi.spyOn(authApi, "logout").mockImplementation(async () => { cookieValid = false; });
+  const refresh = vi.spyOn(authApi, "refresh").mockImplementation(async () => {
+    if (!cookieValid) throw new Error("Refresh cookie revoked");
+    return tokens;
+  });
+  await signIn({ email: tokens.user.email, password: "password1", remember: false });
+
+  // Independent tabs share localStorage/cookies but have no original tab's sessionStorage marker.
+  sessionStorage.removeItem("fieldline.tab");
+  await restoreSession();
+  expect(getSession().status).toBe("anonymous");
+  expect(getAccessToken()).toBeNull();
+  expect(refresh).not.toHaveBeenCalled();
+
+  // The original tab retains its marker and must still restore using the shared refresh cookie.
+  sessionStorage.setItem("fieldline.tab", "1");
+  await restoreSession();
+  expect(logout).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(getSession()).toMatchObject({ status: "authenticated", user: tokens.user });
+  expect(getAccessToken()).toBe(tokens.access_token);
 });
 
 it("clears a revoked session when a protected API rejects its access token", async () => {

@@ -46,12 +46,14 @@ export function StrategyCard({ strategy: st, index, baselineScore, open, onToggl
       </div>
 
       {st.rotation.length > 0 && (
-        <ol className={s.seasons} aria-label="Seasons in one rotation cycle">
+        <ol className={s.seasons} aria-label="Plantings in the rotation plan">
           {[...st.rotation]
             .sort((a, b) => a.season_index - b.season_index)
             .map((r) => (
               <li key={r.season_index} className={s.season}>
-                <span className={s.seasonWhen}>Season {r.season_index + 1}</span>
+                <span className={s.seasonWhen}>
+                  {r.year ? `Year ${r.year} · ${r.season === "cover" ? "cover crop" : "main crop"}` : `Season ${r.season_index + 1}`}
+                </span>
                 <span className={s.seasonCrop}>{r.crop}</span>
                 <span className={s.seasonRole}>{ROLE_LABEL[r.role] ?? r.role}</span>
               </li>

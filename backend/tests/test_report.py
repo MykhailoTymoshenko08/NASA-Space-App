@@ -1,7 +1,9 @@
 """PDF analysis report: GET /analyses/{job_id}/report.pdf and what the report prints."""
 
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 import respx
@@ -13,6 +15,7 @@ from app.report.render import ASSETS_URI, local_fetcher, report_html
 from tests.contract import assert_matches_contract
 from tests.report_sample import JOB_ID, sample_options, sample_result
 from tests.test_analyses import F1, run
+from tests.test_auth import SECRET, bearer, register
 from tests.test_snapshots import mock_all
 
 pytestmark = pytest.mark.contract
@@ -50,6 +53,69 @@ def test_report_uses_request_options(client):
     page = text(report_html(rec.job.result, rec.options, rec.job.job_id))
     assert "Priorities Soil health, Less erosion" in page
     assert "Looking ahead 3 years" in page
+
+
+def test_private_report_is_hidden_from_guests_and_other_accounts(client, monkeypatch):
+    alice, bob = register(client), register(client)
+    assert alice.status_code == bob.status_code == 201
+    alice_auth, bob_auth = bearer(alice.json()["access_token"]), bearer(bob.json()["access_token"])
+    _, done = run(client, {"selection": F1}, headers=alice_auth)
+    job_id = done.json()["job_id"]
+
+    def forbidden_render(*args):
+        pytest.fail("An unauthorized report request reached the renderer")
+
+    from app.api import analyses
+
+    original = analyses.report_pdf
+    monkeypatch.setattr(analyses, "report_pdf", forbidden_render)
+    for headers in (None, bob_auth):
+        hidden = client.get(f"/v1/analyses/{job_id}/report.pdf", headers=headers)
+        assert hidden.status_code == 404
+        assert hidden.json()["error"]["code"] == "NOT_FOUND"
+        assert_matches_contract(hidden)
+    monkeypatch.setattr(analyses, "report_pdf", original)
+    owner = client.get(f"/v1/analyses/{job_id}/report.pdf", headers=alice_auth)
+    assert owner.status_code == 200 and owner.content.startswith(b"%PDF-")
+    assert_matches_contract(owner)
+
+
+def test_concurrent_report_downloads_render_once_across_database_workers(make_client, data_dir, monkeypatch):
+    from app.api import analyses
+
+    first = make_client(data_dir, state_backend="auto", jwt_secret=SECRET)
+    second = make_client(data_dir, state_backend="auto", jwt_secret=SECRET)
+    account = register(first)
+    assert account.status_code == 201
+    headers = bearer(account.json()["access_token"])
+    _, done = run(first, {"selection": F1, "options": {"horizon_years": 2}}, headers=headers)
+    job_id = done.json()["job_id"]
+    original = analyses.report_pdf
+    barrier = threading.Barrier(2)
+    lock = threading.Lock()
+    calls = 0
+
+    def counted_render(*args):
+        nonlocal calls
+        with lock:
+            calls += 1
+        return original(*args)
+
+    monkeypatch.setattr(analyses, "report_pdf", counted_render)
+
+    def download(worker):
+        barrier.wait(timeout=5)
+        return worker.get(f"/v1/analyses/{job_id}/report.pdf", headers=headers)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        reports = list(pool.map(download, (first, second)))
+    assert calls == 1
+    assert reports[0].content == reports[1].content
+    for report in reports:
+        assert report.status_code == 200 and report.content.startswith(b"%PDF-")
+        assert_matches_contract(report)
+    repeated = second.get(f"/v1/analyses/{job_id}/report.pdf", headers=headers)
+    assert repeated.status_code == 200 and repeated.content == reports[0].content and calls == 1
 
 
 def test_report_not_ready_while_running(make_client, data_dir):

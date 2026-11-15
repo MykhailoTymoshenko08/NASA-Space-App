@@ -33,6 +33,34 @@ def crop(r, slug):
 
 # ---------------------------------------------------------------- building blocks
 
+def test_feature_row_preserves_training_schema_and_numeric_coercion():
+    field = ctx(
+        prev_crops=["unknown", "barley"],
+        soil={**SOIL, "clay_pct": "27.5", "sand_pct": None, "om_pct": np.nan,
+              "soc_pct": "not a number", "hydgrp": "unlisted", "texture_class": None},
+        slope_ssurgo="3.5", twi=None,
+        climate_norm={**CLIMATE, "gdd_grow": "1900", "tmean_grow": None},
+        climate_lag1={**CLIMATE, "gdd_grow": np.nan},
+    )
+    row = build_feature_row(field, A)
+    assert list(row.columns) == A.features
+    assert list(row.index) == [0]
+    for name in A.features:
+        if name in A.levels:
+            assert row[name].dtype == pd.CategoricalDtype(categories=A.levels[name])
+        else:
+            assert row[name].dtype == np.dtype("float64")
+    assert row.loc[0, "state_fips"] == "19"
+    assert pd.isna(row.loc[0, "prev_crop_1"])
+    assert row.loc[0, "prev_crop_2"] == "other"
+    assert row.loc[0, "clay_pct"] == 27.5
+    assert row.loc[0, "slope_pct"] == 3.5
+    assert row.loc[0, "norm_gdd_grow"] == 1900.0
+    for name in ("sand_pct", "om_pct", "soc_pct", "hydgrp", "texture_class",
+                 "norm_tmean_grow", "lag1_gdd_grow"):
+        assert pd.isna(row.loc[0, name]), name
+
+
 def test_trapezoid_shape():
     b = {k: {"value": v} for k, v in zip(("hard_min", "opt_min", "opt_max", "hard_max"), (5.0, 6.0, 7.0, 8.0))}
     assert trapezoid(6.5, b) == 1.0

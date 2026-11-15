@@ -311,9 +311,11 @@ class RotationBudgetRequest(BaseModel):
 
 class AnalysisOptions(BaseModel):
     priorities: list[Priority] = Field(default_factory=list, max_length=6)
-    crop_history: list[CropYear] | None = Field(default=None, max_length=10)
+    crop_history: list[CropYear] | None = Field(default=None, max_length=10, exclude_if=lambda v: v is None)
     horizon_years: int = Field(default=3, ge=1, le=5)
     budget: RotationBudgetOptions = Field(default_factory=RotationBudgetOptions)
+    irrigated: bool | None = None
+    has_livestock: bool | None = None
 
 
 class AnalysisRequest(BaseModel):
@@ -429,6 +431,8 @@ class RotationSeason(BaseModel):
     season_index: int = Field(ge=0)
     crop: str
     role: RotationRole
+    year: int | None = Field(default=None, ge=1, le=5, exclude_if=lambda v: v is None)
+    season: Literal["main", "cover"] | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class Criterion(StrEnum):
@@ -491,6 +495,7 @@ class AnalysisJob(BaseModel):
     progress: Progress
     result: AnalysisResult | None = None
     error: ApiError | None = None
+    options: AnalysisOptions | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # ---------- profitability ----------

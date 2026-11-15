@@ -16,7 +16,7 @@ import asyncio
 import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pyproj import Geod
@@ -436,16 +436,47 @@ async def _snapshot(svc, selection: FieldSelection) -> Snapshot | None:
 
 
 async def _info(svc, row: dict) -> tuple[FieldInfo | None, datetime | None]:
-    if row["info"]:
-        return FieldInfo.model_validate(row["info"]), row["info_fetched_at"]
+    previous = FieldInfo.model_validate(row["info"]) if row["info"] else None
+    saved_at = None
+    if previous is not None:
+        dates = [previous.generated_at, row["info_fetched_at"]]
+        saved_at = min(d.replace(tzinfo=UTC) if d.tzinfo is None else d for d in dates if d is not None)
+
+    def available(metric: Metric | None) -> bool:
+        return metric is not None and metric.quality != Quality.unavailable and metric.value is not None
+
+    now = datetime.now(UTC)
+    if (previous is not None and previous.metrics and all(available(m) for m in previous.metrics)
+            and now - timedelta(days=1) <= saved_at <= now):
+        return previous, saved_at
+    info = None
+    failure = "The field data service is unavailable right now."
     try:
         info = await svc.field_info.info(LatLon(lat=row["centroid_lat"], lon=row["centroid_lon"]))
     except Exception:  # noqa: BLE001
         log.warning("comparison field info failed", exc_info=True)
+    old = {m.key: m for m in previous.metrics} if previous is not None else {}
+    new = {m.key: m for m in info.metrics} if info is not None else {}
+    metrics, reused = [], False
+    for key in dict.fromkeys([*new, *old]):
+        current, stored = new.get(key), old.get(key)
+        if available(current):
+            metrics.append(current)
+        elif available(stored):
+            reason = (current.unavailable_reason if current is not None else None) or (
+                failure if info is None else "The latest refresh did not include this value."
+            )
+            note = f"Saved value from {saved_at.isoformat()}; refresh unavailable: {reason.rstrip('.')}."
+            metrics.append(stored.model_copy(update={"note": " ".join(p for p in (note, stored.note) if p)}))
+            reused = True
+        elif current is not None or stored is not None:
+            metrics.append(current if current is not None else stored)
+    if not any(available(m) for m in metrics):
         return None, None
-    if all(m.quality == Quality.unavailable for m in info.metrics):
-        return None, None
-    return info, info.generated_at
+    # When refresh fails entirely, retain the original snapshot date. Mixed snapshots identify each
+    # saved fallback in its metric note and conservatively keep the oldest date in the comparison.
+    base = info if any(available(m) for m in new.values()) else previous
+    return base.model_copy(update={"metrics": metrics}), saved_at if reused else info.generated_at
 
 
 async def compare_saved_fields(
@@ -469,7 +500,8 @@ async def compare_saved_fields(
     for (row, sel), snap, (info, info_as_of) in zip(loaded, snapshots, infos, strict=True):
         history = [(int(c["year"]), c["crop"]) for c in row["crop_history"]] if row["crop_history"] else None
         inputs.append(FieldInput(
-            saved_field_id=row["id"], name=row["name"], field_id=row["field_id"], state=row["state"].strip(),
+            saved_field_id=row["id"], name=row["name"], field_id=row["field_id"],
+            state=sel.county.state_postal,
             centroid=LatLon(lat=row["centroid_lat"], lon=row["centroid_lon"]), area_ha=row["area_ha"],
             farmer_history=history, selection=sel, snapshot=snap, info=info, info_as_of=info_as_of,
             rent=req.rent_per_acre.get(str(row["id"])),

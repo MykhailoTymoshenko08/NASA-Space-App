@@ -13,6 +13,8 @@ export const ROUTES = {
   /** Signed-in password change (POST /auth/change-password). */
   changePassword: "/account/password",
   myFields: "/my-fields",
+  /** Signed-in county screening (POST /comparisons/area). */
+  areaRanking: "/rank-fields",
 } as const;
 
 /** `search` is a query string from `buildFieldSearch` ("?field_id=.."), or empty. */

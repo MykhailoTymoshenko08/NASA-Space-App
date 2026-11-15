@@ -45,6 +45,80 @@
 <div class="pair"><div>{{ left if left | trim else right }}</div><div></div></div>
 {%- endif %}
 {%- endmacro %}
+{%- macro budget_details(b) %}
+{%- if b %}
+{%- set complete = budget_complete(b) %}
+<div class="pair">
+  <div>
+    <h4 class="label" style="margin: 0">Rough rotation budget</h4>
+    <p class="small">Illustrative · {{ 'Complete' if complete else 'Unavailable' if b.status == 'unavailable' or b.uses_placeholders else 'Partial' }} · USD</p>
+    <p class="small muted">Historical price sensitivity, not a profit forecast. Returns include production, land, labor and machinery ownership allowances.</p>
+    {%- if not complete %}
+    <p class="small">No complete rotation return is estimated. Missing inputs stay unknown.</p>
+    {%- endif %}
+    {%- if b.uses_placeholders %}
+    <p class="small">Some inputs are unsourced placeholders. Enter local figures before estimating returns.</p>
+    {%- endif %}
+    {%- if b.missing_inputs %}
+    <ul class="small">{% for reason in b.missing_inputs %}<li>{{ reason }}</li>{% endfor %}</ul>
+    {%- endif %}
+  </div>
+  <div>
+    {%- if complete %}
+    <div class="label">Average return after costs</div>
+    <div class="strong">{{ money_text(b.annual_average.base.profit_per_acre, True) }} / acre / year</div>
+    {%- if b.annual_average.base.field_profit is not none %}
+    <p class="small">{{ money_text(b.annual_average.base.field_profit, True) }} / year for the estimated field.</p>
+    {%- endif %}
+    {%- if b.annual_average.base.return_before_land_per_acre is not none %}
+    <p class="small">Before land: {{ money_text(b.annual_average.base.return_before_land_per_acre, True) }} / acre / year.</p>
+    {%- endif %}
+    {%- endif %}
+  </div>
+</div>
+{%- if not b.uses_placeholders and b.years %}
+<div class="pair"><div>
+  <table class="datasets">
+    <caption>Yearly figures at base prices. USD per acre; unavailable years do not count as zero.</caption>
+    <thead><tr><th scope="col">Year</th><th scope="col">Crops</th><th scope="col" class="num">Revenue</th><th scope="col" class="num">Costs</th><th scope="col" class="num">Return</th></tr></thead>
+    <tbody>
+      {%- for y in b.years %}
+      <tr><th scope="row">{{ y.year }}</th><td>{{ (y.main_crops + y.cover_crops) | join(' + ') | replace('_', ' ') }}</td>
+        <td class="num">{{ money_text(y.scenarios.base.revenue_per_acre if y.scenarios else none) }}</td>
+        <td class="num">{{ money_text(y.scenarios.base.cost_per_acre if y.scenarios else none) }}</td>
+        <td class="num">{{ money_text(y.scenarios.base.profit_per_acre if y.scenarios else none, True) }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+</div></div>
+{%- endif %}
+{%- if complete %}
+<div class="pair"><div>
+  <table class="datasets">
+    <caption>Price sensitivity: average annual return after costs, USD per acre.</caption>
+    <thead><tr><th scope="col">Lower prices</th><th scope="col">Base prices</th><th scope="col">Higher prices</th></tr></thead>
+    <tbody><tr><td>{{ money_text(b.annual_average.low.profit_per_acre, True) }}</td><td>{{ money_text(b.annual_average.base.profit_per_acre, True) }}</td><td>{{ money_text(b.annual_average.high.profit_per_acre, True) }}</td></tr></tbody>
+  </table>
+  <p class="small">Base total over {{ b.horizon_years }} {{ 'year' if b.horizon_years == 1 else 'years' }}: {{ money_text(b.horizon_total.base.profit_per_acre, True) }} / acre.{% if b.horizon_total.base.field_profit is not none %} {{ money_text(b.horizon_total.base.field_profit, True) }} for the estimated field.{% endif %}</p>
+</div></div>
+{%- endif %}
+{%- if not b.uses_placeholders %}
+{%- for note in b.assumptions %}
+<div class="pair"><div>
+  {%- if loop.first %}<h5 class="label" style="margin: 0">Budget assumptions</h5>{% endif %}
+  <p class="small">{{ note }}</p>
+</div></div>
+{%- endfor %}
+{%- if b.sources %}
+<div class="pair"><div>
+  <h5 class="label" style="margin: 0">Budget sources</h5>
+  <ul class="small">{% for source in b.sources %}<li>{% if source.url %}<a href="{{ source.url }}">{{ source.dataset }}</a>{% else %}{{ source.dataset }}{% endif %}, {{ source.provider }}</li>{% endfor %}</ul>
+</div></div>
+{%- endif %}
+{%- endif %}
+{%- endif %}
+{%- endmacro %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -136,6 +210,7 @@
     {{ pair(why, fit) }}
     {{ pair(bullets("Good for", st.benefits), bullets("Watch out for", st.risks)) }}
     {{ pair(bullets("What we do not know", st.gaps), bullets("Check with a local agronomist", st.checks)) }}
+    {{ budget_details(st.budget) }}
   </article>
   {%- endfor %}
 </section>

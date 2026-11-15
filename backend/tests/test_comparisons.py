@@ -5,13 +5,15 @@ Snapshots, field info and Soil Data Access are replaced with fakes, so no test m
 
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 import respx
 
-from app.comparisons import soil_batch
+from app.comparisons import saved, soil_batch
 from app.comparisons.area import FieldRow, rank_rows
 from app.comparisons.history import summarize_history
 from app.comparisons.saved import _sequence, best_of
@@ -217,6 +219,113 @@ def test_compare_fetches_missing_field_context(api):
     assert fb["info_as_of"] is not None  # fetched live
     assert cell(rows_of(r)["slope"], b)["value"] == 1.2
     assert api.get(f"/v1/me/fields/{b}", headers=auth).json()["info"] is None  # not stored
+
+
+@pytest.mark.parametrize("days_old, expected_calls", [(0, 0), (30, 1)])
+async def test_comparison_reuses_only_fresh_complete_context(days_old, expected_calls):
+    old = datetime.now(UTC) - timedelta(days=days_old)
+    previous = FieldInfo(point=LatLon(lat=41.6, lon=-93.6), generated_at=old, cached=False,
+                         metrics=[metric("slope", 1.2)])
+    latest = previous.model_copy(update={"generated_at": datetime.now(UTC),
+                                         "metrics": [metric("slope", 2.4)]})
+    fetch = AsyncMock(return_value=latest)
+    svc = SimpleNamespace(field_info=SimpleNamespace(info=fetch))
+    row = {"info": previous.model_dump(mode="json"), "info_fetched_at": old,
+           "centroid_lat": 41.6, "centroid_lon": -93.6}
+    info, as_of = await saved._info(svc, row)
+    assert fetch.await_count == expected_calls
+    assert info.metrics[0].value == (2.4 if expected_calls else 1.2)
+    assert as_of == (latest.generated_at if expected_calls else old)
+    assert row["info"] == previous.model_dump(mode="json")
+
+
+async def test_comparison_retries_partial_saved_context():
+    old = datetime.now(UTC) - timedelta(minutes=5)
+    previous = FieldInfo(point=LatLon(lat=41.6, lon=-93.6), generated_at=old, cached=False,
+                         metrics=[metric("slope", None, quality=Quality.unavailable)])
+    latest = previous.model_copy(update={"generated_at": datetime.now(UTC),
+                                         "metrics": [metric("slope", 2.4)]})
+    fetch = AsyncMock(return_value=latest)
+    svc = SimpleNamespace(field_info=SimpleNamespace(info=fetch))
+    info, as_of = await saved._info(svc, {
+        "info": previous.model_dump(mode="json"), "info_fetched_at": old,
+        "centroid_lat": 41.6, "centroid_lon": -93.6,
+    })
+    fetch.assert_awaited_once()
+    assert info.metrics[0].value == 2.4 and as_of == latest.generated_at
+
+
+@pytest.mark.parametrize("failure", ["exception", "unavailable"])
+async def test_comparison_refresh_failure_preserves_available_data_and_date(failure):
+    old = datetime.now(UTC) - timedelta(days=30)
+    previous = FieldInfo(point=LatLon(lat=41.6, lon=-93.6), generated_at=old, cached=False,
+                         metrics=[metric("slope", 1.2)])
+    latest = previous.model_copy(update={"generated_at": datetime.now(UTC),
+                                         "metrics": [metric("slope", None, quality=Quality.unavailable)]})
+    fetch = AsyncMock(side_effect=RuntimeError("private upstream error")) if failure == "exception" \
+        else AsyncMock(return_value=latest)
+    svc = SimpleNamespace(field_info=SimpleNamespace(info=fetch))
+    info, as_of = await saved._info(svc, {
+        "info": previous.model_dump(mode="json"), "info_fetched_at": old,
+        "centroid_lat": 41.6, "centroid_lon": -93.6,
+    })
+    assert info.metrics[0].value == 1.2 and as_of == old
+    assert info.generated_at == old
+    assert old.isoformat() in info.metrics[0].note
+    assert "refresh" in info.metrics[0].note and "private upstream error" not in info.metrics[0].note
+    assert previous.metrics[0].note is None
+
+
+async def test_partial_refresh_keeps_new_values_and_marks_older_fallbacks():
+    old = datetime.now(UTC) - timedelta(days=30)
+    previous = FieldInfo(point=LatLon(lat=41.6, lon=-93.6), generated_at=old, cached=False, metrics=[
+        metric("slope", 1.2), metric("precipitation_normal", 880.0), metric("soil_drainage", "Well drained"),
+    ])
+    latest = previous.model_copy(update={"generated_at": datetime.now(UTC), "metrics": [
+        metric("slope", None, quality=Quality.unavailable), metric("precipitation_normal", 910.0),
+    ]})
+    svc = SimpleNamespace(field_info=SimpleNamespace(info=AsyncMock(return_value=latest)))
+    info, as_of = await saved._info(svc, {
+        "info": previous.model_dump(mode="json"), "info_fetched_at": old,
+        "centroid_lat": 41.6, "centroid_lon": -93.6,
+    })
+    values = {m.key: m for m in info.metrics}
+    assert values["precipitation_normal"].value == 910.0
+    assert values["precipitation_normal"].note is None
+    assert values["slope"].value == 1.2 and "down" in values["slope"].note
+    assert old.isoformat() in values["slope"].note
+    assert values["soil_drainage"].value == "Well drained"
+    assert "refresh" in values["soil_drainage"].note
+    assert as_of == old  # one aggregate date must not imply the fallback values were refreshed
+
+
+def test_comparison_financial_references_use_resolved_state(api, monkeypatch):
+    auth = login(api)
+    a = save(api, auth, "A", field_id=F1_ID, geometry=_poly(F1))
+    b = save(api, auth, "B", field_id=F2_ID, geometry=_poly(F2))
+    store = api.app.state.services.saved_fields
+    with store._pool.connection() as connection:
+        connection.execute("UPDATE saved_fields SET state = 'IL' WHERE id = %s", (a,))
+    body = compare(api, auth, [a, b]).json()
+    assert body["fields"][0]["state"] == "IA"
+    assert body["fields"][0]["rent"]["per_acre"] == 274.0
+
+    original = saved._selection
+
+    def unsupported(svc, row):
+        selection = original(svc, row)
+        if row["field_id"] == F1_ID:
+            return selection.model_copy(update={
+                "county": selection.county.model_copy(update={"state_postal": "IN"}),
+            })
+        return selection
+
+    monkeypatch.setattr(saved, "_selection", unsupported)
+    response = compare(api, auth, [a, b])
+    assert response.status_code == 200, response.text
+    field = response.json()["fields"][0]
+    assert field["state"] == "IN" and field["rent"]["per_acre"] is None
+    assert field["budget"] is None and field["net_return_per_acre"] is None
 
 
 def test_compare_snapshot_down_still_answers(api):

@@ -6,11 +6,33 @@ const money = (value: number, digits = 0) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD",
     minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
 
+type Budget = NonNullable<Strategy["budget"]>;
+
 /** Dollar budgets use crop economics; the independent ML income score stays an index. */
-export function StrategyBudget({ budget }: { budget: NonNullable<Strategy["budget"]> }) {
+export function StrategyBudget({ budget }: { budget: Budget }) {
   const average = budget.annual_average;
   if (budget.status !== "estimated" || !average || !budget.horizon_total
-    || budget.missing_inputs.length > 0 || budget.uses_placeholders) return null;
+    || budget.missing_inputs.length > 0 || budget.uses_placeholders) {
+    return (
+      <section className={s.budget} aria-label="Rough rotation budget">
+        <div className={s.tags}>
+          <strong>Rough budget</strong>
+          <Badge tone="warning">{budget.status === "unavailable" || budget.uses_placeholders ? "Unavailable" : "Partial"}</Badge>
+        </div>
+        <p className={s.small}>
+          {budget.uses_placeholders
+            ? "Some budget inputs are unsourced placeholders. Enter local figures before estimating returns."
+            : "A complete rotation budget is unavailable. Missing inputs stay unknown; no whole-rotation return is estimated."}
+        </p>
+        {budget.missing_inputs.length > 0 && (
+          <ul className={s.bullets} aria-label="Missing budget inputs">
+            {budget.missing_inputs.map((reason, i) => <li key={i}>{reason}</li>)}
+          </ul>
+        )}
+        {!budget.uses_placeholders && <BudgetDetails budget={budget} includeTotals={false} />}
+      </section>
+    );
+  }
   const delta = budget.delta_vs_current_per_acre?.base;
   return (
     <section className={s.budget} aria-label="Rough rotation budget">
@@ -46,45 +68,51 @@ export function StrategyBudget({ budget }: { budget: NonNullable<Strategy["budge
         Returns include production, land, labor and machinery ownership allowances. This is not cash flow.
         Negative values can occur even when cash income is positive. Historical price scenarios are not a profit forecast.
       </p>
-      <details>
-        <summary>Yearly figures, assumptions and sources</summary>
-        <div className={s.budgetTable}>
-          <table>
-            <thead><tr><th>Year</th><th>Crops</th><th>Reference yield / acre</th><th>Cost / acre</th><th>Return / acre</th><th>Break-even price</th></tr></thead>
-            <tbody>
-              {budget.years.map((year) => (
-                <tr key={year.year}>
-                  <td>{year.year}</td>
-                  <td>
-                    {[...year.main_crops, ...year.cover_crops].map((c) => c.replaceAll("_", " ")).join(" + ")}
-                    {year.cost_profile && <div className={s.small}>{year.cost_profile}</div>}
-                  </td>
-                  <td>{year.yield_per_acre != null ? `${year.yield_per_acre} ${year.yield_unit ?? ""}` : "Not estimated"}</td>
-                  <td>{year.scenarios ? money(year.scenarios.base.cost_per_acre) : "Unavailable"}</td>
-                  <td>{year.scenarios ? money(year.scenarios.base.profit_per_acre) : "Unavailable"}</td>
-                  <td>{year.break_even_price_per_unit != null ? `${money(year.break_even_price_per_unit, 2)} / ${year.yield_unit ?? "unit"}` : "Unavailable"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {budget.horizon_total && (
-          <p className={s.small}>
-            Base total over {budget.horizon_years} {budget.horizon_years === 1 ? "year" : "years"}: {money(budget.horizon_total.base.profit_per_acre)} / acre.
-            {budget.horizon_total.base.field_profit != null && ` About ${money(budget.horizon_total.base.field_profit)} for the estimated field.`}
-          </p>
-        )}
-        <ul className={s.bullets}>{budget.assumptions.map((text, i) => <li key={i}>{text}</li>)}</ul>
-        {budget.sources.length > 0 && (
-          <ul className={s.bullets} aria-label="Budget sources">
-            {budget.sources.map((source, i) => (
-              <li key={i}>
-                {source.url ? <a href={source.url}>{source.dataset}</a> : source.dataset} ({source.provider})
-              </li>
-            ))}
-          </ul>
-        )}
-      </details>
+      <BudgetDetails budget={budget} />
     </section>
+  );
+}
+
+function BudgetDetails({ budget, includeTotals = true }: { budget: Budget; includeTotals?: boolean }) {
+  return (
+    <details>
+      <summary>Yearly figures, assumptions and sources</summary>
+      <div className={s.budgetTable}>
+        <table>
+          <thead><tr><th>Year</th><th>Crops</th><th>Reference yield / acre</th><th>Cost / acre</th><th>Return / acre</th><th>Break-even price</th></tr></thead>
+          <tbody>
+            {budget.years.map((year) => (
+              <tr key={year.year}>
+                <td>{year.year}</td>
+                <td>
+                  {[...year.main_crops, ...year.cover_crops].map((c) => c.replaceAll("_", " ")).join(" + ")}
+                  {year.cost_profile && <div className={s.small}>{year.cost_profile}</div>}
+                </td>
+                <td>{year.yield_per_acre != null ? `${year.yield_per_acre} ${year.yield_unit ?? ""}` : "Not estimated"}</td>
+                <td>{year.scenarios ? money(year.scenarios.base.cost_per_acre) : "Unavailable"}</td>
+                <td>{year.scenarios ? money(year.scenarios.base.profit_per_acre) : "Unavailable"}</td>
+                <td>{year.break_even_price_per_unit != null ? `${money(year.break_even_price_per_unit, 2)} / ${year.yield_unit ?? "unit"}` : "Unavailable"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {includeTotals && budget.horizon_total && (
+        <p className={s.small}>
+          Base total over {budget.horizon_years} {budget.horizon_years === 1 ? "year" : "years"}: {money(budget.horizon_total.base.profit_per_acre)} / acre.
+          {budget.horizon_total.base.field_profit != null && ` About ${money(budget.horizon_total.base.field_profit)} for the estimated field.`}
+        </p>
+      )}
+      <ul className={s.bullets}>{budget.assumptions.map((text, i) => <li key={i}>{text}</li>)}</ul>
+      {budget.sources.length > 0 && (
+        <ul className={s.bullets} aria-label="Budget sources">
+          {budget.sources.map((source, i) => (
+            <li key={i}>
+              {source.url ? <a href={source.url}>{source.dataset}</a> : source.dataset} ({source.provider})
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }

@@ -1,0 +1,6 @@
+.body { display: flex; flex-direction: column; gap: 20px; padding-bottom: 48px; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; list-style: none; padding: 0; }
+.row { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--color-line); border-radius: var(--radius-card); background: var(--color-surface); min-width: 0; overflow-wrap: anywhere; }
+.small { color: var(--color-ink-muted); font-size: var(--text-small); }

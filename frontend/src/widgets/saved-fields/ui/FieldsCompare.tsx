@@ -5,6 +5,7 @@ import { StrategyBudget } from "@/entities/analysis";
 import { fetchFieldComparison, type ComparisonRow, type FieldComparison, type SavedFieldComparisonRequest } from "@/entities/comparison";
 import { QUALITY } from "@/entities/metric";
 import type { SavedField } from "@/entities/saved-field";
+import { CropBudgetInputs, parseCropBudgets, type CropBudgetDraft } from "@/features/configure-budget";
 import { ApiError, friendlyMessage } from "@/shared/api";
 import { fieldPath, ROUTES } from "@/shared/config";
 import { formatAcres, formatDateTime, toDisplay } from "@/shared/lib";
@@ -63,6 +64,7 @@ export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[
   const [rents, setRents] = useState<Record<string, string>>({});
   const [rotation, setRotation] = useState("corn,soybean");
   const [years, setYears] = useState(2);
+  const [cropBudgets, setCropBudgets] = useState<CropBudgetDraft[]>([]);
   const [options, setOptions] = useState<Omit<SavedFieldComparisonRequest, "saved_field_ids">>({});
   const [validation, setValidation] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -98,10 +100,15 @@ export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[
       }
       rent_per_acre[field.id] = value;
     }
+    const crop = parseCropBudgets(cropBudgets);
+    if (crop.error) {
+      setValidation(crop.error);
+      return;
+    }
     setValidation(null);
     const next = { rent_per_acre, plan: {
       rotation: rotation.split(",") as NonNullable<SavedFieldComparisonRequest["plan"]>["rotation"], horizon_years: years,
-    } };
+    }, ...(crop.overrides.length > 0 ? { crop_overrides: crop.overrides } : {}) };
     if (JSON.stringify(options) === JSON.stringify(next)) void query.refetch();
     else setOptions(next);
   };
@@ -133,6 +140,7 @@ export function FieldsCompare({ fields, userId }: { fields: readonly SavedField[
               hint={used?.is_placeholder ? "State reference unavailable. Enter asking rent ($/acre/year)." : "USD per acre per year"} />;
           })}
         </div>
+        <CropBudgetInputs rows={cropBudgets} onChange={setCropBudgets} />
         {validation && <Message tone="error" role="alert">{validation}</Message>}
         <Button type="submit" variant="primary" disabled={query.isFetching || waiting}>
           {query.isFetching ? "Updating comparison…" : "Update comparison"}

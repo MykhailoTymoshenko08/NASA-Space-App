@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAnalysisJob } from "@/entities/analysis";
 import { buildFieldSearch, FieldFacts, parseFieldSearch, selectionSearch } from "@/entities/field";
+import { useSession } from "@/entities/session";
 import { ExportPdfButton } from "@/features/export-pdf";
 import { SaveFieldButton } from "@/features/save-field";
 import { ApiError, friendlyMessage } from "@/shared/api";
@@ -12,7 +13,6 @@ import { ErrorPanel } from "@/shared/ui/feedback";
 import { PageColumns, PageIntro, Panel } from "@/shared/ui/layout";
 import { ProgressBar } from "@/shared/ui/progress";
 import { AnalysisResultView } from "@/widgets/analysis-result";
-import { readChoices } from "../lib/choices-url";
 import s from "./analysis-page.module.css";
 
 const COPY = {
@@ -25,8 +25,9 @@ const COPY = {
 export function AnalysisPage() {
   const { jobId = "" } = useParams();
   const [params] = useSearchParams();
-  const job = useAnalysisJob(jobId);
-  const choices = useMemo(() => readChoices(params), [params]);
+  const session = useSession();
+  const job = useAnalysisJob(jobId, session.user?.id ?? "guest", session.status !== "unknown");
+  const choices = { priorities: job.data?.options?.priorities ?? null, horizon: job.data?.options?.horizon_years ?? null };
   const parsed = useMemo(() => parseFieldSearch(params), [params]);
   const result = job.data?.status === "succeeded" ? (job.data.result ?? null) : null;
 

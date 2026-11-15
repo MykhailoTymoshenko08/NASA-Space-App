@@ -68,7 +68,7 @@ class Services:
 
         from app.analyses.ml import MLAnalysisEngine
         from app.analyses.service import AnalysisService
-        from app.analyses.store import InMemoryJobStore
+        from app.analyses.store import InMemoryJobStore, PostgresJobStore
         from app.analyses.stub import StubAnalysisEngine
 
         self.ml_client = httpx.AsyncClient(
@@ -78,8 +78,17 @@ class Services:
                      if settings.ml_api_token.get_secret_value() else None),
         )
 
+        store_options = {
+            "retention_s": settings.analysis_retention_s, "max_jobs": settings.analysis_max_jobs,
+            "max_pdf_bytes": settings.analysis_pdf_cache_bytes,
+        }
+        job_store = (
+            PostgresJobStore.connect(settings.database_url, **store_options)
+            if settings.database_url and settings.state_backend == "auto"
+            else InMemoryJobStore(**store_options)
+        )
         self.analyses = AnalysisService(
-            InMemoryJobStore(),
+            job_store,
             (StubAnalysisEngine(duration_s=settings.stub_duration_s)
              if settings.analysis_engine == "stub" else MLAnalysisEngine(self.ml_client)),
             self.snapshots,

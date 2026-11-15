@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { useSavedFieldMutations, useSavedFields } from "@/entities/saved-field";
 import { useSession } from "@/entities/session";
 import { friendlyMessage } from "@/shared/api";
@@ -17,8 +18,12 @@ export function MyFieldsPage() {
   const userId = session.status === "authenticated" ? session.user.id : null;
   const saved = useSavedFields(userId);
   const { remove, update, refreshInfo } = useSavedFieldMutations(userId);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [view, setView] = useState<"list" | "compare">("list");
+  // ?compare=id,id opens the comparison directly (used by "Rank fields" after saving the picks).
+  const [params] = useSearchParams();
+  const [selected, setSelected] = useState<string[]>(() =>
+    (params.get("compare") ?? "").split(",").filter(Boolean).slice(0, MAX_COMPARE),
+  );
+  const [view, setView] = useState<"list" | "compare">(() => (selected.length >= 2 ? "compare" : "list"));
 
   const fields = saved.data?.items ?? [];
   const chosen = fields.filter((f) => selected.includes(f.id));
