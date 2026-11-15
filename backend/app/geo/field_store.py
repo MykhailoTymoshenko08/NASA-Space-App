@@ -129,16 +129,21 @@ class FieldStore:
         if max_distance_m <= 0:
             return None
         with self._pool.connection() as c:
+            # The point is written out in both places on purpose. Read from a CTE used twice, it is
+            # materialized: the KNN then cannot use the GiST index and sorts every field (seconds).
             row = c.execute(
-                f"""WITH p AS (SELECT ST_SetSRID(ST_MakePoint(%s, %s), 4326) AS g),
-                    cand AS (
-                        SELECT f.* FROM fields f, p ORDER BY f.geom <-> p.g LIMIT {_KNN_CANDIDATES}
-                    )
-                    SELECT {_COLS},
-                           ST_Distance(ST_Transform(f.geom, 5070), ST_Transform(p.g, 5070)) AS dist
-                    FROM cand f, p
+                f"""SELECT {_COLS},
+                           ST_Distance(
+                               ST_Transform(f.geom, 5070),
+                               ST_Transform(ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326), 5070)
+                           ) AS dist
+                    FROM (
+                        SELECT * FROM fields
+                        ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)
+                        LIMIT {_KNN_CANDIDATES}
+                    ) f
                     ORDER BY dist LIMIT 1""",
-                (lon, lat),
+                {"lon": lon, "lat": lat},
             ).fetchone()
             if not row or row["dist"] > max_distance_m:
                 return None
