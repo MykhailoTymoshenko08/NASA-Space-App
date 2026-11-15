@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:auth:browser": "node scripts/test-auth-browser.mjs",
+    "test:comparison:browser": "node scripts/test-comparison-browser.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "lint:fsd": "steiger ./src",
     "gen:api": "npx --yes -p openapi-typescript@7 -p typescript@5.9 openapi-typescript ../contract/openapi.yaml -o src/shared/api/schema.gen.ts"
