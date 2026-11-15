@@ -68,4 +68,24 @@ describe("accounts", () => {
     await screen.findByText("My fields page");
     expect(router.state.location.pathname).toBe("/my-fields");
   });
+
+  it("keeps the protected destination while switching to signup", async () => {
+    const router = renderRoutes(routes, "/sign-in?next=%2Fmy-fields");
+    await userEvent.click(screen.getByRole("link", { name: "Create an account" }));
+    expect(router.state.location.search).toBe("?next=%2Fmy-fields");
+    await userEvent.type(screen.getByLabelText("Email"), "new-return@example.com");
+    await userEvent.type(screen.getByLabelText("Password"), "password123");
+    await userEvent.click(screen.getByRole("checkbox"));
+    await userEvent.click(screen.getByRole("button", { name: /Create account/ }));
+    await screen.findByText("My fields page");
+    expect(router.state.location.pathname).toBe("/my-fields");
+    await signOut();
+  });
+
+  it("keeps the protected destination while switching back to sign-in", async () => {
+    const router = renderRoutes(routes, "/sign-up?next=%2Fmy-fields");
+    await userEvent.click(screen.getByRole("link", { name: "Sign in" }));
+    expect(router.state.location.pathname).toBe("/sign-in");
+    expect(router.state.location.search).toBe("?next=%2Fmy-fields");
+  });
 });

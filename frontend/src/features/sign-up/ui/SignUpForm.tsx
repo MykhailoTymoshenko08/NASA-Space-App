@@ -13,7 +13,7 @@ import s from "./sign-up.module.css";
  * POST /auth/register. The contract takes email and password only, so there is no name field
  * (design README, open question 4). Password rules mirror RegisterRequest.
  */
-export function SignUpForm({ onSignedUp }: { onSignedUp: (user: User) => void }) {
+export function SignUpForm({ onSignedUp, next }: { onSignedUp: (user: User) => void; next?: string | null }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [agree, setAgree] = useState(false);
@@ -86,7 +86,7 @@ export function SignUpForm({ onSignedUp }: { onSignedUp: (user: User) => void })
         <Message tone="error" role="alert">
           <span>{serverError.text}</span>
           {serverError.taken && (
-            <Link to={ROUTES.signIn} className={s.strong}>
+            <Link to={next ? `${ROUTES.signIn}?next=${encodeURIComponent(next)}` : ROUTES.signIn} className={s.strong}>
               Sign in
             </Link>
           )}
@@ -98,7 +98,7 @@ export function SignUpForm({ onSignedUp }: { onSignedUp: (user: User) => void })
       </Button>
       <p className={s.foot}>
         Already have an account?{" "}
-        <Link to={ROUTES.signIn} className={s.strong}>
+        <Link to={next ? `${ROUTES.signIn}?next=${encodeURIComponent(next)}` : ROUTES.signIn} className={s.strong}>
           Sign in
         </Link>
       </p>

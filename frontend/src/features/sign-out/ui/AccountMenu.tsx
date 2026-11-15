@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { signOut } from "@/entities/session";
+import { friendlyMessage } from "@/shared/api";
 import { ROUTES } from "@/shared/config";
+import { Message } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import s from "./account-menu.module.css";
 
@@ -12,6 +14,7 @@ import s from "./account-menu.module.css";
 export function AccountMenu({ email, block = false }: { email: string; block?: boolean }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const menuId = useId();
   const wrap = useRef<HTMLDivElement>(null);
@@ -31,12 +34,15 @@ export function AccountMenu({ email, block = false }: { email: string; block?: b
 
   const onSignOut = async () => {
     setPending(true);
+    setError(null);
     try {
       await signOut();
-    } finally {
-      setPending(false);
       setOpen(false);
       navigate(ROUTES.home);
+    } catch (err) {
+      setError(friendlyMessage(err));
+    } finally {
+      setPending(false);
     }
   };
 
@@ -65,6 +71,7 @@ export function AccountMenu({ email, block = false }: { email: string; block?: b
           <button type="button" className={s.item} onClick={onSignOut} disabled={pending}>
             {pending ? "Signing out…" : "Sign out"}
           </button>
+          {error && <Message tone="error" role="alert">{error}</Message>}
         </div>
       )}
     </div>

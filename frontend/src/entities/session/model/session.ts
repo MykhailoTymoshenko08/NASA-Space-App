@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { setAccessToken, type AuthTokens, type User } from "@/shared/api";
+import { api, getAccessToken, setAccessToken, type AuthTokens, type User } from "@/shared/api";
 import { authApi } from "../api/auth-api";
 
 /**
@@ -16,6 +16,19 @@ export type SessionState =
 let state: SessionState = { status: "unknown", user: null };
 const listeners = new Set<() => void>();
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let revision = 0;
+let authQueue: Promise<unknown> = Promise.resolve();
+
+// Refresh cookies rotate once. Serialize mutations within this tab and across tabs when supported.
+function withAuthLock<T>(operation: () => Promise<T>): Promise<T> {
+  const run = () =>
+    typeof navigator !== "undefined" && navigator.locks
+      ? navigator.locks.request("fieldline.auth", operation)
+      : operation();
+  const result = authQueue.then(run, run);
+  authQueue = result.catch(() => undefined);
+  return result;
+}
 
 function setState(next: SessionState) {
   state = next;
@@ -68,6 +81,7 @@ function scheduleRefresh(expiresInS: number) {
 }
 
 function clear() {
+  revision++;
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = null;
   setAccessToken(null);
@@ -78,19 +92,37 @@ function clear() {
 export const clearSession = () => clear();
 
 export async function changePassword(currentPassword: string, newPassword: string) {
-  await authApi.changePassword(currentPassword, newPassword);
-  clear();
+  await withAuthLock(async () => {
+    await authApi.changePassword(currentPassword, newPassword);
+    clear();
+  });
 }
 
 async function refreshSession(): Promise<boolean> {
-  try {
-    accept(await authApi.refresh());
-    return true;
-  } catch {
-    clear();
-    return false;
-  }
+  return withAuthLock(async () => {
+    const started = revision;
+    try {
+      const tokens = await authApi.refresh();
+      if (started !== revision) return false;
+      accept(tokens);
+      return true;
+    } catch {
+      if (started === revision) clear();
+      return false;
+    }
+  });
 }
+
+// A revoked token must not leave protected UI looking signed in. Ignore auth-form errors and
+// responses belonging to an older token, which may arrive after a different account signs in.
+api.use({
+  onResponse({ request, response }) {
+    const token = getAccessToken();
+    if (response.status === 401 && token && !new URL(request.url).pathname.includes("/auth/") &&
+        request.headers.get("Authorization") === `Bearer ${token}`) clear();
+    return response;
+  },
+});
 
 /** Call once at app start. Restores a session from the refresh cookie, if any. */
 export async function restoreSession() {
@@ -98,9 +130,10 @@ export async function restoreSession() {
   const sameTab = storage.get(tab(), TAB_KEY) === "1";
   if (!remember && !sameTab) {
     // The user asked not to stay signed in and this is a new browser session.
-    storage.set(local(), REMEMBER_KEY, null);
-    await authApi.logout().catch(() => undefined);
-    clear();
+    await withAuthLock(async () => {
+      await authApi.logout().catch(() => undefined);
+      clear();
+    });
     return;
   }
   await refreshSession();
@@ -112,24 +145,28 @@ function rememberChoice(remember: boolean) {
 }
 
 export async function signIn(input: { email: string; password: string; remember: boolean }) {
-  const tokens = await authApi.login(input.email.trim(), input.password);
-  rememberChoice(input.remember);
-  accept(tokens);
-  return tokens.user;
+  return withAuthLock(async () => {
+    const tokens = await authApi.login(input.email.trim(), input.password);
+    rememberChoice(input.remember);
+    accept(tokens);
+    return tokens.user;
+  });
 }
 
 export async function signUp(input: { email: string; password: string }) {
-  const tokens = await authApi.register(input.email.trim(), input.password);
-  rememberChoice(true);
-  accept(tokens);
-  return tokens.user;
+  return withAuthLock(async () => {
+    const tokens = await authApi.register(input.email.trim(), input.password);
+    rememberChoice(true);
+    accept(tokens);
+    return tokens.user;
+  });
 }
 
 export async function signOut() {
-  try {
+  await withAuthLock(async () => {
     await authApi.logout();
-  } finally {
     storage.set(local(), REMEMBER_KEY, null);
+    storage.set(tab(), TAB_KEY, null);
     clear();
-  }
+  });
 }

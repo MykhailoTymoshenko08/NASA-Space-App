@@ -3,14 +3,11 @@ import { useNavigate, useSearchParams } from "react-router";
 import { SignInForm } from "@/features/sign-in";
 import type { User } from "@/shared/api";
 import { ROUTES } from "@/shared/config";
-import { useDocumentTitle } from "@/shared/lib";
+import { safeNext, useDocumentTitle } from "@/shared/lib";
 import { ButtonLink } from "@/shared/ui/button";
 import { Message } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import { FormCard } from "@/shared/ui/layout";
-
-/** Only same-site paths are allowed as a return target. */
-const safeNext = (next: string | null) => (next && next.startsWith("/") && !next.startsWith("//") ? next : null);
 
 export function SignInPage() {
   useDocumentTitle("Sign in");
@@ -40,7 +37,7 @@ export function SignInPage() {
           </ButtonLink>
         </>
       ) : (
-        <SignInForm onSignedIn={onSignedIn} />
+        <SignInForm onSignedIn={onSignedIn} next={next} />
       )}
     </FormCard>
   );

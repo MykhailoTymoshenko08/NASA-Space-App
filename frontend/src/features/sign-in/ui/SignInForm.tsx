@@ -10,7 +10,7 @@ import { Icon } from "@/shared/ui/icon";
 import s from "./sign-in.module.css";
 
 /** POST /auth/login. Calls `onSignedIn` with the user on success. */
-export function SignInForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
+export function SignInForm({ onSignedIn, next }: { onSignedIn: (user: User) => void; next?: string | null }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -79,7 +79,7 @@ export function SignInForm({ onSignedIn }: { onSignedIn: (user: User) => void })
       </Button>
       <p className={s.foot}>
         New to {APP_NAME}?{" "}
-        <Link to={ROUTES.signUp} className={s.strong}>
+        <Link to={next ? `${ROUTES.signUp}?next=${encodeURIComponent(next)}` : ROUTES.signUp} className={s.strong}>
           Create an account
         </Link>
       </p>
