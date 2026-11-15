@@ -108,11 +108,15 @@
   }
 }
 
-/* Tiles: at most two per row inside a group, one on phones. A lone tile fills the whole row (auto-fit). */
+/* Tiles: at most two per row inside a group, one on phones. */
 .rows {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, max(220px, calc((100% - var(--s-12)) / 2))), 1fr));
   gap: var(--s-12);
+}
+/* Odd tile out: the last tile alone in its row takes the whole row. */
+.rows > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 .grid {
   display: grid;
