@@ -41,8 +41,12 @@ export function SaveFieldButton({
   }
 
   const pending = save.isPending || remove.isPending;
-  const toggle = () => (match ? remove.mutate(match.id) : save.mutate(selection));
-  const error = save.error ?? remove.error;
+  const toggle = () => {
+    if (!saved.isSuccess || saved.isFetching) return;
+    if (match) remove.mutate(match.id);
+    else save.mutate(selection);
+  };
+  const error = saved.error ?? save.error ?? remove.error;
 
   return (
     <>
@@ -52,7 +56,7 @@ export function SaveFieldButton({
         block
         aria-pressed={isSaved}
         onClick={toggle}
-        disabled={pending || saved.isPending}
+        disabled={pending || !saved.isSuccess || saved.isFetching}
         className={isSaved ? s.saved : undefined}
       >
         <Icon name="bookmark" filled={isSaved} />
@@ -62,6 +66,11 @@ export function SaveFieldButton({
         <Message tone="error" role="alert">
           {friendlyMessage(error)}
         </Message>
+      )}
+      {saved.isError && (
+        <Button variant="ghost" onClick={() => void saved.refetch()} disabled={saved.isFetching}>
+          {saved.isFetching ? "Checking saved fields…" : "Retry saved fields"}
+        </Button>
       )}
       {showMyFieldsLink && isSaved && (
         <Link to={ROUTES.myFields} className={s.link}>

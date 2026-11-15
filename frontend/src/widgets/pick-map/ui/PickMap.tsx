@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchField, isBuffered, resolveFieldAt } from "@/entities/field";
 import { CONUS_BBOX, mapConfigFrom, stateBBox, useCounty, useCoverage, useStates } from "@/entities/region";
 import { useSavedFieldShapes } from "@/entities/saved-field";
@@ -81,6 +81,17 @@ export function PickMap({ stateFips, county, pin, selection, placeLabel, onSelec
   );
   const [zoom, setZoom] = useState(4);
   const [busy, setBusy] = useState(false);
+  const pickController = useRef<AbortController | null>(null);
+  const cancelPick = useCallback(() => {
+    pickController.current?.abort();
+    pickController.current = null;
+    setBusy(false);
+  }, []);
+  // A new location or picker choice supersedes any field request still in flight.
+  useEffect(() => {
+    cancelPick();
+  }, [stateFips, county?.fips, pin, cancelPick]);
+  useEffect(() => () => pickController.current?.abort(), []);
   const [error, setError] = useState<string | null>(null);
   const [place, setPlaceState] = useState<Place>(NO_PLACE);
   // Read by effects and map handlers, which may run before the next render.
@@ -206,17 +217,24 @@ export function PickMap({ stateFips, county, pin, selection, placeLabel, onSelec
     setArea(next.township ? { state: view.state, township: next.township } : null);
   };
 
-  const pick = async (load: () => Promise<FieldSelection>) => {
+  const pick = async (load: (signal: AbortSignal) => Promise<FieldSelection>) => {
+    cancelPick();
+    const controller = new AbortController();
+    pickController.current = controller;
     setBusy(true);
     setError(null);
     try {
-      const picked = await load();
+      const picked = await load(controller.signal);
+      if (controller.signal.aborted) return;
       pickedHere.current = picked;
       onSelect(picked);
     } catch (err) {
-      setError(friendlyMessage(err));
+      if (!controller.signal.aborted) setError(friendlyMessage(err));
     } finally {
-      setBusy(false);
+      if (pickController.current === controller) {
+        pickController.current = null;
+        setBusy(false);
+      }
     }
   };
 
@@ -227,6 +245,7 @@ export function PickMap({ stateFips, county, pin, selection, placeLabel, onSelec
   };
 
   const onClick = (rawHit: MapHit) => {
+    cancelPick();
     setError(null);
     const cur = placeRef.current;
     if (rawHit.zoom >= config.fieldMinZoom) {
@@ -240,8 +259,8 @@ export function PickMap({ stateFips, county, pin, selection, placeLabel, onSelec
         return;
       }
       const source: SelectionSource = "map_click";
-      if (rawHit.field?.field_id) void pick(() => fetchField(rawHit.field!.field_id));
-      else void pick(() => resolveFieldAt(rawHit.point, source));
+      if (rawHit.field?.field_id) void pick((signal) => fetchField(rawHit.field!.field_id, signal));
+      else void pick((signal) => resolveFieldAt(rawHit.point, source, signal));
       return;
     }
 

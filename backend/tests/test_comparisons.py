@@ -12,9 +12,11 @@ import pytest
 import respx
 
 from app.comparisons import soil_batch
+from app.comparisons.area import FieldRow, rank_rows
 from app.comparisons.history import summarize_history
 from app.comparisons.saved import _sequence, best_of
 from app.models import (
+    AreaRankingRequest,
     ComparisonCell,
     ComparisonPlan,
     FieldInfo,
@@ -297,6 +299,30 @@ def test_plan_sequence_follows_last_crop():
     assert [s["crop"] for s in _sequence(plan, "Soybeans")] == ["corn", "soybean", "corn"]
     assert [s["crop"] for s in _sequence(plan, "Oats")] == ["corn", "soybean", "corn"]
     assert [s["crop"] for s in _sequence(plan, None)] == ["corn", "soybean", "corn"]
+
+
+@pytest.mark.parametrize("history", [
+    [(2025, "Corn"), (2023, "Corn"), (2021, "Corn")],
+    [(2025, "Corn"), (2025, "Corn"), (2025, "Corn")],
+    [(2025, "Corn"), (2025, "Soybeans"), (2024, "Corn"), (2023, "Corn")],
+])
+def test_corn_streak_needs_distinct_consecutive_known_years(history):
+    summary = summarize_history(history, "farmer")
+    assert summary.corn_in_a_row <= 1
+    assert summary.pattern not in {"continuous_corn", "corn_soybean"}
+    row = FieldRow("test", 10, "19153", -93.6, 41.6, [-93.61, 41.59, -93.59, 41.61],
+                   True, 80, "Test soil", "Well drained", history)
+    req = AreaRankingRequest(area={"county_fips": "19153"}, filters={"exclude_continuous_corn": True})
+    page, _, total, _ = rank_rows([row], req)
+    assert total == 1 and page[0].field_id == "test"
+
+
+def test_history_counts_duplicate_year_once_and_stops_rotation_at_gap():
+    summary = summarize_history([(2025, "Corn"), (2025, "Corn"), (2024, "Corn")], "farmer")
+    assert summary.years_recorded == 2 and summary.corn_in_a_row == 2
+    assert summary.corn_years == 2
+    summary = summarize_history([(2025, "Corn"), (2023, "Soybeans"), (2021, "Corn")], "farmer")
+    assert summary.pattern == "unknown"
 
 
 def test_best_of_rules():

@@ -1,8 +1,10 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { renderRoutes } from "@/shared/lib/test";
 import { handlers } from "@/shared/mocks";
+import { env } from "@/shared/config";
 import { AnalysisPage } from "./AnalysisPage";
 import { AnalysisSetupPage } from "./AnalysisSetupPage";
 
@@ -65,5 +67,24 @@ describe("analysis flow", () => {
   it("reports an unknown job", async () => {
     renderAt("/analysis/00000000-0000-0000-0000-000000000000");
     expect(await screen.findByText(/No analysis with that id/)).toBeInTheDocument();
+  });
+
+  it("requires one crop after clearing mapped history, then accepts a corrected history", async () => {
+    let requests = 0;
+    server.use(http.post(`${env.apiBaseUrl}/analyses`, () => {
+      requests++;
+      return HttpResponse.json({ error: { code: "RATE_LIMITED", message: "Regression request reached API." } },
+        { status: 429 });
+    }));
+    renderAt("/analysis?lat=41.5868&lon=-93.625");
+    await screen.findByLabelText("2024");
+    for (const input of screen.getAllByRole("textbox")) await userEvent.clear(input);
+    await userEvent.click(screen.getByRole("button", { name: "Create analysis" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter at least one crop");
+    expect(requests).toBe(0);
+    await userEvent.type(screen.getByLabelText("2024"), "Soybeans");
+    await userEvent.click(screen.getByRole("button", { name: "Create analysis" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Regression request reached API.");
+    expect(requests).toBe(1);
   });
 });

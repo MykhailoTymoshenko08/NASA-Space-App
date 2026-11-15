@@ -45,12 +45,16 @@ export function useAnalysisSetup(selection: FieldSelection | null) {
   const [landRent, setLandRent] = useState("");
   const [coverCost, setCoverCost] = useState("");
   const [crops, setCrops] = useState<CropRow[] | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const mapped = initialCropRows(selection);
   const rows = crops ?? mapped;
 
   const togglePriority = (p: Priority) =>
     setPriorities((list) => (list.includes(p) ? list.filter((x) => x !== p) : [...list, p]));
-  const setCrop = (year: number, crop: string) => setCrops(rows.map((r) => (r.year === year ? { ...r, crop } : r)));
+  const setCrop = (year: number, crop: string) => {
+    setValidationError(null);
+    setCrops(rows.map((r) => (r.year === year ? { ...r, crop } : r)));
+  };
 
   const create = useMutation({ mutationFn: createAnalysisJob });
 
@@ -61,11 +65,18 @@ export function useAnalysisSetup(selection: FieldSelection | null) {
       ...(landRent !== "" ? { land_rent_per_acre: Number(landRent) } : {}),
       ...(coverCost !== "" ? { cover_cost_per_acre: Number(coverCost) } : {}),
     } : undefined;
-    return create.mutateAsync(buildAnalysisRequest({ selection: ref, priorities, crops: rows, mapped, horizon, budget }));
+    const request = buildAnalysisRequest({ selection: ref, priorities, crops: rows, mapped, horizon, budget });
+    if (request.options?.crop_history?.length === 0) {
+      const message = "Enter at least one crop before creating an analysis.";
+      setValidationError(message);
+      return Promise.reject(new Error(message));
+    }
+    setValidationError(null);
+    return create.mutateAsync(request);
   };
 
   return { priorities, togglePriority, horizon, setHorizon, crops: rows, setCrop, submit, create,
-    landRent, setLandRent, coverCost, setCoverCost };
+    landRent, setLandRent, coverCost, setCoverCost, validationError };
 }
 
 export type AnalysisSetupState = ReturnType<typeof useAnalysisSetup>;

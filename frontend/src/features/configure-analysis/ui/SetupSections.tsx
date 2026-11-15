@@ -96,9 +96,9 @@ export function CreateAnalysisPanel({
       <p className={s.small}>
         Priorities: {priorityText(setup.priorities)}. Looking ahead {yearsText(setup.horizon)}.
       </p>
-      {setup.create.isError && (
+      {(setup.validationError || setup.create.isError) && (
         <Message tone="error" role="alert">
-          {friendlyMessage(setup.create.error)}
+          {setup.validationError ?? friendlyMessage(setup.create.error)}
         </Message>
       )}
     </Panel>

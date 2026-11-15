@@ -30,10 +30,10 @@ export function LocationInput({
   useEffect(() => {
     const input = text.trim();
     const id = ++seq.current;
+    callbacks.current.onCleared();
+    setMsg(null);
+    setPending(false);
     if (input.length < 3) {
-      setMsg(null);
-      setPending(false);
-      if (input.length === 0) callbacks.current.onCleared();
       return;
     }
     const controller = new AbortController();

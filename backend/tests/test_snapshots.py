@@ -275,15 +275,26 @@ def test_snapshot_cached_second_time(client):
     assert r.json()["cached"] is True
 
 
-def test_point_snapshot_cache_rounds_to_001_deg(client):
+def test_point_snapshot_cache_keeps_nearby_locations_separate(client):
     with respx.mock(assert_all_called=False) as router:
         routes = mock_all(router)
+        routes["elevation"].mock(side_effect=[
+            httpx.Response(200, json={"value": "100", "resolution": 1}),
+            httpx.Response(200, json={"value": "200", "resolution": 1}),
+        ])
         a = client.post("/v1/snapshots", json={"selection": {"point": {"lat": 41.7001, "lon": -93.7001}}})
         b = client.post("/v1/snapshots", json={"selection": {"point": {"lat": 41.7004, "lon": -93.7003}}})
-        assert routes["power"].call_count == 1
+        again = client.post("/v1/snapshots", json={"selection": {"point": {"lat": 41.7004, "lon": -93.7003}}})
+        assert routes["power"].call_count == 2
+        assert routes["elevation"].call_count == 2
     assert_matches_contract(a)
+    assert_matches_contract(b)
     assert a.json()["selection"]["resolved_by"] == "buffered_point"
-    assert b.json()["cached"] is True
+    assert b.json()["cached"] is False
+    assert again.json()["cached"] is True
+    assert by_key(a.json())["elevation_m"]["value"] == 100
+    assert by_key(b.json())["elevation_m"]["value"] == 200
+    assert by_key(again.json())["elevation_m"]["value"] == 200
     assert b.json()["selection"]["anchor"] == {"lat": 41.7004, "lon": -93.7003}
 
 

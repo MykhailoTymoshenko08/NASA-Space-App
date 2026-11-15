@@ -9,6 +9,7 @@ import respx
 
 from app.analyses.ml import ml_request
 from app.core.config import REPO_DIR, Settings
+from app.core.errors import ApiException
 from app.models import AnalysisOptions, CropYear, FieldSelection
 from tests.contract import assert_matches_contract
 from tests.test_analyses import F1, F2, wait_done
@@ -104,6 +105,15 @@ def test_farmer_history_wins_and_special_cdl_codes_survive(ml_client, upstream):
     rows = json.loads(upstream.calls.last.request.content)["field"]["crop_history"]
     assert rows == [{"year": 2024, "crop": "fallow", "cdl_code": 61},
                     {"year": 2025, "crop": "Dbl Crop WinWht/Soybeans", "cdl_code": 26}]
+
+
+def test_cleared_history_does_not_restore_the_ml_stored_history(ml_client, upstream):
+    respond(upstream)
+    job = analyze(ml_client, crop_history=[])
+    assert job["status"] == "failed"
+    assert job["error"]["code"] == "VALIDATION_ERROR"
+    assert job["error"]["message"] == "Enter at least one crop before creating an analysis."
+    assert not upstream.called
 
 
 def test_partial_with_only_current_rotation_succeeds(ml_client, upstream):
@@ -247,8 +257,8 @@ def test_ml_is_default_and_stub_requires_explicit_choice():
 
 def test_empty_farmer_history_does_not_restore_mapped_history(ml_client):
     selection = FieldSelection.model_validate(ml_client.get(f"/v1/fields/{F1['field_id']}").json())
-    payload = ml_request(selection, AnalysisOptions(crop_history=[]))
-    assert "crop_history" not in payload["field"]
+    with pytest.raises(ApiException, match="Enter at least one crop"):
+        ml_request(selection, AnalysisOptions(crop_history=[]))
     for crop in ["corn", "soybean", "winter_wheat", "cereal_rye"]:
         payload = ml_request(selection, AnalysisOptions(crop_history=[CropYear(year=2025, crop=crop)]))
         assert payload["field"]["crop_history"][0]["crop"] == crop

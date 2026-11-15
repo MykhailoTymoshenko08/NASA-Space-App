@@ -36,11 +36,12 @@ def default_sources() -> list[DataSource]:
 def snapshot_key(sel: FieldSelection) -> str:
     if sel.field_id:
         return f"snap:v3:field:{sel.field_id}"
-    return f"snap:v3:pt:{sel.anchor.lat:.2f},{sel.anchor.lon:.2f}"
+    # Point metrics include local soil and elevation: never reuse a neighbouring point's snapshot.
+    return f"snap:v4:pt:{sel.anchor.lat},{sel.anchor.lon}"
 
 
 def _source_key(src: DataSource, sel: FieldSelection) -> str:
-    where = sel.field_id or f"{sel.anchor.lat:.5f},{sel.anchor.lon:.5f}"
+    where = sel.field_id or f"{sel.anchor.lat},{sel.anchor.lon}"
     return f"src:v3:{src.name}:{where}"
 
 

@@ -128,6 +128,12 @@ class MLResponse(BaseModel):
 
 def ml_request(selection: FieldSelection, options: AnalysisOptions) -> dict:
     """Use the edition-free CSBID and explicit WGS84 coordinates; farmer history takes precedence."""
+    if options.crop_history == []:
+        raise ApiException(
+            ErrorCode.VALIDATION_ERROR,
+            "Enter at least one crop before creating an analysis.",
+            {"field": "options.crop_history"},
+        )
     field_id = selection.field_id
     if field_id and field_id.startswith("csb") and "_" in field_id:
         field_id = field_id.split("_", 1)[1]
