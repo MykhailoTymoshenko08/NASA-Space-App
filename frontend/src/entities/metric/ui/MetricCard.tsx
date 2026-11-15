@@ -20,8 +20,9 @@ type CardProps = {
 };
 
 /**
- * One measure: label + quality pill (+ info hint for NDVI, ET and anomaly), the value with its unit,
- * a reading, the source chip, date, pixel size and notes.
+ * One measure as a row (DS "Base conditions"): label (+ info hint for NDVI, ET and anomaly) and a reading,
+ * the quality pill over the value with its unit, then date · source · pixel size, coarse warning and notes.
+ * Stacks to one column on narrow screens.
  */
 export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = false, onToggleHint }: CardProps) {
   const m = presentMetric(metric, fieldSizeM);
@@ -29,11 +30,11 @@ export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = fal
   const hintId = `hint-${m.key}`;
   return (
     <article className={s.card} aria-labelledby={`metric-${m.key}`}>
-      <div className={s.head}>
-        <h3 id={`metric-${m.key}`} className={s.label}>
-          {m.label}
-        </h3>
-        <span className={s.tags}>
+      <div className={s.labelCol}>
+        <div className={s.head}>
+          <h3 id={`metric-${m.key}`} className={s.label}>
+            {m.label}
+          </h3>
           {hint && onToggleHint && (
             <button
               type="button"
@@ -43,40 +44,51 @@ export function MetricCard({ metric, fieldSizeM, source, reading, hintOpen = fal
               aria-controls={hintId}
               onClick={onToggleHint}
             >
-              <Icon name="help" size={22} />
+              <Icon name="help" size={20} />
             </button>
           )}
+        </div>
+        {reading && <div className={s.reading}>{reading}</div>}
+      </div>
+      <div className={s.valueCol}>
+        <span className={s.quality}>
           <Badge tone={m.quality.tone}>{m.quality.label}</Badge>
         </span>
-      </div>
-      <div className={s.valueRow}>
-        <span className={m.available ? s.value : s.valueMissing}>{m.value}</span>
-        {m.unit && <span className={s.unit}>{m.unit}</span>}
-      </div>
-      {reading && <div className={s.reading}>{reading}</div>}
-      {source ? (
-        <div className={s.sourceRow}>
-          <span>Source</span>
-          <a
-            href={`#${source.anchor}`}
-            className={s.chip}
-            aria-label={`Source ${source.n}: ${source.dataset}, ${source.provider}`}
-          >
-            [{source.n}] {source.short}
-          </a>
+        <div className={s.valueRow}>
+          <span className={m.available ? s.value : s.valueMissing}>{m.value}</span>
+          {m.unit && <span className={s.unit}>{m.unit}</span>}
         </div>
-      ) : (
-        <div className={s.meta}>{m.source}</div>
-      )}
-      <div className={s.meta}>{m.when}</div>
-      {m.pixel && <div className={s.meta}>{m.pixel}</div>}
-      {m.coarse && (
-        <div className={s.coarse}>
-          <Icon name="warning" size={16} />
-          <span>Wider than this field. One reading covers many fields around it.</span>
+      </div>
+      <div className={s.metaCol}>
+        <div className={s.metaLine}>
+          <span>{m.when}</span>
+          <span aria-hidden="true">·</span>
+          {source ? (
+            <a
+              href={`#${source.anchor}`}
+              className={s.chip}
+              aria-label={`Source ${source.n}: ${source.dataset}, ${source.provider}`}
+            >
+              [{source.n}] {source.short}
+            </a>
+          ) : (
+            <span>{m.source}</span>
+          )}
+          {m.pixel && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{m.pixel}</span>
+            </>
+          )}
         </div>
-      )}
-      {m.note && <div className={s.note}>{m.note}</div>}
+        {m.coarse && (
+          <div className={s.coarse}>
+            <Icon name="warning" size={16} />
+            <span>Wider than this field. One reading covers many fields around it.</span>
+          </div>
+        )}
+        {m.note && <div className={s.note}>{m.note}</div>}
+      </div>
       {hint && hintOpen && (
         <div id={hintId} role="note" className={s.hint}>
           <div>
@@ -113,8 +125,10 @@ export function MetricGroups({
     <>
       {groupMetrics(metrics).map((g) => (
         <section key={g.category} className={s.group} aria-label={g.title}>
-          <SectionTitle as={headingLevel === 2 ? "h2" : "h3"}>{g.title}</SectionTitle>
-          <div className={s.grid}>
+          <SectionTitle as={headingLevel === 2 ? "h2" : "h3"} className={s.groupTitle}>
+            {g.title}
+          </SectionTitle>
+          <div className={s.rows}>
             {g.metrics.map((m) => (
               <MetricCard
                 key={m.key}

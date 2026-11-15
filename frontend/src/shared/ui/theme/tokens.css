@@ -26,6 +26,7 @@
   --color-green-700: #1f4d38;
   --color-green-300: #a9c09b;
   --color-green-100: #dce6d3;
+  --color-crop-pill: #a7b2a2; /* mapped crop pills: #6B7F67 at 59% on surface */
 
   /* Wheat (accent: what the farmer chose) */
   --color-wheat-700: #8a5a00;
