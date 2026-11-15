@@ -11,6 +11,7 @@ import {
 } from "@/entities/field";
 import {
   Glossary,
+  GlossaryTerms,
   MetricGridSkeleton,
   MetricGroups,
   SourcesList,
@@ -26,6 +27,7 @@ import { ErrorPanel, Message } from "@/shared/ui/feedback";
 import { Icon } from "@/shared/ui/icon";
 import { Container, PageIntro, Panel, SectionTitle } from "@/shared/ui/layout";
 import { IndeterminateBar } from "@/shared/ui/progress";
+import { TermText } from "@/shared/ui/term-text";
 import s from "./field-page.module.css";
 
 /**
@@ -100,7 +102,9 @@ export function FieldPage() {
       </ButtonLink>
       {selection && <SaveFieldButton selection={selection} />}
       <p className={s.fine}>
-        Each value says if it was measured, modeled or estimated. The nitrogen figure is an estimate, not a soil lab test.
+        <TermText>
+          Each value says if it was measured, modeled or estimated. The nitrogen figure is an estimate, not a soil lab test.
+        </TermText>
       </p>
     </Panel>
   );
@@ -118,7 +122,8 @@ export function FieldPage() {
       <Container className={s.top}>
         <div className={s.head}>{head}</div>
         <aside className={s.next} aria-label="Next step">
-          {next}
+          {/* Term popovers link to the Glossary, which shows only once the snapshot has loaded. */}
+          {snapshot ? <GlossaryTerms>{next}</GlossaryTerms> : next}
         </aside>
       </Container>
       {(query.isPending || snapshot) && (
@@ -134,14 +139,15 @@ export function FieldPage() {
 /** Loaded state: the sources strip, metric groups, then the full Sources list and Glossary. */
 function FieldConditions({ snapshot }: { snapshot: Snapshot }) {
   const registry = useSourceRegistry(snapshot.metrics);
+  // Glossary terms in readings and hints open a popover that links to the Glossary below.
   return (
-    <>
+    <GlossaryTerms>
       <SourcesStrip registry={registry} />
       <MetricGroups metrics={snapshot.metrics} fieldSizeM={fieldSizeM(snapshot.selection.area_ha)} registry={registry} />
       <p className={s.fine}>Values from the API are metric and shown here in US units.</p>
       <SourcesList registry={registry} />
       <Glossary />
-    </>
+    </GlossaryTerms>
   );
 }
 

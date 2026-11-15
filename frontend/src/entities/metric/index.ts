@@ -13,3 +13,4 @@ export {
   SourcesStrip,
   useSourceRegistry,
 } from "./ui/MetricCard";
+export { GlossaryTerms } from "./ui/GlossaryTerms";

@@ -1,0 +1,72 @@
+.wrap {
+  display: inline;
+}
+
+/* A term in running text: same font, dotted green underline, help cursor. */
+.term {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: help;
+  text-decoration: underline dotted var(--color-green-700);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  border-radius: var(--radius-swatch);
+}
+.term:hover,
+.term[aria-expanded="true"] {
+  color: var(--color-green-700);
+  background: var(--color-green-100);
+}
+
+/* Placed by script next to the term (position fixed, so cards with overflow do not clip it). */
+.pop {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  width: min(320px, calc(100vw - 32px));
+  padding: var(--s-12) var(--s-16);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-2);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+  line-height: var(--text-small-lh);
+  font-weight: 400;
+  text-align: left;
+  white-space: normal;
+}
+.popTitle {
+  font-weight: 600;
+  font-size: var(--text-body);
+  line-height: var(--text-body-lh);
+}
+.popText {
+  display: block;
+}
+.popLink {
+  align-self: flex-start;
+  color: var(--color-green-700);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media print {
+  .term {
+    text-decoration: none;
+    background: none;
+  }
+  .pop {
+    display: none;
+  }
+}
