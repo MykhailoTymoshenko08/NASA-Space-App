@@ -8,6 +8,7 @@ const renderAt = (url: string) =>
     [
       { path: "/", element: <SiteHeader /> },
       { path: "/pick-field", element: <SiteHeader /> },
+      { path: "/sign-in", element: <SiteHeader /> },
     ],
     url,
   );
@@ -35,5 +36,30 @@ describe("SiteHeader burger menu", () => {
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("navigation", { name: "Menu" })).not.toBeInTheDocument();
+  });
+});
+
+describe("SiteHeader links (desktop design)", () => {
+  const main = () => screen.getByRole("navigation", { name: "Main" });
+
+  it("on the landing page links to How it works, with no page marked current", () => {
+    renderAt("/");
+    expect(within(main()).getByRole("link", { name: "How it works" })).toHaveAttribute("href", "/#how");
+    expect(within(main()).queryByRole("link", { name: "Explore the map" })).not.toBeInTheDocument();
+    expect(within(main()).queryByRole("link", { current: "page" })).not.toBeInTheDocument();
+  });
+
+  it("on other pages links back to the map and marks the current page", () => {
+    renderAt("/pick-field");
+    expect(within(main()).getByRole("link", { name: "Explore the map" })).toHaveAttribute("href", "/");
+    expect(within(main()).getByRole("link", { name: "Pick a field" })).toHaveAttribute("aria-current", "page");
+    expect(within(main()).getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("on the sign-in page shows only the map links", () => {
+    renderAt("/sign-in");
+    expect(within(main()).getByRole("link", { name: "Explore the map" })).toBeInTheDocument();
+    expect(within(main()).getByRole("link", { name: "Pick a field" })).toBeInTheDocument();
+    expect(within(main()).queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
   });
 });
